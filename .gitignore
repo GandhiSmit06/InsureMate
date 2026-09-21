@@ -1,0 +1,31 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Environment & Secrets
+.env
+.env.*
+venv/
+env/
+ENV/
+
+# PowerShell & Shell runners (excluded as requested)
+*.ps1
+*.ps
+*.sh
+
+# Scratch and test scripts in root
+test_*.py
+inspect_*.py
+
+# Extracted document OCR output dumps & PDFs
+*_extracted.txt
+*_extracted.json
+*.pdf
+
+# IDE & OS files
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
