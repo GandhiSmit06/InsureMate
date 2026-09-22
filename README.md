@@ -45,52 +45,38 @@ InsureMate/
 ├── requirements.txt                    # Project dependencies
 ├── pyproject.toml                      # Build and pytest configuration
 │
-├── src/
-│   └── insuremate/
-│       ├── __init__.py                 # Top-level InsureMate exports
-│       └── document_understanding/     # Phase 2 Module
-│           ├── __init__.py             # Module exports
-│           ├── config.py               # Thresholds, currencies, doc types
-│           ├── exceptions.py           # Custom exception taxonomy
-│           ├── pipeline.py             # DocumentUnderstandingPipeline orchestrator
-│           ├── schemas/                # Pydantic v2 schemas
-│           │   ├── common.py           # FieldStatus, ConfidenceLevel, Provenance
-│           │   ├── input_schema.py     # Phase 1 ingestion data contract
-│           │   └── output_schema.py    # Schema v1.0 result contract
-│           ├── adapters/               # Integration adapters & mock fixtures
-│           │   ├── phase1_adapter.py   # Validates & adapts Phase 1 inputs
-│           │   └── mock_inputs.py      # Realistic test fixtures
-│           ├── normalization/          # Normalizers
-│           │   ├── text_normalizer.py  # Unicode NFKC & whitespace cleaner
-│           │   ├── date_normalizer.py  # Indian DD/MM/YYYY & ISO date parser
-│           │   └── amount_normalizer.py# Indian/Western currency & number parser
-│           ├── extraction/             # Extraction engines
-│           │   ├── section_detector.py # Heading & boundary parser
-│           │   ├── key_value_extractor.py # Label-value pair extractor
-│           │   ├── table_extractor.py  # Table parser & itemized billing
-│           │   └── medical_entity_extractor.py # Patient, hospital, encounter, financial
-│           ├── classification/         # Type hinting
-│           │   └── doc_type_hints.py   # Explainable candidate types
-│           ├── provenance/             # Evidence traceability
-│           │   └── tracer.py           # Links extractions to source text
-│           └── quality/                # Quality & reconciliation
-│               └── quality_checker.py  # OCR evaluation & arithmetic reconciliation
-│
-├── tests/                              # Comprehensive test suite (36 tests)
-│   ├── conftest.py                     # Shared pytest fixtures
-│   ├── unit/                           # Normalization, extraction, quality unit tests
-│   ├── integration/                    # Pipeline, schema, edge-case tests
-│   └── fixtures/                       # JSON fixtures
-│
-├── examples/                           # Concrete demonstrations
-│   ├── input_example.json              # Sample input from Phase 1
-│   ├── output_example.json             # Sample Schema v1.0 output
-│   ├── incomplete_ambiguous_output.json# Edge-case output
-│   └── run_demo.py                     # Executable demonstration script
-│
-└── docs/                               # Integration guides
-    ├── integration.md                  # Complete team integration guide
-    └── phase3_integration_guide.md     # Dedicated guide for Phase 3 teammate
+└── AI/                                 # Unified AI Module
+    ├── __init__.py                     # Unified package exports & pipeline integration
+    ├── insuremate_pipeline.py          # End-to-end process_document() pipeline
+    ├── documentIngestion/              # Phase 1: Ingestion & PaddleOCR extraction
+    │   ├── __init__.py
+    │   ├── documentIngestor.py         # PyMuPDF & PaddleOCR ingestor
+    │   ├── paddle_ocr.py               # Pure PaddleOCR wrapper
+    │   └── utils.py                    # PDF rendering & bbox utils
+    ├── document_understanding/         # Phase 2: Understanding & structuring
+    │   ├── __init__.py                 # Module exports
+    │   ├── config.py                   # Thresholds, currencies, doc types
+    │   ├── exceptions.py               # Custom exception taxonomy
+    │   ├── pipeline.py                 # DocumentUnderstandingPipeline orchestrator
+    │   ├── schemas/                    # Pydantic v2 schemas
+    │   ├── adapters/                   # Integration adapters & mock fixtures
+    │   ├── normalization/              # Text, date, amount normalizers
+    │   ├── extraction/                 # Section, key-value, table, medical extractors
+    │   ├── classification/             # Type hinting
+    │   ├── provenance/                 # Evidence traceability
+    │   └── quality/                    # OCR evaluation & arithmetic reconciliation
+    ├── tests/                          # Pipeline and unit test suite
+    │   ├── conftest.py                 # Shared pytest fixtures
+    │   ├── test_pipeline.py            # End-to-end integration tests
+    │   └── evaluation/                 # Evaluation dataset & benchmarks
+    ├── examples/                       # Concrete demonstrations
+    │   ├── input_example.json          # Sample input from Phase 1
+    │   ├── output_example.json         # Sample Schema v1.0 output
+    │   └── run_demo.py                 # Executable demonstration script
+    └── docs/                           # Integration guides & reports
+        ├── evaluation_report.md        # Comprehensive evaluation report
+        ├── integration.md              # Phase 1-2 integration guide
+        └── phase3_integration_guide.md # Guide for Phase 3 integration
 ```
 
 ---
@@ -104,18 +90,17 @@ pip install -r requirements.txt
 
 ### Running the Test Suite
 ```bash
-python -m pytest tests/ -v
+pytest AI/tests/
 ```
-**Test Results**: 36 passed (100% pass rate in ~0.17s).
 
 ### Running the Demonstration
 ```bash
-python examples/run_demo.py
+python AI/examples/run_demo.py
 ```
 
 ---
 
 ## 5. Integration for Teammates
 
-- **Phase 1 Ingestion Integration**: See [docs/integration.md](file:///d:/CollegeAiFolder/InsureMate/docs/integration.md).
-- **Phase 3 Requirement Extraction Guide**: See [docs/phase3_integration_guide.md](file:///d:/CollegeAiFolder/InsureMate/docs/phase3_integration_guide.md).
+- **Phase 1 Ingestion Integration**: See [AI/docs/integration.md](file:///d:/Permanent/InsureMate/AI/docs/integration.md).
+- **Phase 3 Requirement Extraction Guide**: See [AI/docs/phase3_integration_guide.md](file:///d:/Permanent/InsureMate/AI/docs/phase3_integration_guide.md).

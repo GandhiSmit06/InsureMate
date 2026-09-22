@@ -1,19 +1,19 @@
 """
-Demonstration script for InsureMate Phase 2 — Document Understanding.
-Runs the pipeline on sample documents and exports Schema v1.0 JSON outputs.
+Demonstration script for InsureMate — Unified Pipeline.
+Runs the document understanding pipeline on sample documents and exports Schema v1.0 JSON outputs.
 """
 
 import sys
 import json
 from pathlib import Path
 
-# Add src to python path
-src_dir = Path(__file__).resolve().parent.parent / "src"
-if str(src_dir) not in sys.path:
-    sys.path.insert(0, str(src_dir))
+# Add project root to python path
+project_root = Path(__file__).resolve().parent.parent.parent
+if str(project_root) not in sys.path:
+    sys.path.insert(0, str(project_root))
 
-from insuremate.document_understanding.pipeline import DocumentUnderstandingPipeline
-from insuremate.document_understanding.adapters.mock_inputs import (
+from AI.document_understanding.pipeline import DocumentUnderstandingPipeline
+from AI.document_understanding.adapters.mock_inputs import (
     create_mock_hospital_invoice,
     create_mock_discharge_summary,
     create_mock_conflicting_dates,
@@ -26,7 +26,7 @@ def main():
         sys.stderr.reconfigure(encoding="utf-8")
 
     print("=" * 80)
-    print("INSUREMATE PHASE 2: DOCUMENT UNDERSTANDING DEMO")
+    print("INSUREMATE: DOCUMENT UNDERSTANDING DEMO")
     print("=" * 80)
 
     pipeline = DocumentUnderstandingPipeline()

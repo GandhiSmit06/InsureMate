@@ -33,39 +33,91 @@ except (ImportError, ValueError):
 _ocr_engine = None
 
 
-def _get_ocr_engine(lang: str = "en"):
+def _get_ocr_engine(lang: str = "en", device: str | None = None):
     """
     Lazy-load and initialize the PaddleOCR engine.
-    Configured for high accuracy and compatibility across environments.
+    Automatically detects and enables GPU acceleration if CUDA is available.
     """
+    if lang in ("gpu", "cpu") or lang.startswith("gpu:") or lang.startswith("cpu:"):
+        device = lang
+        lang = "en"
+
     global _ocr_engine
     if _ocr_engine is None:
+        import paddle
         from paddleocr import PaddleOCR
         import warnings
         warnings.filterwarnings("ignore", category=UserWarning)
         warnings.filterwarnings("ignore", category=DeprecationWarning)
 
-        # Disable oneDNN/MKLDNN PIR array attribute conflict in Paddle 3.x
+        # Detect GPU availability
+        has_gpu = paddle.is_compiled_with_cuda() and paddle.device.cuda.device_count() > 0
+        target_device = device or ("gpu:0" if has_gpu else "cpu")
+
+        if has_gpu and target_device.startswith("gpu"):
+            gpu_name = paddle.device.cuda.get_device_name()
+            print(f"[PaddleOCR] GPU Acceleration Active: {gpu_name} ({target_device})", flush=True)
+        else:
+            print("[PaddleOCR] Running on CPU mode", flush=True)
+
+        # Initialize PaddleOCR with high-accuracy detection and recognition settings
         try:
             _ocr_engine = PaddleOCR(
                 lang=lang,
+                device=target_device,
                 enable_mkldnn=False,
                 use_textline_orientation=True,
+                text_det_limit_side_len=2400,
+                text_det_unclip_ratio=1.7,
+                text_det_box_thresh=0.55,
+                text_det_thresh=0.25,
             )
         except Exception:
             # Fallback for older PaddleOCR 2.x versions
             _ocr_engine = PaddleOCR(
                 lang=lang,
+                use_gpu=has_gpu,
                 use_angle_cls=True,
                 show_log=False,
             )
     return _ocr_engine
 
 
-def _render_page_to_image(page: fitz.Page, max_dimension: int = 1600) -> np.ndarray:
+def preprocess_image_for_ocr(img: np.ndarray) -> np.ndarray:
     """
-    Render a PyMuPDF PDF page directly to a NumPy RGB array.
-    1600px provides crisp detail for small table text and numbers without excessive memory usage.
+    Applies adaptive contrast enhancement, unsharp masking,
+    and noise reduction to maximize OCR recognition accuracy.
+    """
+    if img is None or img.size == 0:
+        return img
+
+    try:
+        import cv2
+        # 1. Convert to LAB color space to enhance luminance without distorting color
+        lab = cv2.cvtColor(img, cv2.COLOR_RGB2LAB)
+        l_chan, a_chan, b_chan = cv2.split(lab)
+
+        # 2. Contrast-Limited Adaptive Histogram Equalization (CLAHE)
+        # Enhances faint handwriting, ink stamps, and dot-matrix bills while keeping background clean
+        clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
+        l_enhanced = clahe.apply(l_chan)
+        lab_enhanced = cv2.merge((l_enhanced, a_chan, b_chan))
+        enhanced_rgb = cv2.cvtColor(lab_enhanced, cv2.COLOR_LAB2RGB)
+
+        # 3. Gentle Unsharp Masking to sharpen character edges and strokes
+        # Prevents confusion between 8 vs B, 0 vs O, 1 vs l, and faint colons/slashes
+        gaussian = cv2.GaussianBlur(enhanced_rgb, (0, 0), 1.5)
+        sharpened = cv2.addWeighted(enhanced_rgb, 1.25, gaussian, -0.25, 0)
+        return sharpened
+    except Exception:
+        return img
+
+
+def _render_page_to_image(page: fitz.Page, max_dimension: int = 2400) -> np.ndarray:
+    """
+    Render a PyMuPDF PDF page directly to a high-resolution NumPy RGB array with OCR preprocessing.
+    2400px (~300 DPI on A4) provides crisp detail for small table text, medications,
+    and doctor notes without excessive memory usage.
     """
     rect = page.rect
     max_side = max(rect.width, rect.height)
@@ -76,14 +128,15 @@ def _render_page_to_image(page: fitz.Page, max_dimension: int = 1600) -> np.ndar
     img = np.frombuffer(pixmap.samples, dtype=np.uint8).reshape(
         pixmap.height, pixmap.width, 3
     )
-    return img
+    return preprocess_image_for_ocr(img)
 
 
 def _reconstruct_page_lines(boxes, texts, scores) -> tuple[str, list[dict]]:
     """
     Reconstruct natural reading order and horizontally aligned fields (key-value pairs, tables).
-    
+
     Groups words that share vertical alignment into unified lines, sorted left-to-right.
+    Maintains clean single spaces within phrases and multi-space gaps between columns.
     """
     if not texts:
         return "", []
@@ -93,7 +146,7 @@ def _reconstruct_page_lines(boxes, texts, scores) -> tuple[str, list[dict]]:
         t = text.strip()
         if not t:
             continue
-        
+
         # Handle both [x1, y1, x2, y2] and 4-corner polygon formats
         box_arr = np.array(box)
         if box_arr.ndim == 2 and box_arr.shape == (4, 2):
@@ -127,6 +180,21 @@ def _reconstruct_page_lines(boxes, texts, scores) -> tuple[str, list[dict]]:
     text_lines = []
     current_cluster = []
 
+    def _build_line_text(cluster):
+        cluster.sort(key=lambda e: e["box"][0])
+        line_h = sum(e["height"] for e in cluster) / max(len(cluster), 1)
+        gap_threshold = max(55.0, line_h * 1.4)
+        line_parts = []
+        for i, el in enumerate(cluster):
+            if i == 0:
+                line_parts.append(el["text"])
+            else:
+                prev_el = cluster[i - 1]
+                gap = el["box"][0] - prev_el["box"][2]
+                sep = "   " if gap > gap_threshold else " "
+                line_parts.append(sep + el["text"])
+        return "".join(line_parts).strip()
+
     for el in elements:
         if not current_cluster:
             current_cluster.append(el)
@@ -139,9 +207,8 @@ def _reconstruct_page_lines(boxes, texts, scores) -> tuple[str, list[dict]]:
         if abs(el["y_center"] - avg_center) < (avg_h * 0.55):
             current_cluster.append(el)
         else:
-            # Finalize current line: sort left-to-right by x1
-            current_cluster.sort(key=lambda e: e["box"][0])
-            line_text = "   ".join(e["text"] for e in current_cluster)
+            # Finalize current line
+            line_text = _build_line_text(current_cluster)
             text_lines.append(line_text)
             structured_lines.append({
                 "text": line_text,
@@ -151,8 +218,7 @@ def _reconstruct_page_lines(boxes, texts, scores) -> tuple[str, list[dict]]:
             current_cluster = [el]
 
     if current_cluster:
-        current_cluster.sort(key=lambda e: e["box"][0])
-        line_text = "   ".join(e["text"] for e in current_cluster)
+        line_text = _build_line_text(current_cluster)
         text_lines.append(line_text)
         structured_lines.append({
             "text": line_text,
@@ -165,7 +231,7 @@ def _reconstruct_page_lines(boxes, texts, scores) -> tuple[str, list[dict]]:
 
 def ocr_pdf_paddle(
     file_path: str,
-    max_dimension: int = 1600,
+    max_dimension: int = 2400,
     max_pages: int | None = None,
     start_page: int = 1,
     verbose: bool = True,
@@ -175,7 +241,7 @@ def ocr_pdf_paddle(
 
     Args:
         file_path: Path to the PDF document.
-        max_dimension: Max pixel dimension to scale pages (default 1600px).
+        max_dimension: Max pixel dimension to scale pages (default 2400px).
         max_pages: Limit the number of pages to process (None = all pages).
         start_page: 1-indexed starting page (default 1).
         verbose: Whether to print progress to console.

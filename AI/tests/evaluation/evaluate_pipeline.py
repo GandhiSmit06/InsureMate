@@ -9,14 +9,13 @@ import json
 from pathlib import Path
 from typing import Dict, Any, Tuple, List
 
-# Ensure src is in python path
-repo_root = Path(__file__).resolve().parent.parent.parent
-src_dir = repo_root / "src"
-if str(src_dir) not in sys.path:
-    sys.path.insert(0, str(src_dir))
+# Ensure project root is in python path
+repo_root = Path(__file__).resolve().parent.parent.parent.parent
+if str(repo_root) not in sys.path:
+    sys.path.insert(0, str(repo_root))
 
-from insuremate.document_understanding.pipeline import DocumentUnderstandingPipeline
-from insuremate.document_understanding.schemas.common import FieldStatus
+from AI.document_understanding.pipeline import DocumentUnderstandingPipeline
+from AI.document_understanding.schemas.common import FieldStatus
 
 
 def get_field_by_path(entities, path: str):
