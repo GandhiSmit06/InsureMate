@@ -1,18 +1,15 @@
 """
 InsureMate - Unified Document Ingestor
 Intelligently combines fast digital PDF text extraction (PyMuPDF)
-and Computer Vision OCR (PaddleOCR & Keras-OCR) with automatic quality evaluation.
+and Computer Vision OCR (PaddleOCR) with automatic quality evaluation.
 
 Features:
   - Smart Hybrid Processing: Inspects each page:
     * If a page has digital text, extracts it in milliseconds (100% exact).
-    * If a page is scanned/photo/image-based, triggers OCR.
-  - Dual OCR Engine Support (Process-Isolated to avoid C++ runtime conflicts):
-    * 'best' (default): Uses PaddleOCR (PP-OCRv6) with quality validation.
-    * 'paddle': Forces PaddleOCR for uppercase, punctuation, numbers, and layout.
-    * 'keras': Forces Keras-OCR (CRAFT + CRNN).
-    * 'compare': Evaluates both engines in isolated processes and outputs comparative metrics.
-  - Multi-page document support (100KB – 100MB).
+    * If a page is scanned/photo/image-based, triggers PaddleOCR.
+  - PaddleOCR Engine (PP-OCRv6):
+    * Preserves uppercase/lowercase, punctuation, numbers, and layout.
+  - Multi-page document support (1KB – 100MB).
   - Configurable modes: 'auto' (hybrid), 'digital' (force softcopy), 'ocr' (force OCR).
 """
 
@@ -20,8 +17,6 @@ import os
 import re
 import sys
 import time
-import json
-import subprocess
 import numpy as np
 import pymupdf as fitz
 
@@ -77,57 +72,21 @@ def evaluate_ocr_quality(text: str, confidence: float = 0.0, word_count: int = 0
     return round(float(composite_score), 4)
 
 
-def _run_isolated_keras_ocr(file_path: str, page_number: int) -> dict:
-    """
-    Run Keras-OCR in an isolated worker subprocess to prevent TensorFlow/Paddle C++ library conflict.
-    """
-    script = f"""
-import sys, json
-try:
-    from AI.documentIngestion.ocr import ocr_pdf
-except ImportError:
-    from ocr import ocr_pdf
-
-res = ocr_pdf({json.dumps(file_path)}, max_pages=1, start_page={page_number})
-if res.get("success") and res.get("pages"):
-    p = res["pages"][0]
-    out = {{"success": True, "text": p.get("text", ""), "word_count": p.get("word_count", 0), "confidence": 0.75}}
-else:
-    out = {{"success": False, "text": "", "word_count": 0, "confidence": 0.0}}
-print("___RESULT___" + json.dumps(out))
-"""
-    try:
-        proc = subprocess.run(
-            [sys.executable, "-c", script],
-            capture_output=True,
-            text=True,
-            timeout=120,
-        )
-        for line in proc.stdout.splitlines():
-            if line.startswith("___RESULT___"):
-                return json.loads(line.replace("___RESULT___", ""))
-    except Exception as e:
-        return {"success": False, "error": str(e), "text": "", "confidence": 0.0, "word_count": 0}
-    return {"success": False, "text": "", "confidence": 0.0, "word_count": 0}
-
-
 def ingest_document(
     file_path: str,
     mode: str = "auto",
-    ocr_engine: str = "best",
     min_digital_chars: int = DEFAULT_MIN_DIGITAL_CHARS,
     max_pages: int | None = None,
     start_page: int = 1,
     verbose: bool = True,
+    device: str | None = None,
 ) -> dict:
     """
-    Ingest an insurance PDF with smart hybrid digital/OCR extraction and dual-engine selection.
+    Ingest an insurance PDF with smart hybrid digital/OCR extraction using PaddleOCR.
 
     Args:
         file_path: Path to the PDF file.
         mode: 'auto' (hybrid), 'digital' (softcopy text only), or 'ocr' (force OCR).
-        ocr_engine: 'best' (evaluates and picks best, default PaddleOCR),
-                    'paddle' (PaddleOCR), 'keras' (Keras-OCR), or 'compare' (both engines).
         min_digital_chars: Minimum character threshold for digital text validity.
         max_pages: Limit number of pages to process (None = all pages).
         start_page: 1-indexed start page.
@@ -185,21 +144,14 @@ def ingest_document(
             "full_text": "",
         }
 
-    # Lazy-load PaddleOCR engine only when needed
     paddle_engine = None
-    if ocr_engine.lower() in ("best", "paddle", "compare"):
-        try:
-            from .paddleOcr import _get_ocr_engine, _render_page_to_image, _reconstruct_page_lines
-        except (ImportError, ValueError):
-            from paddleOcr import _get_ocr_engine, _render_page_to_image, _reconstruct_page_lines
-        paddle_engine = _get_ocr_engine()
 
     total_doc_pages = doc.page_count
     start_idx = max(0, start_page - 1)
     end_idx = total_doc_pages if max_pages is None else min(total_doc_pages, start_idx + max_pages)
 
     if verbose:
-        print(f"\n[Ingestor] Processing {end_idx - start_idx} page(s) (mode='{mode}', ocr_engine='{ocr_engine}') from '{os.path.basename(file_path)}'...", flush=True)
+        print(f"\n[Ingestor] Processing {end_idx - start_idx} page(s) (mode='{mode}') from '{os.path.basename(file_path)}'...", flush=True)
 
     pages = []
     digital_count = 0
@@ -232,77 +184,36 @@ def ingest_document(
             digital_count += 1
             continue
 
-        # Scanned Page -> Run OCR
-        selected_text = ""
-        winning_engine = "paddle"
-        best_score = 0.0
-        comparison_info = None
+        # Scanned Page -> Run PaddleOCR
+        if paddle_engine is None:
+            try:
+                from .paddleOcr import _get_ocr_engine, _render_page_to_image, _reconstruct_page_lines
+            except (ImportError, ValueError):
+                from paddleOcr import _get_ocr_engine, _render_page_to_image, _reconstruct_page_lines
+            paddle_engine = _get_ocr_engine(device=device)
 
-        if ocr_engine.lower() == "keras":
-            k_res = _run_isolated_keras_ocr(file_path, p_num)
-            selected_text = k_res.get("text", "")
-            winning_engine = "keras"
-            best_score = evaluate_ocr_quality(selected_text, 0.75, k_res.get("word_count", 0))
-
-        elif ocr_engine.lower() == "compare":
-            # Run PaddleOCR
-            img = _render_page_to_image(page, max_dimension=1600)
-            raw_res = paddle_engine.predict(img)
-            item = raw_res[0] if raw_res and len(raw_res) > 0 else {}
-            boxes = item.get("rec_boxes", [])
-            texts = item.get("rec_texts", [])
-            scores = item.get("rec_scores", [])
-            p_text, _ = _reconstruct_page_lines(boxes, texts, scores)
-            p_conf = float(np.mean([float(s) for s in scores])) if scores else 0.0
-            p_score = evaluate_ocr_quality(p_text, p_conf, len(texts))
-
-            # Run Keras-OCR in isolated subprocess
-            k_res = _run_isolated_keras_ocr(file_path, p_num)
-            k_score = evaluate_ocr_quality(k_res["text"], k_res["confidence"], k_res["word_count"])
-
-            if p_score >= k_score:
-                selected_text = p_text
-                winning_engine = "paddle"
-                best_score = p_score
-            else:
-                selected_text = k_res["text"]
-                winning_engine = "keras"
-                best_score = k_score
-
-            comparison_info = {
-                "paddle": {"score": p_score, "confidence": round(p_conf, 4), "words": len(texts)},
-                "keras": {"score": k_score, "confidence": 0.75, "words": k_res["word_count"]},
-                "winner": winning_engine,
-            }
-
-        else:
-            # Default 'best' / 'paddle'
-            img = _render_page_to_image(page, max_dimension=1600)
-            raw_res = paddle_engine.predict(img)
-            item = raw_res[0] if raw_res and len(raw_res) > 0 else {}
-            boxes = item.get("rec_boxes", [])
-            texts = item.get("rec_texts", [])
-            scores = item.get("rec_scores", [])
-            p_text, _ = _reconstruct_page_lines(boxes, texts, scores)
-            p_conf = float(np.mean([float(s) for s in scores])) if scores else 0.0
-            p_score = evaluate_ocr_quality(p_text, p_conf, len(texts))
-
-            selected_text = p_text
-            winning_engine = "paddle"
-            best_score = p_score
+        img = _render_page_to_image(page, max_dimension=2400)
+        raw_res = paddle_engine.predict(img)
+        item = raw_res[0] if raw_res and len(raw_res) > 0 else {}
+        boxes = item.get("rec_boxes", [])
+        texts = item.get("rec_texts", [])
+        scores = item.get("rec_scores", [])
+        selected_text, _ = _reconstruct_page_lines(boxes, texts, scores)
+        p_conf = float(np.mean([float(s) for s in scores])) if scores else 0.0
+        best_score = evaluate_ocr_quality(selected_text, p_conf, len(texts))
 
         elapsed = time.time() - t0
         words = len(selected_text.split())
         if verbose:
             comp_str = f" [Quality: {best_score*100:.1f}%]" if best_score else ""
-            print(f"[Page {p_num}/{total_doc_pages}] [OCR - {winning_engine.upper()}]{comp_str} Done in {elapsed:.1f}s ({words} words)", flush=True)
+            print(f"[Page {p_num}/{total_doc_pages}] [OCR - PADDLE]{comp_str} Done in {elapsed:.1f}s ({words} words)", flush=True)
 
         pages.append({
             "page_number": p_num,
             "method": "ocr",
-            "ocr_engine": winning_engine,
+            "ocr_engine": "paddle",
             "quality_score": best_score,
-            "comparison": comparison_info,
+            "confidence": round(p_conf, 4),
             "text": selected_text,
             "word_count": words,
             "width": round(rect.width, 1),
@@ -337,18 +248,17 @@ def ingest_document(
 # ---------------------------------------------------------------------------
 if __name__ == "__main__":
     if len(sys.argv) < 2:
-        print("Usage: python documentIngestor.py <path_to_pdf> [auto|digital|ocr] [best|paddle|keras|compare] [max_pages] [start_page]")
-        print("Example: python documentIngestor.py my_claim.pdf auto best 2 1")
+        print("Usage: python documentIngestor.py <path_to_pdf> [auto|digital|ocr] [max_pages] [start_page]")
+        print("Example: python documentIngestor.py my_claim.pdf auto 2 1")
         sys.exit(1)
 
     pdf_file = sys.argv[1]
     sel_mode = sys.argv[2] if len(sys.argv) > 2 else "auto"
-    sel_engine = sys.argv[3] if len(sys.argv) > 3 else "best"
-    raw_pages = sys.argv[4] if len(sys.argv) > 4 else "0"
+    raw_pages = sys.argv[3] if len(sys.argv) > 3 else "0"
     num_pages = None if raw_pages in ("0", "all", "none", "None") else int(raw_pages)
-    start_pg = int(sys.argv[5]) if len(sys.argv) > 5 and sys.argv[5].isdigit() else 1
+    start_pg = int(sys.argv[4]) if len(sys.argv) > 4 and sys.argv[4].isdigit() else 1
 
-    res = ingest_document(pdf_file, mode=sel_mode, ocr_engine=sel_engine, max_pages=num_pages, start_page=start_pg)
+    res = ingest_document(pdf_file, mode=sel_mode, max_pages=num_pages, start_page=start_pg)
 
     if not res["success"]:
         print(f"[ERROR] {res['error']}")

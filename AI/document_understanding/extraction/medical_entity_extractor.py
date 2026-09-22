@@ -34,8 +34,18 @@ class MedicalEntityExtractor:
         sections: List[DocumentSection],
         itemized_charges: List[ItemizedCharge]
     ) -> ExtractedEntities:
-        # Build index of key-values by normalized key for rapid lookup
-        kv_map: Dict[str, KeyValueField] = {kv.normalized_key: kv for kv in key_values}
+        # Index all key-values by normalized key
+        kv_groups: Dict[str, List[KeyValueField]] = {}
+        for kv in key_values:
+            kv_groups.setdefault(kv.normalized_key, []).append(kv)
+
+        # Select the best candidate for each key to prevent noisy later pages
+        # (e.g. handwritten nurse charts) from overwriting clean early-page forms
+        kv_map: Dict[str, KeyValueField] = {}
+        for k, items in kv_groups.items():
+            best = cls._select_best_candidate(k, items)
+            if best:
+                kv_map[k] = best
 
         patient = cls._extract_patient(document_id, pages, kv_map)
         hospital = cls._extract_hospital(document_id, pages, kv_map)
@@ -50,6 +60,74 @@ class MedicalEntityExtractor:
         )
 
     @classmethod
+    def _select_best_candidate(cls, key: str, items: List[KeyValueField]) -> Optional[KeyValueField]:
+        """Selects highest quality key-value field candidate using page priority and value heuristics."""
+        if not items:
+            return None
+        if len(items) == 1:
+            return items[0]
+
+        best_item = None
+        best_score = -999.0
+
+        for item in items:
+            val = (item.value or "").strip()
+            if not val:
+                continue
+
+            score = 1.0
+            pg = item.provenance.page_number if item.provenance else 1
+
+            # Early page priority (Pages 1-4 are usually Admission/Discharge forms or Invoices)
+            if pg <= 4:
+                score += 1.5 - (pg * 0.1)
+            elif pg > 10:
+                score -= 1.0
+
+            if key == "patient_name":
+                clean_v = re.sub(r"^[:\-\s/_.~*,|]+|[:\-\s/_.~*,|]+$", "", val).strip()
+                clean_v = re.sub(r"\s+[:\-]?\s*(?:age(?:\/sex)?|gender|sex|uhid|ipd|doa|dod|dr|ame)\b.*$", "", clean_v, flags=re.IGNORECASE).strip()
+                words = [w for w in re.split(r"[\s\.\-]+", clean_v) if len(w) > 1 and w.isalpha()]
+                if len(words) >= 2:
+                    score += 3.0
+                elif len(words) == 1:
+                    score += 0.5
+                else:
+                    score -= 5.0
+                # Heavily penalize relative/signee fields
+                if re.search(r"\b(relative|mother|father|relation|wife|husband|sign|mother\))\b", val, re.IGNORECASE):
+                    score -= 15.0
+                if re.search(r"^[A-Z][\-\.][A-Za-z]", clean_v):
+                    score -= 6.0
+                if any(c.isdigit() for c in clean_v):
+                    score -= 3.0
+
+            elif key == "hospital_name":
+                if re.search(r"\b(hospital|clinic|healthcare|centre|center|nursing\s+home)\b", val, re.IGNORECASE):
+                    score += 2.0
+                if len(val) < 4 or re.match(r"^[\d\s/\-]+$", val):
+                    score -= 10.0
+
+            elif key in ("admission_date", "discharge_date", "bill_date"):
+                norm_d, st, _ = normalize_date_string(val, prefer_day_first=True)
+                if norm_d:
+                    score += 2.0
+                else:
+                    score -= 5.0
+                if re.match(r"^\d{8,12}$", re.sub(r"\s+", "", val)):
+                    score -= 10.0
+
+            elif key == "doctor_name":
+                if re.search(r"\b(Dr\.?|Doctor|Physician|Consultant)\b", val, re.IGNORECASE):
+                    score += 2.0
+
+            if score > best_score:
+                best_score = score
+                best_item = item
+
+        return best_item or items[0]
+
+    @classmethod
     def _extract_patient(
         cls,
         document_id: str,
@@ -60,10 +138,15 @@ class MedicalEntityExtractor:
         name_val = FieldValue(status=FieldStatus.NOT_FOUND)
         if "patient_name" in kv_map and kv_map["patient_name"].value:
             kv = kv_map["patient_name"]
+            clean_name = re.sub(r"^[:\-\s/_.~*,|]+|[:\-\s/_.~*,|]+$", "", kv.value).strip()
+            clean_name = re.sub(r"\s+[:\-]?\s*(?:age(?:\/sex)?|gender|sex|uhid|ipd|doa|dod|dr|ame)\b.*$", "", clean_name, flags=re.IGNORECASE).strip()
+            if clean_name.islower() or clean_name.isupper():
+                clean_name = " ".join(w.capitalize() for w in clean_name.split())
+
             name_val = FieldValue(
-                value=kv.value,
+                value=clean_name,
                 raw_text=kv.value,
-                status=FieldStatus.EXTRACTED,
+                status=FieldStatus.EXTRACTED if clean_name else FieldStatus.NOT_FOUND,
                 provenance=kv.provenance,
             )
 
@@ -71,21 +154,43 @@ class MedicalEntityExtractor:
         pid_val = FieldValue(status=FieldStatus.NOT_FOUND)
         if "patient_id" in kv_map and kv_map["patient_id"].value:
             kv = kv_map["patient_id"]
+            clean_pid = re.sub(r"^[^\w]+|[^\w]+$", "", kv.value).strip()
             pid_val = FieldValue(
-                value=kv.value,
+                value=clean_pid or kv.value,
                 raw_text=kv.value,
                 status=FieldStatus.EXTRACTED,
                 provenance=kv.provenance,
             )
+        else:
+            # Fallback search for Indoor P. No or UHID or IPD No across early pages
+            for page in pages[:5]:
+                m_pid = re.search(r"\b(?:Indoor\s*P\.?\s*No\.?|IPD\s*(?:No|Number)?|UHID|MRN|CL\s*No\.?)\s*[:\-]?\s*([A-Za-z0-9\/\-]+)", page.raw_text, re.IGNORECASE)
+                if m_pid:
+                    pid_text = m_pid.group(1).strip()
+                    prov = ProvenanceTracer.create_provenance(
+                        document_id=document_id,
+                        page_number=page.page_number,
+                        source_text=m_pid.group(0),
+                        extraction_method="regex_patient_id_pattern",
+                        confidence=ConfidenceLevel.HIGH,
+                        confidence_score=0.90,
+                    )
+                    pid_val = FieldValue(
+                        value=pid_text,
+                        raw_text=m_pid.group(0),
+                        status=FieldStatus.EXTRACTED,
+                        provenance=prov,
+                    )
+                    break
 
         # Age
         age_val = FieldValue(status=FieldStatus.NOT_FOUND)
         if "age" in kv_map and kv_map["age"].value:
             kv = kv_map["age"]
-            # Clean numeric age if mixed with 'Yrs' or 'Years'
             raw_age = kv.value
-            age_clean = re.sub(r"[^\d]", "", raw_age)
-            val = int(age_clean) if age_clean else raw_age
+            # Match leading digits or digits before slash/pipe (e.g. '18|m' -> 18)
+            m_age = re.search(r"\b(\d{1,3})\b", raw_age)
+            val = int(m_age.group(1)) if m_age else raw_age
             age_val = FieldValue(
                 value=val,
                 raw_text=raw_age,
@@ -105,9 +210,10 @@ class MedicalEntityExtractor:
                 status=FieldStatus.EXTRACTED,
                 provenance=kv.provenance,
             )
-        elif "age" in kv_map and "/" in kv_map["age"].value:
-            # Often formatted as '45 / M' in age field
-            parts = kv_map["age"].value.split("/")
+        elif "age" in kv_map and ("/" in kv_map["age"].value or "|" in kv_map["age"].value):
+            # Formatted as '18|m' or '45 / M' in age field
+            raw_combined = kv_map["age"].value.replace("|", "/")
+            parts = raw_combined.split("/")
             if len(parts) >= 2:
                 g_text = parts[1].strip().lower()
                 norm_g = "Male" if g_text.startswith("m") else ("Female" if g_text.startswith("f") else None)
@@ -134,70 +240,6 @@ class MedicalEntityExtractor:
         kv_map: Dict[str, KeyValueField]
     ) -> HospitalEntities:
         h_name_val = FieldValue(status=FieldStatus.NOT_FOUND)
-        if "hospital_name" in kv_map and kv_map["hospital_name"].value:
-            kv = kv_map["hospital_name"]
-            h_name_val = FieldValue(
-                value=kv.value,
-                raw_text=kv.value,
-                status=FieldStatus.EXTRACTED,
-                provenance=kv.provenance,
-            )
-        else:
-            # Fallback: check first page top 3 lines for "Hospital", "Clinic", "Healthcare", "Medical Center"
-            if pages and pages[0].raw_text:
-                top_lines = pages[0].raw_text.split("\n")[:4]
-                for line in top_lines:
-                    trimmed = line.strip()
-                    if re.search(r"\b(hospital|clinic|healthcare|medical\s+centre?|nursing\s+home)\b", trimmed, re.IGNORECASE):
-                        prov = ProvenanceTracer.create_provenance(
-                            document_id=document_id,
-                            page_number=1,
-                            source_text=trimmed,
-                            extraction_method="top_line_header_heuristic",
-                            confidence=ConfidenceLevel.MEDIUM,
-                            confidence_score=0.75,
-                        )
-                        h_name_val = FieldValue(
-                            value=trimmed,
-                            raw_text=trimmed,
-                            status=FieldStatus.EXTRACTED,
-                            provenance=prov,
-                        )
-                        break
-
-        # Doctor Name
-        doc_val = FieldValue(status=FieldStatus.NOT_FOUND)
-        if "doctor_name" in kv_map and kv_map["doctor_name"].value:
-            kv = kv_map["doctor_name"]
-            doc_val = FieldValue(
-                value=kv.value,
-                raw_text=kv.value,
-                status=FieldStatus.EXTRACTED,
-                provenance=kv.provenance,
-            )
-        else:
-            # Search for Dr. in text
-            for page in pages:
-                match = re.search(r"\b(Dr\.?\s+[A-Za-z\.\s]{2,35}?)(?:,|\n|$)", page.raw_text, re.IGNORECASE)
-                if match:
-                    dr_text = match.group(1).strip()
-                    prov = ProvenanceTracer.create_provenance(
-                        document_id=document_id,
-                        page_number=page.page_number,
-                        source_text=dr_text,
-                        extraction_method="regex_dr_pattern",
-                        confidence=ConfidenceLevel.MEDIUM,
-                        confidence_score=0.70,
-                    )
-                    doc_val = FieldValue(
-                        value=dr_text,
-                        raw_text=dr_text,
-                        status=FieldStatus.EXTRACTED,
-                        provenance=prov,
-                    )
-                    break
-
-        # Address & Registration Number
         addr_val = FieldValue(status=FieldStatus.NOT_FOUND)
         reg_val = FieldValue(status=FieldStatus.NOT_FOUND)
         dep_val = FieldValue(status=FieldStatus.NOT_FOUND)
@@ -210,6 +252,153 @@ class MedicalEntityExtractor:
                 provenance=kv_map["hospital_address"].provenance,
             )
 
+        if "hospital_name" in kv_map and kv_map["hospital_name"].value:
+            kv = kv_map["hospital_name"]
+            val = kv.value.strip()
+            if len(val) >= 4 and not re.match(r"^[\d\s/\-]+$", val):
+                if val.isupper():
+                    val = " ".join(w.capitalize() for w in val.split())
+                h_name_val = FieldValue(
+                    value=val,
+                    raw_text=kv.value,
+                    status=FieldStatus.EXTRACTED,
+                    provenance=kv.provenance,
+                )
+
+        # Fallback: scan early pages (pages 1 to 5) for hospital headers and stamps
+        if h_name_val.status != FieldStatus.EXTRACTED:
+            for page in pages[:5]:
+                if not page.raw_text:
+                    continue
+                lines = [l.strip() for l in page.raw_text.split("\n")]
+                for i, line in enumerate(lines):
+                    trimmed = line.strip()
+                    m = re.search(r"\b([A-Za-z\s\.\']{2,30}\s+(?:hospital|clinic|nursing\s+home|medical\s+centre?))\b", trimmed, re.IGNORECASE)
+                    if m:
+                        matched_h = m.group(1).strip()
+                        matched_h = re.sub(r"^[A-Z]{2,4}\s+", "", matched_h).strip()
+                        if not re.search(r"\b(date|no|form|bill|admission)\b", matched_h, re.IGNORECASE) and len(matched_h) >= 5:
+                            h_title = " ".join(w.capitalize() for w in matched_h.split())
+                            prov = ProvenanceTracer.create_provenance(
+                                document_id=document_id,
+                                page_number=page.page_number,
+                                source_text=trimmed,
+                                extraction_method="hospital_header_stamp_heuristic",
+                                confidence=ConfidenceLevel.HIGH,
+                                confidence_score=0.92,
+                            )
+                            h_name_val = FieldValue(
+                                value=h_title,
+                                raw_text=trimmed,
+                                status=FieldStatus.EXTRACTED,
+                                provenance=prov,
+                            )
+                            # Extract hospital address from subsequent lines of the stamp
+                            if addr_val.status != FieldStatus.EXTRACTED and i + 1 < len(lines):
+                                addr_parts = []
+                                for j in range(i + 1, min(i + 3, len(lines))):
+                                    clean_l = re.sub(r"(?:MOB|TEL|PHONE|EMAIL|MO).*$", "", lines[j], flags=re.IGNORECASE).strip(" ,.:-")
+                                    if clean_l and len(clean_l) > 3 and not re.search(r"^\d+$", clean_l):
+                                        addr_parts.append(clean_l)
+                                if addr_parts:
+                                    h_addr = ", ".join(addr_parts)
+                                    addr_val = FieldValue(
+                                        value=h_addr,
+                                        raw_text="\n".join(lines[i+1:min(i+3, len(lines))]),
+                                        status=FieldStatus.EXTRACTED,
+                                        provenance=prov,
+                                    )
+                            break
+                if h_name_val.status == FieldStatus.EXTRACTED:
+                    break
+
+        # Doctor Name
+        doc_val = FieldValue(status=FieldStatus.NOT_FOUND)
+        if "doctor_name" in kv_map and kv_map["doctor_name"].value:
+            kv = kv_map["doctor_name"]
+            val = kv.value.strip()
+            if val.isupper():
+                val = " ".join(w.capitalize() for w in val.split())
+            doc_val = FieldValue(
+                value=val,
+                raw_text=kv.value,
+                status=FieldStatus.EXTRACTED,
+                provenance=kv.provenance,
+            )
+        else:
+            # Search for Dr. in early pages (pages 1 to 5)
+            for page in pages[:5]:
+                match = re.search(r"\b(Dr\.?\s+[A-Za-z\.\s]{2,35}?)(?:,|\n|$|M\.D|MBBS)", page.raw_text, re.IGNORECASE)
+                if match:
+                    dr_text = match.group(1).strip()
+                    if dr_text.isupper():
+                        dr_text = " ".join(w.capitalize() for w in dr_text.split())
+                    prov = ProvenanceTracer.create_provenance(
+                        document_id=document_id,
+                        page_number=page.page_number,
+                        source_text=dr_text,
+                        extraction_method="regex_dr_pattern",
+                        confidence=ConfidenceLevel.HIGH,
+                        confidence_score=0.85,
+                    )
+                    doc_val = FieldValue(
+                        value=dr_text,
+                        raw_text=dr_text,
+                        status=FieldStatus.EXTRACTED,
+                        provenance=prov,
+                    )
+                    break
+
+        # Address & Registration Number
+        if addr_val.status != FieldStatus.EXTRACTED and "hospital_address" in kv_map and kv_map["hospital_address"].value:
+            addr_val = FieldValue(
+                value=kv_map["hospital_address"].value,
+                raw_text=kv_map["hospital_address"].value,
+                status=FieldStatus.EXTRACTED,
+                provenance=kv_map["hospital_address"].provenance,
+            )
+        elif addr_val.status != FieldStatus.EXTRACTED:
+            best_addr = None
+            best_score = -1
+            best_prov = None
+            best_raw = ""
+
+            for page in pages[:5]:
+                lines = [l.strip() for l in page.raw_text.split("\n")]
+                for i, line in enumerate(lines):
+                    if re.search(r"\b(hospital|clinic|nursing\s+home)\b", line, re.IGNORECASE):
+                        addr_parts = []
+                        for j in range(i + 1, min(i + 4, len(lines))):
+                            clean_l = re.sub(r"(?:MOB|TEL|PHONE|EMAIL|MO|MQB).*$", "", lines[j], flags=re.IGNORECASE).strip(" ,.:-")
+                            clean_l = re.sub(r"\b\d{1,2}\s+[A-Za-z]{3,9}\s+\d{2,4}\b", "", clean_l).strip(" ,.:-")
+                            if clean_l and len(clean_l) > 3 and not re.search(r"^\d+$", clean_l):
+                                addr_parts.append(clean_l)
+                        if addr_parts:
+                            cand = ", ".join(addr_parts)
+                            score = len(cand)
+                            if re.search(r"\b(road|rasta|station|nr|near|opp|street|circle|nagar|char\s*rasta)\b", cand, re.IGNORECASE):
+                                score += 50
+                            if score > best_score:
+                                best_score = score
+                                best_addr = cand
+                                best_raw = "\n".join(lines[i+1:min(i+4, len(lines))])
+                                best_prov = ProvenanceTracer.create_provenance(
+                                    document_id=document_id,
+                                    page_number=page.page_number,
+                                    source_text=cand,
+                                    extraction_method="hospital_address_stamp_heuristic",
+                                    confidence=ConfidenceLevel.HIGH,
+                                    confidence_score=0.90,
+                                )
+
+            if best_addr and best_prov:
+                addr_val = FieldValue(
+                    value=best_addr,
+                    raw_text=best_raw,
+                    status=FieldStatus.EXTRACTED,
+                    provenance=best_prov,
+                )
+
         if "registration_number" in kv_map and kv_map["registration_number"].value:
             reg_val = FieldValue(
                 value=kv_map["registration_number"].value,
@@ -217,6 +406,27 @@ class MedicalEntityExtractor:
                 status=FieldStatus.EXTRACTED,
                 provenance=kv_map["registration_number"].provenance,
             )
+        else:
+            # Fallback search for Reg No on early pages (e.g. 'Reg. No.: G-15135')
+            for page in pages[:5]:
+                m_reg = re.search(r"\b(?:Reg\.?\s*(?:No\.?|Number)?|Registration\s*(?:No\.?|Number)?)\s*[:\-]\s*([A-Za-z0-9\-]+)", page.raw_text, re.IGNORECASE)
+                if m_reg:
+                    reg_text = m_reg.group(1).strip()
+                    prov = ProvenanceTracer.create_provenance(
+                        document_id=document_id,
+                        page_number=page.page_number,
+                        source_text=m_reg.group(0),
+                        extraction_method="regex_reg_no_pattern",
+                        confidence=ConfidenceLevel.HIGH,
+                        confidence_score=0.90,
+                    )
+                    reg_val = FieldValue(
+                        value=reg_text,
+                        raw_text=reg_text,
+                        status=FieldStatus.EXTRACTED,
+                        provenance=prov,
+                    )
+                    break
 
         if "department" in kv_map and kv_map["department"].value:
             dep_val = FieldValue(

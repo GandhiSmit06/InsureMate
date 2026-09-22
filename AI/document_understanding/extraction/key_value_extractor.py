@@ -13,20 +13,22 @@ from ..provenance.tracer import ProvenanceTracer
 # Mapping of common label regexes to normalized keys
 LABEL_MAPPINGS = [
     (r"registration\s*(?:no|number)|reg\.?\s*(?:no|number)", "registration_number"),
-    (r"patient(?:\s*['’]?s)?\s*name", "patient_name"),
-    (r"patient\s*id|uhid|mrn|ip\s*(?:no|number)", "patient_id"),
+    (r"patient(?:\s*['’]?s)?\s*name|name\s+of\s+patient|pt\.?\s*name|name", "patient_name"),
+    (r"patient\s*id|uhid|mrn|ip\s*(?:no|number)|indoor\s*p\.?\s*no", "patient_id"),
     (r"age(?:\s*\/\s*sex)?", "age"),
     (r"gender|sex", "gender"),
-    (r"hospital(?:\s*name)?|clinic(?:\s*name)?", "hospital_name"),
-    (r"doctor(?:\s*['’]?s)?\s*name|treating\s*doctor|consultant|referred\s*by", "doctor_name"),
-    (r"date\s*of\s*admission|d\.?o\.?a\.?|admission\s*date", "admission_date"),
-    (r"date\s*of\s*discharge|d\.?o\.?d\.?|discharge\s*date", "discharge_date"),
+    (r"^(?:name\s+of\s+)?(?:hospital|clinic|nursing\s+home)(?:\s*name)?$|hospital\s*name|clinic\s*name", "hospital_name"),
+    (r"doctor(?:\s*['’]?s)?\s*name|treating\s*doctor|consultant(?:\s+physician)?|referred\s*by", "doctor_name"),
+    (r"date\s*of\s*admission|admission\s*date|doa\s*\/\s*toa|\bdoa\b", "admission_date"),
+    (r"date\s*of\s*discharge|discharge\s*date|dod\s*\/\s*tod|\bdod\b", "discharge_date"),
+    (r"contact(?:\s*no|\s*number)?|phone(?:\s*no|\s*number)?|mobile(?:\s*no|\s*number)?|\bmob\b", "contact_number"),
+    (r"address|permanent\s+address|residence|add", "patient_address"),
     (r"invoice\s*(?:no|number)|bill\s*(?:no|number)", "invoice_number"),
     (r"invoice\s*date|bill\s*date", "bill_date"),
     (r"total\s*amount|gross\s*amount|bill\s*total|net\s*amount", "total_amount"),
     (r"advance\s*paid|paid\s*amount|amount\s*received", "paid_amount"),
     (r"balance\s*(?:amount|due)|amount\s*due|net\s*payable", "balance_amount"),
-    (r"(?:final\s+)?diagnosis", "diagnosis"),
+    (r"(?:final\s+)?diagnosis|provisional\s+d(?:iagnosis)?", "diagnosis"),
     (r"policy\s*(?:no|number)|tpa\s*(?:id|card)", "policy_number"),
 ]
 
@@ -87,28 +89,65 @@ class KeyValueExtractor:
     @staticmethod
     def _parse_single_kv(text: str) -> Optional[Tuple[str, str, str]]:
         """
-        Attempts to parse a label-value pair separated by ':' or '-'.
+        Attempts to parse a label-value pair separated by ':', '-', or known form prefixes.
         Returns (label, value, normalized_key) or None.
         """
-        # Match label : value or label - value
+        # Strip stray leading punctuation often pushed from previous column boundaries
+        text = re.sub(r"^[:\-\|\s]+", "", text).strip()
+        if not text:
+            return None
+
+        # 1. Match label : value or label - value
         match = re.match(r"^([^:\-]{2,40})[:\-]\s*(.+)$", text)
+        if not match:
+            # 2. Fallback: match colon-less or trailing-colon form fields (e.g. 'Name Parth Maulikkumar :', 'Name Parth Maulikkumar')
+            match = re.match(
+                r"^(?:[A-Z0-9][\.\)]\s*)?(name\s+of\s+patient|patient(?:\s*['’]?s)?\s*name|pt\.?\s*name|name|address|add|doa\s*\/\s*toa|dod\s*\/\s*tod|provisional\s+d(?:iagnosis)?)\s+(.+?)[:\-]?$",
+                text,
+                re.IGNORECASE,
+            )
+
         if not match:
             return None
 
         raw_label = match.group(1).strip()
         raw_val = match.group(2).strip()
 
-        # Discard if label has too many words or looks like full sentence
+        # Clean bullets/indexes like "A. ", "1. ", "(1) ", "). " from label
+        raw_label = re.sub(r"^[\W\d_]+\s*", "", raw_label).strip()
+
+        # Discard if label has too many words or looks like a full sentence
         if len(raw_label.split()) > 6 or raw_label.endswith("."):
+            return None
+
+        # Sanitize value: strip leading/trailing punctuation and quotation marks
+        raw_val = re.sub(r"^[:\-\s/_.~*,|]+|[:\-\s/_.~*,|]+$", "", raw_val).strip()
+
+        # Reject empty or purely punctuation/placeholder values
+        if not raw_val or raw_val.lower() in (
+            "//", "/ /", "/  /", "---", "- -", "...", "..",
+            "nil", "none", "n/a", "na", "null", "not available"
+        ):
+            return None
+
+        # If value has trailing adjacent column headers (e.g. 'parth maulikkumar : Age/Sex'), trim them
+        raw_val = re.sub(
+            r"\s+[:\-]?\s*(?:age(?:\/sex)?|gender|sex|uhid|ipd|doa|dod|dr)\s*[:\-]?.*$",
+            "",
+            raw_val,
+            flags=re.IGNORECASE
+        ).strip()
+
+        if not raw_val:
             return None
 
         # If label contains pipe, e.g. "Consultant Physician | Reg. No", resolve key using rightmost segment
         label_for_norm = raw_label.split("|")[-1].strip() if "|" in raw_label else raw_label
 
-        # Normalize key
+        # Normalize key with strict pattern group matching
         norm_key = "unknown_field"
         for pattern, k in LABEL_MAPPINGS:
-            if re.search(r"\b" + pattern + r"\b", label_for_norm, re.IGNORECASE):
+            if re.search(r"\b(?:" + pattern + r")\b", label_for_norm, re.IGNORECASE):
                 norm_key = k
                 break
 
@@ -123,10 +162,13 @@ class KeyValueExtractor:
         raw_chunks = re.split(r"\s{2,}", line)
         refined_chunks = []
         for chunk in raw_chunks:
+            chunk = chunk.strip()
+            if not chunk:
+                continue
             # If chunk still contains multiple colons (e.g. "Label1: Val1 Label2: Val2")
             if chunk.count(":") > 1:
-                sub_parts = re.split(r"(?<=\S)\s+(?=[A-Za-z0-9\s/]{2,30}:)", chunk)
-                refined_chunks.extend(sub_parts)
+                sub_parts = re.split(r"(?<=\S)\s+(?=[A-Za-z0-9/]{2,15}:)", chunk)
+                refined_chunks.extend(p.strip() for p in sub_parts if p.strip())
             else:
                 refined_chunks.append(chunk)
         return refined_chunks

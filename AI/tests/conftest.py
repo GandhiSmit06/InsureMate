@@ -6,12 +6,14 @@ import sys
 from pathlib import Path
 import pytest
 
-# Ensure src is in python path
-src_path = Path(__file__).resolve().parent.parent / "src"
-if str(src_path) not in sys.path:
-    sys.path.insert(0, str(src_path))
+# Ensure AI package root is in python path
+ai_path = Path(__file__).resolve().parent.parent
+project_root = ai_path.parent
+for p in [str(project_root), str(ai_path)]:
+    if p not in sys.path:
+        sys.path.insert(0, p)
 
-from insuremate.document_understanding.adapters.mock_inputs import (
+from AI.document_understanding.adapters.mock_inputs import (
     create_mock_hospital_invoice,
     create_mock_discharge_summary,
     create_mock_prescription,
@@ -20,7 +22,7 @@ from insuremate.document_understanding.adapters.mock_inputs import (
     create_mock_conflicting_dates,
     create_mock_blank_document,
 )
-from insuremate.document_understanding.pipeline import DocumentUnderstandingPipeline
+from AI.document_understanding.pipeline import DocumentUnderstandingPipeline
 
 
 @pytest.fixture
