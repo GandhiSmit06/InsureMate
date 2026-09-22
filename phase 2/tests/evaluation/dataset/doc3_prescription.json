@@ -1,0 +1,18 @@
+{
+  "document_id": "eval_rx_003",
+  "filename": "prescription_kiran_desai.pdf",
+  "source_type": "pdf",
+  "page_count": 1,
+  "pages": [
+    {
+      "page_number": 1,
+      "raw_text": "DR. MANISH TRIVEDI, MD (Internal Medicine)\nConsultant Physician | Reg. No: G-18920\nTrivedi Clinic, Ellisbridge\n\nPatient Name: Kiran Desai                  Date: 22/02/2024\nAge: 48 Yrs    Gender: Male\n\nRx\n1. Tab Metformin 500mg - 1 BD (After meals) x 30 days\n2. Tab Telmisartan 40mg - 1 OD (Morning) x 30 days\n3. Tab Atorvastatin 10mg - 1 HS (Night) x 30 days\n\nAdvice: Diabetic diet and daily 30 min morning walk.\n",
+      "blocks": [],
+      "tables": [],
+      "is_scanned": false,
+      "ocr_confidence_avg": null
+    }
+  ],
+  "metadata": {"clinic": "Trivedi Clinic"},
+  "ingestion_warnings": []
+}

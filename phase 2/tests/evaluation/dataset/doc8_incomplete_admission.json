@@ -1,0 +1,18 @@
+{
+  "document_id": "eval_incompl_008",
+  "filename": "partial_admission_slip.pdf",
+  "source_type": "pdf",
+  "page_count": 1,
+  "pages": [
+    {
+      "page_number": 1,
+      "raw_text": "COMMUNITY GENERAL HOSPITAL\nINPATIENT ADMISSION SLIP\n\nPatient ID: CGH-1104\nWard No: General Ward B, Bed 14\nDate of Admission: 10/03/2024\nAdmitting Doctor: Dr. Deepa Nair\n\nADMISSION DETAILS\nPatient admitted for observation following mild head injury.\nVitals stable upon admission.\n",
+      "blocks": [],
+      "tables": [],
+      "is_scanned": false,
+      "ocr_confidence_avg": null
+    }
+  ],
+  "metadata": {"hospital": "Community General Hospital"},
+  "ingestion_warnings": []
+}

@@ -1,0 +1,18 @@
+{
+  "document_id": "eval_ocr_007",
+  "filename": "scanned_degraded_invoice.pdf",
+  "source_type": "scanned_pdf",
+  "page_count": 1,
+  "pages": [
+    {
+      "page_number": 1,
+      "raw_text": "C1TY M\ufffdD1CAL C\ufffdNTRE - T@X INV01CE\n\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\nP@tient N@me: R@j\ufffdsh K\ufffdm@r        UH1D: CK-????\nDate: 12/??/2024\nT0tal Am0unt: Rs. \ufffd\ufffd,500.00\n\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\n",
+      "blocks": [],
+      "tables": [],
+      "is_scanned": true,
+      "ocr_confidence_avg": 32.4
+    }
+  ],
+  "metadata": {"scanner": "HP ScanJet 2000"},
+  "ingestion_warnings": ["Low OCR confidence: 32.4%", "Multiple unreadable glyphs"]
+}

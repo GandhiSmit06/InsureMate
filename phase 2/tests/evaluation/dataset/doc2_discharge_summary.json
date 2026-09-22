@@ -1,0 +1,18 @@
+{
+  "document_id": "eval_ds_002",
+  "filename": "fortis_discharge_summary_meera.pdf",
+  "source_type": "pdf",
+  "page_count": 1,
+  "pages": [
+    {
+      "page_number": 1,
+      "raw_text": "FORTIS HEALTHCARE LIMITED\nDEPARTMENT OF GENERAL SURGERY\nDISCHARGE SUMMARY\n\nPatient Name: Meera Nambiar                UHID: FH-44019\nAge: 35 Yrs    Gender: Female             DOA: 05/02/2024\nConsultant: Dr. Radhika Sharma            DOD: 08/02/2024\n\nCLINICAL SUMMARY\nPatient presented with acute cholecystitis, right upper quadrant pain, and nausea.\n\nFINAL DIAGNOSIS\nSymptomatic Cholelithiasis with Acute Cholecystitis.\n\nTREATMENT GIVEN\nElective Laparoscopic Cholecystectomy performed under general anesthesia on 06/02/2024. Uneventful recovery.\n\nDISCHARGE ADVICE\nTab Pantoprazole 40mg OD before breakfast for 10 days.\nTab Tramadol 50mg SOS for pain.\nSurgical wound dressing review after 5 days.\n",
+      "blocks": [],
+      "tables": [],
+      "is_scanned": false,
+      "ocr_confidence_avg": null
+    }
+  ],
+  "metadata": {"hospital": "Fortis Healthcare"},
+  "ingestion_warnings": []
+}

@@ -1,0 +1,28 @@
+{
+  "document_id": "eval_diag_004",
+  "filename": "thyroid_report_sunil.pdf",
+  "source_type": "pdf",
+  "page_count": 1,
+  "pages": [
+    {
+      "page_number": 1,
+      "raw_text": "METROPOLIS HEALTHCARE LABS\nDIAGNOSTIC REPORT - ENDOCRINOLOGY\n\nPatient Name: Sunil Kashyap                Patient ID: MHL-55219\nAge: 52 Yrs    Gender: Male                Sample Date: 14/02/2024\nReferred By: Dr. Manish Trivedi            Report Date: 15/02/2024\n\nTHYROID PROFILE (TOTAL)\nTest Name               Observed Value    Units        Biological Reference\nTotal T3                1.20              ng/mL        0.80 - 2.00\nTotal T4                8.50              ug/dL        5.10 - 14.10\nTSH                     6.85              uIU/mL       0.27 - 4.20\n\nImpression: Elevated TSH suggests Subclinical Hypothyroidism.\n",
+      "blocks": [],
+      "tables": [
+        {
+          "page_number": 1,
+          "rows": [
+            ["Test Name", "Observed Value", "Units", "Biological Reference"],
+            ["Total T3", "1.20", "ng/mL", "0.80 - 2.00"],
+            ["Total T4", "8.50", "ug/dL", "5.10 - 14.10"],
+            ["TSH", "6.85", "uIU/mL", "0.27 - 4.20"]
+          ]
+        }
+      ],
+      "is_scanned": false,
+      "ocr_confidence_avg": null
+    }
+  ],
+  "metadata": {"lab": "Metropolis Healthcare"},
+  "ingestion_warnings": []
+}
