@@ -1,18 +1,19 @@
 """
-InsureMate - End-to-End Pipeline CLI Test Runner (testWorking.py)
+InsureMate - End-to-End 3-Phase Pipeline CLI Test Runner (testWorking.py)
 
 Accepts a document path via command-line arguments or interactive input,
-executes Phase 1 (Document Ingestion & OCR) and Phase 2 (Document Understanding),
-and prints clear, structured outputs of both phases.
+executes Phase 1 (Document Ingestion & OCR), Phase 2 (Document Understanding),
+and Phase 3 (Claim Requirement Extraction & Compliance Verification),
+and prints clear, structured outputs of all three phases.
 
 Usage:
     python testWorking.py <path_to_pdf>
-    python testWorking.py --file <path_to_pdf> [--mode auto|digital|ocr] [--max-pages N] [--full-text] [--json output.json]
+    python testWorking.py --file <path_to_pdf> [--policy <policy.pdf>] [--claim-type hospitalization] [--json output.json]
 
 Examples:
     python testWorking.py sample_test_invoice.pdf
-    python testWorking.py "D:/claims/hospital_bill.pdf" --mode auto
-    python testWorking.py scanned_receipt.pdf --mode ocr --full-text
+    python testWorking.py "C:/Users/parth/Downloads/Medicalpolicy_copy.pdf"
+    python testWorking.py claim.pdf --policy policy.pdf --json result.json
 """
 
 import os
@@ -35,8 +36,13 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from AI.documentIngestion.documentIngestor import ingest_document
-from AI.insuremate_pipeline import _convert_phase1_to_phase2
+from AI.insuremate_pipeline import (
+    _convert_phase1_to_phase2,
+    _convert_to_phase3_pages,
+    verify_claim_compliance,
+)
 from AI.document_understanding.pipeline import DocumentUnderstandingPipeline
+from AI.requirement_extraction.engine import RequirementExtractionEngine
 
 
 # -----------------------------------------------------------------------------
@@ -125,7 +131,6 @@ def display_phase1_output(phase1_result: dict, show_full_text: bool = False):
             for line in lines:
                 print(f"    | {line}")
         else:
-            # Show top lines and bottom snippet
             lines = page_text.splitlines()
             preview_lines = lines[:10]
             for line in preview_lines:
@@ -151,92 +156,76 @@ def display_phase2_output(result):
 
     if result.document_type_hints:
         top_hint = result.document_type_hints[0]
-        conf_val = top_hint.confidence.value if hasattr(top_hint.confidence, "value") else top_hint.confidence
-        print(f"  Primary Doc Type  : {top_hint.candidate_type} (Confidence: {conf_val.upper()}, Score: {top_hint.confidence_score:.2f})")
+        score_pct = top_hint.confidence_score * 100
+        print(f"  Detected Doc Type : {top_hint.candidate_type} (Confidence: {top_hint.confidence.value}, Score: {score_pct:.1f}%)")
         if top_hint.supporting_signals:
-            print(f"  Detected Signals  : {', '.join(top_hint.supporting_signals)}")
-
-        if len(result.document_type_hints) > 1:
-            other_hints = [
-                f"{h.candidate_type} ({h.confidence_score:.2f})"
-                for h in result.document_type_hints[1:4]
-            ]
-            print(f"  Other Candidates  : {', '.join(other_hints)}")
+            print(f"  Signals           : {', '.join(top_hint.supporting_signals[:3])}")
     else:
-        print("  Primary Doc Type  : unknown")
+        print("  Detected Doc Type : Unknown / Unclassified")
 
-    # 2. Detected Semantic Sections
-    if result.sections:
-        print(f"\n--- 2. Detected Sections ({len(result.sections)}) ---")
-        for sec in result.sections:
-            content_preview = sec.content.strip().replace("\n", " ")
-            if len(content_preview) > 70:
-                content_preview = content_preview[:67] + "..."
-            print(f"  - [{sec.heading}] (Page {sec.page_number}): \"{content_preview}\"")
-    else:
-        print("\n--- 2. Detected Sections ---")
-        print("  No explicit titled sections detected.")
-
-    # 3. Categorized Medical & Financial Entities
+    # 2. Key Medical & Insurance Entities
     entities = result.entities
-    print("\n--- 3. Extracted Structured Entities ---")
+    print("\n--- 2. Extracted Entities ---")
 
-    print("\n  [Patient Information]")
-    print(_format_entity_field("Patient Name", entities.patient.name, indent=4))
-    print(_format_entity_field("Age", entities.patient.age, indent=4))
-    print(_format_entity_field("Gender", entities.patient.gender, indent=4))
-    print(_format_entity_field("Patient / UHID ID", entities.patient.patient_id, indent=4))
+    print("  [Patient Information]")
+    print(_format_entity_field("Patient Name", getattr(entities.patient, "name", None), indent=4))
+    print(_format_entity_field("Age", getattr(entities.patient, "age", None), indent=4))
+    print(_format_entity_field("Gender", getattr(entities.patient, "gender", None), indent=4))
+    print(_format_entity_field("Patient ID / UHID", getattr(entities.patient, "patient_id", None), indent=4))
 
-    print("\n  [Hospital & Healthcare Provider]")
-    print(_format_entity_field("Hospital Name", entities.hospital.name, indent=4))
-    print(_format_entity_field("Doctor / Surgeon", entities.hospital.doctor_name, indent=4))
-    print(_format_entity_field("Department", entities.hospital.department, indent=4))
-    print(_format_entity_field("Hospital Address", entities.hospital.address, indent=4))
-    print(_format_entity_field("Registration No", entities.hospital.registration_number, indent=4))
+    print("\n  [Hospital & Medical Provider]")
+    print(_format_entity_field("Hospital Name", getattr(entities.hospital, "name", None), indent=4))
+    print(_format_entity_field("Attending Doctor", getattr(entities.hospital, "doctor_name", None), indent=4))
+    print(_format_entity_field("Doctor Reg No", getattr(entities.hospital, "registration_number", None), indent=4))
+    print(_format_entity_field("Hospital Address", getattr(entities.hospital, "address", None), indent=4))
 
-    print("\n  [Encounter & Clinical Timeline]")
-    print(_format_entity_field("Admission Date", entities.encounter.admission_date, indent=4))
-    print(_format_entity_field("Discharge Date", entities.encounter.discharge_date, indent=4))
-    print(_format_entity_field("Procedure Date", entities.encounter.procedure_date, indent=4))
-    print(_format_entity_field("Visit / Consult Date", entities.encounter.visit_date, indent=4))
-    print(_format_entity_field("Documented Diagnosis", entities.encounter.diagnosis_text, indent=4))
-    print(_format_entity_field("Documented Procedure", entities.encounter.procedure_text, indent=4))
+    print("\n  [Clinical Encounter]")
+    print(_format_entity_field("Admission Date", getattr(entities.encounter, "admission_date", None), indent=4))
+    print(_format_entity_field("Discharge Date", getattr(entities.encounter, "discharge_date", None), indent=4))
+    print(_format_entity_field("Diagnosis", getattr(entities.encounter, "diagnosis_text", None), indent=4))
+    print(_format_entity_field("Treatment Given", getattr(entities.encounter, "procedure_text", None), indent=4))
 
-    print("\n  [Financial & Billing Details]")
-    print(_format_entity_field("Invoice Number", entities.financial.invoice_number, indent=4))
-    print(_format_entity_field("Bill Date", entities.financial.bill_date, indent=4))
-    print(_format_entity_field("Currency", entities.financial.currency, indent=4))
-    print(_format_entity_field("Total Stated Bill", entities.financial.total_amount, indent=4))
-    print(_format_entity_field("Amount Paid", entities.financial.paid_amount, indent=4))
-    print(_format_entity_field("Balance Payable", entities.financial.balance_amount, indent=4))
+    print("\n  [Financial & Billing]")
+    print(_format_entity_field("Invoice Number", getattr(entities.financial, "invoice_number", None), indent=4))
+    print(_format_entity_field("Total Stated Amount", getattr(entities.financial, "total_amount", None), indent=4))
+    print(_format_entity_field("Currency", getattr(entities.financial, "currency", None), indent=4))
 
-    # 4. Itemized Charges
-    charges = entities.financial.itemized_charges
-    if charges:
-        print(f"\n--- 4. Itemized Charges Table ({len(charges)} items) ---")
-        header = f"  {'#':<3} | {'Description':<40} | {'Qty':<5} | {'Rate':<10} | {'Amount':<12}"
-        print(header)
-        print("  " + "-" * (len(header) - 2))
-        for idx, ch in enumerate(charges, 1):
-            desc = ch.description[:38] + ".." if len(ch.description) > 40 else ch.description
-            qty_str = f"{ch.quantity:.0f}" if ch.quantity is not None else "-"
-            rate_str = f"{ch.unit_price:.2f}" if ch.unit_price is not None else "-"
-            amt_str = f"{ch.amount:.2f}" if ch.amount is not None else "-"
-            print(f"  {idx:<3} | {desc:<40} | {qty_str:<5} | {rate_str:<10} | {amt_str:<12}")
+    if entities.financial.itemized_charges:
+        print(f"\n  [Itemized Charges Breakdown ({len(entities.financial.itemized_charges)} items)]")
+        for i, chg in enumerate(entities.financial.itemized_charges[:10], 1):
+            qty = f" x{chg.quantity}" if chg.quantity else ""
+            print(f"    {i:>2}. {chg.description:<35} : {chg.amount}{qty}")
+        if len(entities.financial.itemized_charges) > 10:
+            print(f"    ... and {len(entities.financial.itemized_charges) - 10} more itemized line items")
+
+    # 3. Semantic Document Sections
+    print("\n--- 3. Detected Document Sections ---")
+    if result.sections:
+        for sec in result.sections:
+            prev = sec.content.strip().replace("\n", " ")
+            if len(prev) > 80:
+                prev = prev[:77] + "..."
+            print(f"  [Page {sec.page_number}] {sec.heading} ({sec.normalized_heading}) -> '{prev}'")
     else:
-        print("\n--- 4. Itemized Charges ---")
-        print("  No itemized line items extracted.")
+        print("  No major formal section headers detected.")
 
-    # 5. Quality, Integrity & Reconciliation
-    quality = result.quality
-    recon = quality.arithmetic_reconciliation
-    print("\n--- 5. Quality, Validation & Arithmetic Reconciliation ---")
-    print(f"  Overall Quality Rating : {quality.overall_quality.upper()}")
-    print(f"  Unreadable Char Ratio  : {quality.unreadable_char_ratio:.2%}")
-    if quality.ocr_confidence_avg is not None:
-        print(f"  Average OCR Confidence : {quality.ocr_confidence_avg:.1f}%")
-    print(f"  Conflicting Dates Flag : {'YES (Warning)' if quality.has_conflicting_dates else 'No conflicts'}")
+    # 4. Tables Extracted
+    print("\n--- 4. Extracted Tables ---")
+    if result.tables:
+        print(f"  Total Tables Found: {len(result.tables)}")
+        for t_idx, tbl in enumerate(result.tables, 1):
+            col_names = [col.name for col in tbl.columns]
+            print(f"  Table #{t_idx} (Page {tbl.page_number}): {len(tbl.rows)} rows x {len(tbl.columns)} columns")
+            print(f"    Columns: {', '.join(col_names[:6])}{'...' if len(col_names) > 6 else ''}")
+    else:
+        print("  No structured tables detected.")
 
+    # 5. Quality Evaluation & Consistency Checks
+    print("\n--- 5. Document Quality & Consistency Checks ---")
+    print(f"  Quality Rating           : {result.quality.overall_quality.upper()}")
+    print(f"  Conflicting Dates Flag   : {'YES (ERROR)' if result.quality.has_conflicting_dates else 'NO (Consistent)'}")
+
+    recon = result.quality.arithmetic_reconciliation
     if recon and recon.checked:
         match_symbol = "MATCHES" if recon.matches else "MISMATCH"
         print(f"  Arithmetic Reconciliation: [{match_symbol}]")
@@ -244,10 +233,8 @@ def display_phase2_output(result):
         print(f"    - Stated Total Amount  : {recon.stated_total}")
         if not recon.matches:
             print(f"    - Discrepancy Amount   : {recon.discrepancy}")
-        if recon.notes:
-            print(f"    - Notes                : {recon.notes}")
     else:
-        print("  Arithmetic Reconciliation: Not applicable (no itemized billing vs total pairing)")
+        print("  Arithmetic Reconciliation: Not applicable")
 
     if result.issues:
         print(f"\n  Detected Issues & Quality Flags ({len(result.issues)}):")
@@ -256,7 +243,7 @@ def display_phase2_output(result):
             page_info = f" [Page {iss.page_number}]" if iss.page_number else ""
             print(f"    [{sev}]{page_info} {iss.code}: {iss.description}")
 
-    # 6. Provenance & Evidence Traceability Summary
+    # 6. Provenance Traceability
     prov_count = 0
     all_fields = [
         entities.patient.name, entities.patient.age, entities.patient.gender, entities.patient.patient_id,
@@ -269,7 +256,85 @@ def display_phase2_output(result):
             prov_count += 1
 
     print("\n--- 6. Provenance & Evidence Traceability ---")
-    print(f"  Verified Provenance-Tracked Entities : {prov_count} field(s) with page/verbatim traceability")
+    print(f"  Verified Provenance-Tracked Entities : {prov_count} field(s) with verbatim page traceability")
+
+
+# -----------------------------------------------------------------------------
+# Phase 3 Printer
+# -----------------------------------------------------------------------------
+def display_phase3_output(phase3_result, compliance_eval: dict = None):
+    """Prints a clear, structured breakdown of Phase 3 requirements & compliance results."""
+    print(_banner("PHASE 3: CLAIM REQUIREMENT EXTRACTION & COMPLIANCE"))
+
+    if not phase3_result or not phase3_result.success:
+        err = getattr(phase3_result, "error", "No policy requirements extracted.")
+        print(f"\n  [Phase 3 Status]: {err}")
+        return
+
+    summary = phase3_result.summary
+    total = len(phase3_result.requirements)
+    mand_count = summary.mandatory_count if summary else sum(1 for r in phase3_result.requirements if r.mandatory)
+    cond_count = summary.conditional_count if summary else sum(1 for r in phase3_result.requirements if not r.mandatory)
+
+    print("\n--- 1. Policy Extraction Summary ---")
+    print(f"  Claim Context     : {(phase3_result.claim_type or 'general').upper()}")
+    if phase3_result.policy_name:
+        print(f"  Policy Name       : {phase3_result.policy_name}")
+    print(f"  Total Requirements: {total}")
+    print(f"  Mandatory Items   : {mand_count}")
+    print(f"  Conditional Items : {cond_count}")
+
+    if summary and summary.categories:
+        cat_str = ", ".join(f"{k}: {v}" for k, v in summary.categories.items())
+        print(f"  Categories        : {cat_str}")
+
+    # 2. Extracted Requirements
+    print("\n--- 2. Extracted Policy Requirements ---")
+    for req in phase3_result.requirements:
+        mand_str = "MANDATORY" if req.mandatory else "CONDITIONAL"
+        print(f"\n  [{req.requirement_id}] [{req.category.value}] [{req.priority.value}] [{mand_str}]")
+        print(f"    Name         : {req.name}")
+        print(f"    Description  : {req.description}")
+        if req.deadline:
+            print(f"    Deadline     : {req.deadline}")
+        if req.condition:
+            print(f"    Condition    : {req.condition}")
+        if req.required_information:
+            print(f"    Required Info: {', '.join(req.required_information)}")
+        if req.source_clause:
+            print(f"    Clause       : {req.source_clause}")
+        if req.source_page:
+            print(f"    Source Page  : Page {req.source_page}")
+
+    # 3. Compliance & Adjudication Evaluation (if available)
+    if compliance_eval:
+        print(_sub_banner("Claim Compliance & Adjudication Checklist"))
+        score = compliance_eval.get("compliance_score_pct", 0)
+        f_cnt = compliance_eval.get("fulfilled_count", 0)
+        m_cnt = compliance_eval.get("missing_mandatory", 0)
+        c_cnt = compliance_eval.get("conditional_count", 0)
+
+        print(f"\n  Overall Compliance Score : {score}%")
+        print(f"  Fulfilled Requirements   : {f_cnt}")
+        print(f"  Missing Mandatory Items  : {m_cnt}")
+        print(f"  Conditional Items Pending: {c_cnt}\n")
+
+        checklist = compliance_eval.get("checklist", [])
+        for item in checklist:
+            st = item["status"]
+            if st == "FULFILLED":
+                badge = "[PASSED]"
+            elif st == "CONDITIONAL":
+                badge = "[CONDITIONAL]"
+            else:
+                badge = "[MISSING]" if item["mandatory"] else "[OPTIONAL]"
+
+            print(f"  {badge:<15} {item['requirement_id']} ({item['category']}) - {item['name']}")
+            if item.get("evidence"):
+                print(f"                  Evidence: {item['evidence']}")
+            if item.get("deadline"):
+                print(f"                  Deadline: {item['deadline']}")
+
     print("=" * 80 + "\n")
 
 
@@ -284,8 +349,11 @@ def run_pipeline(
     show_full_text: bool = False,
     output_json_path: str | None = None,
     device: str = "auto",
+    policy_file: str | None = None,
+    claim_type: str = "hospitalization",
+    skip_requirements: bool = False,
 ):
-    """Executes Phase 1 and Phase 2, displaying detailed output for each phase."""
+    """Executes Phase 1, Phase 2, and Phase 3, displaying detailed output for each phase."""
     file_path = os.path.abspath(file_path)
 
     if not os.path.exists(file_path):
@@ -300,9 +368,11 @@ def run_pipeline(
     elif device == "cpu":
         ocr_device = "cpu"
 
-    print(_banner(f"INSUREMATE PIPELINE: {os.path.basename(file_path)}"))
+    print(_banner(f"INSUREMATE UNIFIED PIPELINE: {os.path.basename(file_path)}"))
     print(f" Target File : {file_path}")
-    print(f" Config      : mode='{mode}', device='{device}', max_pages={max_pages or 'all'}, start_page={start_page}")
+    if policy_file:
+        print(f" Policy File : {policy_file}")
+    print(f" Config      : mode='{mode}', device='{device}', claim_type='{claim_type}', max_pages={max_pages or 'all'}, start_page={start_page}")
 
     # -------------------------------------------------------------------------
     # 1. Execute Phase 1: Ingestion
@@ -336,7 +406,30 @@ def run_pipeline(
     display_phase2_output(phase2_result)
 
     # -------------------------------------------------------------------------
-    # 3. Optional JSON Export
+    # 3. Execute Phase 3: Requirement Extraction & Compliance
+    # -------------------------------------------------------------------------
+    phase3_result = None
+    compliance_eval = None
+
+    if not skip_requirements:
+        print("\n[Running Phase 3: Requirement Extraction & Adjudication Checklist...]")
+        engine = RequirementExtractionEngine()
+
+        if policy_file and os.path.exists(policy_file):
+            phase3_result = engine.process(file_path=policy_file, claim_type=claim_type)
+        else:
+            # Check requirements directly from ingested document pages
+            p3_pages = _convert_to_phase3_pages(ingested_doc.pages)
+            phase3_result = engine.process(pages=p3_pages, claim_type=claim_type)
+
+        if phase3_result and phase3_result.success and phase3_result.requirements:
+            compliance_eval = verify_claim_compliance(phase2_result, phase3_result)
+
+        # Display Phase 3 Output
+        display_phase3_output(phase3_result, compliance_eval)
+
+    # -------------------------------------------------------------------------
+    # 4. Optional JSON Export
     # -------------------------------------------------------------------------
     if output_json_path:
         out_path = os.path.abspath(output_json_path)
@@ -344,16 +437,21 @@ def run_pipeline(
             "phase1_ingestion": phase1_result,
             "phase2_understanding": phase2_result.model_dump(),
         }
+        if phase3_result:
+            combined_data["phase3_requirements"] = phase3_result.model_dump()
+        if compliance_eval:
+            combined_data["compliance_evaluation"] = compliance_eval
+
         with open(out_path, "w", encoding="utf-8") as f:
             json.dump(combined_data, f, indent=2, ensure_ascii=False)
-        print(f"[Export] Full Phase 1 & Phase 2 JSON exported to: {out_path}")
+        print(f"[Export] Full 3-Phase JSON exported to: {out_path}")
 
-    return phase1_result, phase2_result
+    return phase1_result, phase2_result, phase3_result
 
 
 def main():
     parser = argparse.ArgumentParser(
-        description="InsureMate End-to-End Pipeline CLI Test (Phase 1 Ingestion + Phase 2 Understanding)",
+        description="InsureMate End-to-End Pipeline CLI (Phase 1 Ingestion + Phase 2 Understanding + Phase 3 Requirements)",
         formatter_class=argparse.RawTextHelpFormatter,
     )
     parser.add_argument(
@@ -367,6 +465,24 @@ def main():
         dest="flag_file",
         default=None,
         help="Alternative flag to specify input PDF path.",
+    )
+    parser.add_argument(
+        "--policy",
+        dest="policy_file",
+        default=None,
+        help="Path to insurance policy document to extract requirements and evaluate compliance against.",
+    )
+    parser.add_argument(
+        "--claim-type",
+        dest="claim_type",
+        default="hospitalization",
+        choices=["hospitalization", "cashless", "reimbursement", "accident"],
+        help="Claim context for requirement extraction (default: hospitalization).",
+    )
+    parser.add_argument(
+        "--no-requirements",
+        action="store_true",
+        help="Skip Phase 3 requirement extraction.",
     )
     parser.add_argument(
         "-m", "--mode",
@@ -401,7 +517,7 @@ def main():
         "-o", "--json",
         dest="output_json",
         default=None,
-        help="Save combined Phase 1 & Phase 2 output to a JSON file.",
+        help="Save combined Phase 1, Phase 2, & Phase 3 output to a JSON file.",
     )
 
     args = parser.parse_args()
@@ -429,7 +545,6 @@ def main():
                 parser.print_help()
                 sys.exit(1)
         else:
-            # Strip quotes if copied from terminal
             target_path = user_input.strip("\"'")
 
     run_pipeline(
@@ -440,6 +555,9 @@ def main():
         show_full_text=args.full_text,
         output_json_path=args.output_json,
         device=args.device,
+        policy_file=args.policy_file,
+        claim_type=args.claim_type,
+        skip_requirements=args.no_requirements,
     )
 
 
