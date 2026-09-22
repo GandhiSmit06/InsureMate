@@ -1,26 +1,38 @@
 """
-InsureMate - End-to-End 3-Phase Pipeline CLI Test Runner (testWorking.py)
+InsureMate - End-to-End Multi-Phase Pipeline CLI Test Runner (testWorking.py)
 
 Accepts a document path via command-line arguments or interactive input,
 executes Phase 1 (Document Ingestion & OCR), Phase 2 (Document Understanding),
-and Phase 3 (Claim Requirement Extraction & Compliance Verification),
-and prints clear, structured outputs of all three phases.
+and/or Phase 3 (Claim Requirement Extraction & Compliance Verification),
+and prints clear, structured outputs for each requested phase.
 
 Usage:
     python testWorking.py <path_to_pdf>
-    python testWorking.py --file <path_to_pdf> [--policy <policy.pdf>] [--claim-type hospitalization] [--json output.json]
+    python testWorking.py <path_to_pdf> --phases 1,2,3
+    python testWorking.py <path_to_pdf> --phase 1          # Phase 1 only (Ingestion & OCR)
+    python testWorking.py <path_to_pdf> --phase 2          # Phase 2 only (Document Understanding)
+    python testWorking.py <path_to_pdf> --phase 3          # Phase 3 only (Policy Requirement Extraction)
+    python testWorking.py <claim.pdf> --policy <policy.pdf> # Cross-Phase Claim Compliance Verification
 
-Examples:
-    python testWorking.py sample_test_invoice.pdf
-    python testWorking.py "C:/Users/parth/Downloads/Medicalpolicy_copy.pdf"
-    python testWorking.py claim.pdf --policy policy.pdf --json result.json
+Options:
+    --phases, --phase, -ph   Phases to run ('1', '2', '3', '1,2', '1,2,3', 'all') [default: all]
+    --policy                 Path to insurance policy document to extract requirements against
+    --claim-type             Claim context ('hospitalization', 'cashless', 'reimbursement', 'accident')
+    --mode                   Phase 1 mode ('auto', 'digital', 'ocr')
+    --device                 OCR device ('auto', 'gpu', 'cpu')
+    --full-text              Print entire extracted raw text per page in Phase 1
+    --max-pages N            Limit processing to first N pages
+    --start-page N           Start processing from page N (1-indexed)
+    --json <output.json>     Save full output across all executed phases to a JSON file
 """
 
 import os
+import re
 import sys
 import json
 import argparse
 from pathlib import Path
+from typing import Set, Optional, Tuple, Dict, Any
 
 # Ensure UTF-8 output on Windows terminals without crashing
 if hasattr(sys.stdout, "reconfigure"):
@@ -82,8 +94,31 @@ def _format_entity_field(name: str, field_obj, indent: int = 2) -> str:
         return f"{prefix}{name:<25}: [{status_str}]"
 
 
+def _parse_phases(phase_str: str) -> Set[int]:
+    """Parse phase selection string into a set of phase numbers (1, 2, 3)."""
+    if not phase_str:
+        return {1, 2, 3}
+    cleaned = str(phase_str).strip().lower()
+    if cleaned in ("all", "1,2,3", "123", "*", "full"):
+        return {1, 2, 3}
+
+    selected = set()
+    tokens = re.split(r"[,+\s/]+", cleaned)
+    for tok in tokens:
+        if tok in ("1", "phase1", "p1"):
+            selected.add(1)
+        elif tok in ("2", "phase2", "p2"):
+            selected.add(2)
+        elif tok in ("3", "phase3", "p3"):
+            selected.add(3)
+        elif tok in ("all", "*"):
+            return {1, 2, 3}
+
+    return selected or {1, 2, 3}
+
+
 # -----------------------------------------------------------------------------
-# Phase 1 Printer
+# Phase 1 Printer: Ingestion & OCR
 # -----------------------------------------------------------------------------
 def display_phase1_output(phase1_result: dict, show_full_text: bool = False):
     """Prints a clear, structured breakdown of Phase 1 extraction results."""
@@ -99,11 +134,11 @@ def display_phase1_output(phase1_result: dict, show_full_text: bool = False):
     total_words = len(full_text.split())
 
     print("\n--- Ingestion Summary ---")
-    print(f"  File Name         : {file_name}")
-    print(f"  File Size         : {file_size_kb:.2f} KB")
-    print(f"  Total Pages       : {total_pages}")
-    print(f"  Digital Pages     : {digital_pages} (softcopy text)")
-    print(f"  OCR Pages         : {ocr_pages} (PaddleOCR)")
+    print(f"  File Name             : {file_name}")
+    print(f"  File Size             : {file_size_kb:.2f} KB")
+    print(f"  Total Pages           : {total_pages}")
+    print(f"  Digital Pages         : {digital_pages} (softcopy text)")
+    print(f"  OCR Pages             : {ocr_pages} (PaddleOCR GPU)")
     print(f"  Total Extracted Words : {total_words:,}")
     print(f"  Total Characters      : {len(full_text):,}")
 
@@ -141,7 +176,7 @@ def display_phase1_output(phase1_result: dict, show_full_text: bool = False):
 
 
 # -----------------------------------------------------------------------------
-# Phase 2 Printer
+# Phase 2 Printer: Document Understanding & Structuring
 # -----------------------------------------------------------------------------
 def display_phase2_output(result):
     """Prints a clear, structured breakdown of Phase 2 understanding results."""
@@ -246,13 +281,22 @@ def display_phase2_output(result):
     # 6. Provenance Traceability
     prov_count = 0
     all_fields = [
-        entities.patient.name, entities.patient.age, entities.patient.gender, entities.patient.patient_id,
-        entities.hospital.name, entities.hospital.doctor_name, entities.hospital.address,
-        entities.encounter.admission_date, entities.encounter.discharge_date, entities.encounter.diagnosis_text,
-        entities.financial.invoice_number, entities.financial.total_amount,
+        getattr(entities.patient, "name", None),
+        getattr(entities.patient, "age", None),
+        getattr(entities.patient, "gender", None),
+        getattr(entities.patient, "patient_id", None),
+        getattr(entities.hospital, "name", None),
+        getattr(entities.hospital, "doctor_name", None),
+        getattr(entities.hospital, "registration_number", None),
+        getattr(entities.hospital, "address", None),
+        getattr(entities.encounter, "admission_date", None),
+        getattr(entities.encounter, "discharge_date", None),
+        getattr(entities.encounter, "diagnosis_text", None),
+        getattr(entities.financial, "invoice_number", None),
+        getattr(entities.financial, "total_amount", None),
     ]
     for f in all_fields:
-        if getattr(f, "provenance", None) is not None:
+        if f is not None and getattr(f, "provenance", None) is not None:
             prov_count += 1
 
     print("\n--- 6. Provenance & Evidence Traceability ---")
@@ -260,7 +304,7 @@ def display_phase2_output(result):
 
 
 # -----------------------------------------------------------------------------
-# Phase 3 Printer
+# Phase 3 Printer: Requirement Extraction & Compliance Checklist
 # -----------------------------------------------------------------------------
 def display_phase3_output(phase3_result, compliance_eval: dict = None):
     """Prints a clear, structured breakdown of Phase 3 requirements & compliance results."""
@@ -288,8 +332,10 @@ def display_phase3_output(phase3_result, compliance_eval: dict = None):
         cat_str = ", ".join(f"{k}: {v}" for k, v in summary.categories.items())
         print(f"  Categories        : {cat_str}")
 
-    # 2. Extracted Requirements
+    # 2. Extracted Requirements Table
     print("\n--- 2. Extracted Policy Requirements ---")
+    if not phase3_result.requirements:
+        print("  No requirements detected in document.")
     for req in phase3_result.requirements:
         mand_str = "MANDATORY" if req.mandatory else "CONDITIONAL"
         print(f"\n  [{req.requirement_id}] [{req.category.value}] [{req.priority.value}] [{mand_str}]")
@@ -335,14 +381,13 @@ def display_phase3_output(phase3_result, compliance_eval: dict = None):
             if item.get("deadline"):
                 print(f"                  Deadline: {item['deadline']}")
 
-    print("=" * 80 + "\n")
-
 
 # -----------------------------------------------------------------------------
-# Main CLI Orchestrator
+# Main Multi-Phase Orchestrator
 # -----------------------------------------------------------------------------
 def run_pipeline(
     file_path: str,
+    phases: Set[int] = {1, 2, 3},
     mode: str = "auto",
     max_pages: int | None = None,
     start_page: int = 1,
@@ -351,9 +396,10 @@ def run_pipeline(
     device: str = "auto",
     policy_file: str | None = None,
     claim_type: str = "hospitalization",
-    skip_requirements: bool = False,
 ):
-    """Executes Phase 1, Phase 2, and Phase 3, displaying detailed output for each phase."""
+    """
+    Executes specified phases (1, 2, and/or 3), displaying clear, structured output for each phase.
+    """
     file_path = os.path.abspath(file_path)
 
     if not os.path.exists(file_path):
@@ -361,82 +407,98 @@ def run_pipeline(
         print("Please check the path and try again.")
         sys.exit(1)
 
-    # Resolve target device
+    # Resolve OCR target device
     ocr_device = None
     if device == "gpu":
         ocr_device = "gpu:0"
     elif device == "cpu":
         ocr_device = "cpu"
 
-    print(_banner(f"INSUREMATE UNIFIED PIPELINE: {os.path.basename(file_path)}"))
+    phase_desc = ", ".join(f"Phase {p}" for p in sorted(phases))
+    print(_banner(f"INSUREMATE PIPELINE [{phase_desc}]: {os.path.basename(file_path)}"))
     print(f" Target File : {file_path}")
     if policy_file:
         print(f" Policy File : {policy_file}")
-    print(f" Config      : mode='{mode}', device='{device}', claim_type='{claim_type}', max_pages={max_pages or 'all'}, start_page={start_page}")
+    print(f" Config      : phases={sorted(phases)}, mode='{mode}', device='{device}', claim_type='{claim_type}'")
 
-    # -------------------------------------------------------------------------
-    # 1. Execute Phase 1: Ingestion
-    # -------------------------------------------------------------------------
-    print("\n[Running Phase 1: Ingesting document...]")
-    phase1_result = ingest_document(
-        file_path=file_path,
-        mode=mode,
-        max_pages=max_pages,
-        start_page=start_page,
-        verbose=False,
-        device=ocr_device,
-    )
-
-    if not phase1_result.get("success", False):
-        print(f"\n[ERROR] Phase 1 Ingestion Failed: {phase1_result.get('error')}")
-        sys.exit(1)
-
-    # Display Phase 1 Output
-    display_phase1_output(phase1_result, show_full_text=show_full_text)
-
-    # -------------------------------------------------------------------------
-    # 2. Execute Phase 2: Understanding
-    # -------------------------------------------------------------------------
-    print("\n[Running Phase 2: Understanding & Structuring...]")
-    ingested_doc = _convert_phase1_to_phase2(phase1_result, file_path)
-    pipeline = DocumentUnderstandingPipeline()
-    phase2_result = pipeline.process(ingested_doc)
-
-    # Display Phase 2 Output
-    display_phase2_output(phase2_result)
-
-    # -------------------------------------------------------------------------
-    # 3. Execute Phase 3: Requirement Extraction & Compliance
-    # -------------------------------------------------------------------------
+    phase1_result = None
+    phase2_result = None
     phase3_result = None
     compliance_eval = None
 
-    if not skip_requirements:
-        print("\n[Running Phase 3: Requirement Extraction & Adjudication Checklist...]")
+    # -------------------------------------------------------------------------
+    # Phase 1: Ingestion & OCR
+    # (Runs if Phase 1 or Phase 2 is requested, or if Phase 3 runs on primary file)
+    # -------------------------------------------------------------------------
+    needs_phase1 = (1 in phases) or (2 in phases)
+
+    if needs_phase1:
+        if 1 in phases:
+            print("\n[Running Phase 1: Ingesting document via PaddleOCR / PyMuPDF...]")
+        else:
+            print("\n[Phase 1: Ingesting document in background for Phase 2...]")
+
+        phase1_result = ingest_document(
+            file_path=file_path,
+            mode=mode,
+            max_pages=max_pages,
+            start_page=start_page,
+            verbose=False,
+            device=ocr_device,
+        )
+
+        if not phase1_result.get("success", False):
+            print(f"\n[ERROR] Phase 1 Ingestion Failed: {phase1_result.get('error')}")
+            sys.exit(1)
+
+        if 1 in phases:
+            display_phase1_output(phase1_result, show_full_text=show_full_text)
+
+    # -------------------------------------------------------------------------
+    # Phase 2: Document Understanding & Entity Extraction
+    # -------------------------------------------------------------------------
+    if 2 in phases:
+        print("\n[Running Phase 2: Document Understanding & Structuring...]")
+        ingested_doc = _convert_phase1_to_phase2(phase1_result, file_path)
+        pipeline = DocumentUnderstandingPipeline()
+        phase2_result = pipeline.process(ingested_doc)
+
+        display_phase2_output(phase2_result)
+
+    # -------------------------------------------------------------------------
+    # Phase 3: Claim Requirement Extraction & Adjudication Checklist
+    # -------------------------------------------------------------------------
+    if 3 in phases:
+        print("\n[Running Phase 3: Requirement Extraction & Policy Analysis...]")
         engine = RequirementExtractionEngine()
 
         if policy_file and os.path.exists(policy_file):
+            # Extract requirements from explicitly supplied policy document
             phase3_result = engine.process(file_path=policy_file, claim_type=claim_type)
-        else:
-            # Check requirements directly from ingested document pages
-            p3_pages = _convert_to_phase3_pages(ingested_doc.pages)
+        elif phase1_result and phase1_result.get("pages"):
+            # Use already extracted pages from Phase 1 without re-reading PDF
+            p3_pages = _convert_to_phase3_pages(phase1_result["pages"])
             phase3_result = engine.process(pages=p3_pages, claim_type=claim_type)
+        else:
+            # Standalone Phase 3 run directly on target PDF
+            phase3_result = engine.process(file_path=file_path, claim_type=claim_type)
 
-        if phase3_result and phase3_result.success and phase3_result.requirements:
+        # Cross-Phase Compliance Verification (if Phase 2 understanding is available)
+        if phase2_result and phase3_result and phase3_result.success and phase3_result.requirements:
             compliance_eval = verify_claim_compliance(phase2_result, phase3_result)
 
-        # Display Phase 3 Output
         display_phase3_output(phase3_result, compliance_eval)
 
     # -------------------------------------------------------------------------
-    # 4. Optional JSON Export
+    # JSON Export (across all executed phases)
     # -------------------------------------------------------------------------
     if output_json_path:
         out_path = os.path.abspath(output_json_path)
-        combined_data = {
-            "phase1_ingestion": phase1_result,
-            "phase2_understanding": phase2_result.model_dump(),
-        }
+        combined_data = {}
+        if phase1_result:
+            combined_data["phase1_ingestion"] = phase1_result
+        if phase2_result:
+            combined_data["phase2_understanding"] = phase2_result.model_dump()
         if phase3_result:
             combined_data["phase3_requirements"] = phase3_result.model_dump()
         if compliance_eval:
@@ -444,27 +506,46 @@ def run_pipeline(
 
         with open(out_path, "w", encoding="utf-8") as f:
             json.dump(combined_data, f, indent=2, ensure_ascii=False)
-        print(f"[Export] Full 3-Phase JSON exported to: {out_path}")
+        print(f"\n[Export] Full multi-phase JSON exported to: {out_path}")
+
+    print("\n" + "=" * 80)
+    print(f" PIPELINE COMPLETE: Executed {phase_desc} successfully.")
+    print("=" * 80 + "\n")
 
     return phase1_result, phase2_result, phase3_result
 
 
+# -----------------------------------------------------------------------------
+# Main CLI Entrypoint
+# -----------------------------------------------------------------------------
 def main():
     parser = argparse.ArgumentParser(
-        description="InsureMate End-to-End Pipeline CLI (Phase 1 Ingestion + Phase 2 Understanding + Phase 3 Requirements)",
+        description="InsureMate Multi-Phase Pipeline CLI (Phase 1, 2, and 3)",
         formatter_class=argparse.RawTextHelpFormatter,
     )
     parser.add_argument(
         "file_path",
         nargs="?",
         default=None,
-        help="Path to the PDF document to process.",
+        help="Path to the primary document to process (claim PDF or policy PDF).",
     )
     parser.add_argument(
         "-f", "--file",
         dest="flag_file",
         default=None,
         help="Alternative flag to specify input PDF path.",
+    )
+    parser.add_argument(
+        "--phases", "--phase", "-ph",
+        dest="phases",
+        default="all",
+        help="Phases to execute (default: 'all' or '1,2,3'):\n"
+             "  1        : Phase 1 only (Document Ingestion & PaddleOCR)\n"
+             "  2        : Phase 2 only (Document Understanding & Structuring)\n"
+             "  3        : Phase 3 only (Policy Requirement Extraction)\n"
+             "  1,2      : Phase 1 and Phase 2\n"
+             "  1,2,3    : All three phases end-to-end\n"
+             "  all      : All three phases (default)",
     )
     parser.add_argument(
         "--policy",
@@ -478,11 +559,6 @@ def main():
         default="hospitalization",
         choices=["hospitalization", "cashless", "reimbursement", "accident"],
         help="Claim context for requirement extraction (default: hospitalization).",
-    )
-    parser.add_argument(
-        "--no-requirements",
-        action="store_true",
-        help="Skip Phase 3 requirement extraction.",
     )
     parser.add_argument(
         "-m", "--mode",
@@ -517,18 +593,20 @@ def main():
         "-o", "--json",
         dest="output_json",
         default=None,
-        help="Save combined Phase 1, Phase 2, & Phase 3 output to a JSON file.",
+        help="Save combined output across all executed phases to a JSON file.",
     )
 
     args = parser.parse_args()
 
     # Determine input path
     target_path = args.file_path or args.flag_file
+    selected_phases = _parse_phases(args.phases)
+    target_policy = args.policy_file
 
-    # Interactive prompt if no path provided
+    # Interactive prompt if no path provided via command line
     if not target_path:
         print("=" * 80)
-        print(" InsureMate - End-to-End Pipeline CLI")
+        print(" InsureMate — Multi-Phase Pipeline CLI")
         print("=" * 80)
         default_sample = "sample_test_invoice.pdf"
         sample_hint = f" (Press Enter to use '{default_sample}')" if os.path.exists(default_sample) else ""
@@ -547,17 +625,51 @@ def main():
         else:
             target_path = user_input.strip("\"'")
 
+        # Interactive phase selection
+        print("\nSelect Phase(s) to execute:")
+        print("  [1] Phase 1 only (Document Ingestion & PaddleOCR)")
+        print("  [2] Phase 2 only (Document Understanding & Entity Extraction)")
+        print("  [3] Phase 3 only (Policy Requirement Extraction)")
+        print("  [4] Phase 1 & 2  (Ingestion + Understanding)")
+        print("  [5] All Phases 1, 2, and 3 (Full End-to-End Pipeline) [Default]")
+        try:
+            choice = input("Enter choice [1-5, or comma-separated e.g. 1,2,3] (default: 5): ").strip()
+        except (EOFError, KeyboardInterrupt):
+            choice = "5"
+
+        if choice == "1":
+            selected_phases = {1}
+        elif choice == "2":
+            selected_phases = {2}
+        elif choice == "3":
+            selected_phases = {3}
+        elif choice == "4":
+            selected_phases = {1, 2}
+        elif choice in ("5", ""):
+            selected_phases = {1, 2, 3}
+        else:
+            selected_phases = _parse_phases(choice)
+
+        # Optional policy prompt if Phase 3 is active
+        if 3 in selected_phases:
+            try:
+                pol_in = input("Optional Policy PDF path (press Enter to extract from primary file): ").strip()
+                if pol_in:
+                    target_policy = pol_in.strip("\"'")
+            except (EOFError, KeyboardInterrupt):
+                pass
+
     run_pipeline(
         file_path=target_path,
+        phases=selected_phases,
         mode=args.mode,
         max_pages=args.max_pages,
         start_page=args.start_page,
         show_full_text=args.full_text,
         output_json_path=args.output_json,
         device=args.device,
-        policy_file=args.policy_file,
+        policy_file=target_policy,
         claim_type=args.claim_type,
-        skip_requirements=args.no_requirements,
     )
 
 
