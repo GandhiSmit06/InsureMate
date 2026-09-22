@@ -1,0 +1,144 @@
+{
+  "eval_inv_001": {
+    "expected_type_hint": "hospital_invoice",
+    "expected_fields": {
+      "patient.name": {"status": "extracted", "value": "Vikramaditya Singhania", "match": "exact"},
+      "patient.patient_id": {"status": "extracted", "value": "UHID-78192", "match": "exact"},
+      "patient.age": {"status": "extracted", "value": 61, "match": "numeric"},
+      "patient.gender": {"status": "extracted", "value": "Male", "match": "exact"},
+      "hospital.doctor_name": {"status": "extracted", "value": "Dr. Sanjeev Kapoor", "match": "contains"},
+      "encounter.admission_date": {"status": "extracted", "value": "2024-01-15", "match": "exact"},
+      "encounter.discharge_date": {"status": "extracted", "value": "2024-01-18", "match": "exact"},
+      "financial.invoice_number": {"status": "extracted", "value": "INV-AP-99012", "match": "exact"},
+      "financial.total_amount": {"status": "extracted", "value": 41000.0, "match": "numeric"},
+      "financial.paid_amount": {"status": "extracted", "value": 41000.0, "match": "numeric"},
+      "financial.balance_amount": {"status": "extracted", "value": 0.0, "match": "numeric"}
+    },
+    "expected_quality": {
+      "has_conflicting_dates": false,
+      "overall_quality": "good",
+      "arithmetic_reconciliation_matches": true
+    },
+    "must_have_provenance": ["patient.name", "financial.total_amount", "encounter.admission_date"]
+  },
+
+  "eval_ds_002": {
+    "expected_type_hint": "discharge_summary",
+    "expected_fields": {
+      "patient.name": {"status": "extracted", "value": "Meera Nambiar", "match": "exact"},
+      "patient.patient_id": {"status": "extracted", "value": "FH-44019", "match": "exact"},
+      "patient.age": {"status": "extracted", "value": 35, "match": "numeric"},
+      "patient.gender": {"status": "extracted", "value": "Female", "match": "exact"},
+      "hospital.doctor_name": {"status": "extracted", "value": "Dr. Radhika Sharma", "match": "contains"},
+      "encounter.admission_date": {"status": "extracted", "value": "2024-02-05", "match": "exact"},
+      "encounter.discharge_date": {"status": "extracted", "value": "2024-02-08", "match": "exact"},
+      "encounter.diagnosis_text": {"status": "extracted", "value": "Cholecystitis", "match": "contains"},
+      "encounter.procedure_text": {"status": "extracted", "value": "Laparoscopic Cholecystectomy", "match": "contains"},
+      "financial.total_amount": {"status": "not_found", "value": null, "match": "exact"}
+    },
+    "expected_quality": {
+      "has_conflicting_dates": false,
+      "overall_quality": "excellent"
+    },
+    "must_have_provenance": ["patient.name", "encounter.admission_date", "encounter.diagnosis_text"]
+  },
+
+  "eval_rx_003": {
+    "expected_type_hint": "prescription",
+    "expected_fields": {
+      "patient.name": {"status": "extracted", "value": "Kiran Desai", "match": "exact"},
+      "patient.age": {"status": "extracted", "value": 48, "match": "numeric"},
+      "patient.gender": {"status": "extracted", "value": "Male", "match": "exact"},
+      "hospital.doctor_name": {"status": "extracted", "value": "Dr. Manish Trivedi", "match": "contains"},
+      "encounter.admission_date": {"status": "not_found", "value": null, "match": "exact"},
+      "financial.total_amount": {"status": "not_found", "value": null, "match": "exact"}
+    },
+    "expected_quality": {
+      "has_conflicting_dates": false,
+      "overall_quality": "excellent"
+    },
+    "must_have_provenance": ["patient.name", "hospital.doctor_name"]
+  },
+
+  "eval_diag_004": {
+    "expected_type_hint": "diagnostic_report",
+    "expected_fields": {
+      "patient.name": {"status": "extracted", "value": "Sunil Kashyap", "match": "exact"},
+      "patient.patient_id": {"status": "extracted", "value": "MHL-55219", "match": "exact"},
+      "patient.age": {"status": "extracted", "value": 52, "match": "numeric"},
+      "patient.gender": {"status": "extracted", "value": "Male", "match": "exact"},
+      "hospital.doctor_name": {"status": "extracted", "value": "Dr. Manish Trivedi", "match": "contains"},
+      "financial.total_amount": {"status": "not_found", "value": null, "match": "exact"}
+    },
+    "expected_quality": {
+      "has_conflicting_dates": false,
+      "overall_quality": "excellent"
+    },
+    "must_have_provenance": ["patient.name"]
+  },
+
+  "eval_mp_005": {
+    "expected_type_hint": "hospital_invoice",
+    "expected_fields": {
+      "patient.name": {"status": "extracted", "value": "Ananya Mukherjee", "match": "exact"},
+      "patient.patient_id": {"status": "extracted", "value": "MAX-IP-10294", "match": "exact"},
+      "patient.age": {"status": "extracted", "value": 28, "match": "numeric"},
+      "patient.gender": {"status": "extracted", "value": "Female", "match": "exact"},
+      "hospital.doctor_name": {"status": "extracted", "value": "Dr. Vivek Murthy", "match": "contains"},
+      "encounter.admission_date": {"status": "extracted", "value": "2024-03-01", "match": "exact"},
+      "encounter.discharge_date": {"status": "extracted", "value": "2024-03-04", "match": "exact"},
+      "financial.invoice_number": {"status": "extracted", "value": "INV-MAX-2024-88", "match": "exact"},
+      "financial.total_amount": {"status": "extracted", "value": 16000.0, "match": "numeric"},
+      "financial.paid_amount": {"status": "extracted", "value": 16000.0, "match": "numeric"}
+    },
+    "expected_quality": {
+      "has_conflicting_dates": false,
+      "arithmetic_reconciliation_matches": true
+    },
+    "must_have_provenance": ["patient.name", "financial.total_amount"]
+  },
+
+  "eval_conflict_006": {
+    "expected_type_hint": "discharge_summary",
+    "expected_fields": {
+      "patient.name": {"status": "extracted", "value": "Harish Chandra", "match": "exact"},
+      "patient.patient_id": {"status": "extracted", "value": "SKH-9921", "match": "exact"},
+      "encounter.admission_date": {"status": "extracted", "value": "2024-04-25", "match": "exact"},
+      "encounter.discharge_date": {"status": "extracted", "value": "2024-04-15", "match": "exact"},
+      "encounter.diagnosis_text": {"status": "extracted", "value": "COPD", "match": "contains"}
+    },
+    "expected_quality": {
+      "has_conflicting_dates": true,
+      "overall_quality": "degraded"
+    },
+    "must_have_provenance": ["patient.name", "encounter.admission_date"]
+  },
+
+  "eval_ocr_007": {
+    "expected_type_hint": "hospital_invoice",
+    "expected_fields": {
+      "financial.total_amount": {"status": "unreadable", "value": null, "match": "status_only"},
+      "encounter.discharge_date": {"status": "not_found", "value": null, "match": "exact"}
+    },
+    "expected_quality": {
+      "overall_quality": "degraded"
+    },
+    "must_have_provenance": []
+  },
+
+  "eval_incompl_008": {
+    "expected_type_hint": "admission_document",
+    "expected_fields": {
+      "patient.name": {"status": "not_found", "value": null, "match": "exact"},
+      "patient.patient_id": {"status": "extracted", "value": "CGH-1104", "match": "exact"},
+      "hospital.doctor_name": {"status": "extracted", "value": "Dr. Deepa Nair", "match": "contains"},
+      "encounter.admission_date": {"status": "extracted", "value": "2024-03-10", "match": "exact"},
+      "encounter.discharge_date": {"status": "not_found", "value": null, "match": "exact"},
+      "financial.total_amount": {"status": "not_found", "value": null, "match": "exact"}
+    },
+    "expected_quality": {
+      "has_conflicting_dates": false
+    },
+    "must_have_provenance": ["encounter.admission_date", "hospital.doctor_name"]
+  }
+}

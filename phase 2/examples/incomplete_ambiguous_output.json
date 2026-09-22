@@ -1,0 +1,342 @@
+{
+  "schema_version": "1.0",
+  "document_id": "doc_conflict_006",
+  "status": "partial",
+  "document_metadata": {
+    "source_type": "pdf",
+    "page_count": 1,
+    "detected_language": "en",
+    "is_scanned": false,
+    "filename": "conflicting_dates.pdf"
+  },
+  "document_type_hints": [
+    {
+      "candidate_type": "discharge_summary",
+      "confidence": "high",
+      "confidence_score": 0.85,
+      "supporting_signals": [
+        "Matched discharge summary title",
+        "Contains discharge date field",
+        "Contains clinical diagnosis/complaints section"
+      ]
+    },
+    {
+      "candidate_type": "admission_document",
+      "confidence": "low",
+      "confidence_score": 0.3,
+      "supporting_signals": [
+        "Contains admission date/time"
+      ]
+    }
+  ],
+  "pages": [
+    {
+      "page_number": 1,
+      "extracted_text": "CITY HOSPITAL DISCHARGE CARD\nPatient Name: Anil Verma\nDate of Admission: 25/03/2024\nDate of Discharge: 10/03/2024\nDiagnosis: Viral Fever",
+      "is_scanned": false,
+      "unreadable_char_ratio": 0.0,
+      "tables_count": 0,
+      "key_values_count": 4
+    }
+  ],
+  "sections": [],
+  "tables": [],
+  "key_value_fields": [
+    {
+      "field_id": "kv_doc_conflict_006_p1_1",
+      "label": "Patient Name",
+      "normalized_key": "patient_name",
+      "value": "Anil Verma",
+      "status": "extracted",
+      "provenance": {
+        "document_id": "doc_conflict_006",
+        "page_number": 1,
+        "source_text": "Patient Name: Anil Verma",
+        "bounding_box": null,
+        "extraction_method": "key_value_heuristic",
+        "confidence": "high",
+        "confidence_score": 0.92
+      }
+    },
+    {
+      "field_id": "kv_doc_conflict_006_p1_2",
+      "label": "Date of Admission",
+      "normalized_key": "admission_date",
+      "value": "25/03/2024",
+      "status": "extracted",
+      "provenance": {
+        "document_id": "doc_conflict_006",
+        "page_number": 1,
+        "source_text": "Date of Admission: 25/03/2024",
+        "bounding_box": null,
+        "extraction_method": "key_value_heuristic",
+        "confidence": "high",
+        "confidence_score": 0.92
+      }
+    },
+    {
+      "field_id": "kv_doc_conflict_006_p1_3",
+      "label": "Date of Discharge",
+      "normalized_key": "discharge_date",
+      "value": "10/03/2024",
+      "status": "extracted",
+      "provenance": {
+        "document_id": "doc_conflict_006",
+        "page_number": 1,
+        "source_text": "Date of Discharge: 10/03/2024",
+        "bounding_box": null,
+        "extraction_method": "key_value_heuristic",
+        "confidence": "high",
+        "confidence_score": 0.92
+      }
+    },
+    {
+      "field_id": "kv_doc_conflict_006_p1_4",
+      "label": "Diagnosis",
+      "normalized_key": "diagnosis",
+      "value": "Viral Fever",
+      "status": "extracted",
+      "provenance": {
+        "document_id": "doc_conflict_006",
+        "page_number": 1,
+        "source_text": "Diagnosis: Viral Fever",
+        "bounding_box": null,
+        "extraction_method": "key_value_heuristic",
+        "confidence": "high",
+        "confidence_score": 0.92
+      }
+    }
+  ],
+  "entities": {
+    "patient": {
+      "name": {
+        "value": "Anil Verma",
+        "raw_text": "Anil Verma",
+        "status": "extracted",
+        "provenance": {
+          "document_id": "doc_conflict_006",
+          "page_number": 1,
+          "source_text": "Patient Name: Anil Verma",
+          "bounding_box": null,
+          "extraction_method": "key_value_heuristic",
+          "confidence": "high",
+          "confidence_score": 0.92
+        },
+        "notes": null
+      },
+      "patient_id": {
+        "value": null,
+        "raw_text": null,
+        "status": "not_found",
+        "provenance": null,
+        "notes": null
+      },
+      "age": {
+        "value": null,
+        "raw_text": null,
+        "status": "not_found",
+        "provenance": null,
+        "notes": null
+      },
+      "gender": {
+        "value": null,
+        "raw_text": null,
+        "status": "not_found",
+        "provenance": null,
+        "notes": null
+      }
+    },
+    "hospital": {
+      "name": {
+        "value": "CITY HOSPITAL DISCHARGE CARD",
+        "raw_text": "CITY HOSPITAL DISCHARGE CARD",
+        "status": "extracted",
+        "provenance": {
+          "document_id": "doc_conflict_006",
+          "page_number": 1,
+          "source_text": "CITY HOSPITAL DISCHARGE CARD",
+          "bounding_box": null,
+          "extraction_method": "top_line_header_heuristic",
+          "confidence": "medium",
+          "confidence_score": 0.75
+        },
+        "notes": null
+      },
+      "address": {
+        "value": null,
+        "raw_text": null,
+        "status": "not_found",
+        "provenance": null,
+        "notes": null
+      },
+      "registration_number": {
+        "value": null,
+        "raw_text": null,
+        "status": "not_found",
+        "provenance": null,
+        "notes": null
+      },
+      "doctor_name": {
+        "value": null,
+        "raw_text": null,
+        "status": "not_found",
+        "provenance": null,
+        "notes": null
+      },
+      "department": {
+        "value": null,
+        "raw_text": null,
+        "status": "not_found",
+        "provenance": null,
+        "notes": null
+      }
+    },
+    "encounter": {
+      "admission_date": {
+        "value": "2024-03-25",
+        "raw_text": "25/03/2024",
+        "status": "extracted",
+        "provenance": {
+          "document_id": "doc_conflict_006",
+          "page_number": 1,
+          "source_text": "Date of Admission: 25/03/2024",
+          "bounding_box": null,
+          "extraction_method": "key_value_heuristic",
+          "confidence": "high",
+          "confidence_score": 0.92
+        },
+        "notes": null
+      },
+      "discharge_date": {
+        "value": "2024-03-10",
+        "raw_text": "10/03/2024",
+        "status": "ambiguous",
+        "provenance": {
+          "document_id": "doc_conflict_006",
+          "page_number": 1,
+          "source_text": "Date of Discharge: 10/03/2024",
+          "bounding_box": null,
+          "extraction_method": "key_value_heuristic",
+          "confidence": "high",
+          "confidence_score": 0.92
+        },
+        "notes": "Ambiguous day/month in '10/03/2024'. Parsed with dayfirst=True as 2024-03-10"
+      },
+      "procedure_date": {
+        "value": null,
+        "raw_text": null,
+        "status": "not_found",
+        "provenance": null,
+        "notes": null
+      },
+      "visit_date": {
+        "value": null,
+        "raw_text": null,
+        "status": "not_found",
+        "provenance": null,
+        "notes": null
+      },
+      "diagnosis_text": {
+        "value": "Viral Fever",
+        "raw_text": "Viral Fever",
+        "status": "extracted",
+        "provenance": {
+          "document_id": "doc_conflict_006",
+          "page_number": 1,
+          "source_text": "Diagnosis: Viral Fever",
+          "bounding_box": null,
+          "extraction_method": "key_value_heuristic",
+          "confidence": "high",
+          "confidence_score": 0.92
+        },
+        "notes": "Extracted from key-value pair. Not a verified medical diagnosis."
+      },
+      "procedure_text": {
+        "value": null,
+        "raw_text": null,
+        "status": "not_found",
+        "provenance": null,
+        "notes": null
+      }
+    },
+    "financial": {
+      "invoice_number": {
+        "value": null,
+        "raw_text": null,
+        "status": "not_found",
+        "provenance": null,
+        "notes": null
+      },
+      "bill_date": {
+        "value": null,
+        "raw_text": null,
+        "status": "not_found",
+        "provenance": null,
+        "notes": null
+      },
+      "total_amount": {
+        "value": null,
+        "raw_text": null,
+        "status": "not_found",
+        "provenance": null,
+        "notes": null
+      },
+      "paid_amount": {
+        "value": null,
+        "raw_text": null,
+        "status": "not_found",
+        "provenance": null,
+        "notes": null
+      },
+      "balance_amount": {
+        "value": null,
+        "raw_text": null,
+        "status": "not_found",
+        "provenance": null,
+        "notes": null
+      },
+      "currency": {
+        "value": null,
+        "raw_text": null,
+        "status": "not_found",
+        "provenance": null,
+        "notes": null
+      },
+      "itemized_charges": []
+    }
+  },
+  "quality": {
+    "overall_quality": "degraded",
+    "unreadable_char_ratio": 0.0,
+    "ocr_confidence_avg": null,
+    "is_scanned_or_image_based": false,
+    "has_conflicting_dates": true,
+    "arithmetic_reconciliation": {
+      "checked": false,
+      "itemized_sum": null,
+      "stated_total": null,
+      "discrepancy": null,
+      "matches": null,
+      "notes": "Insufficient itemized charges or total amount for reconciliation"
+    },
+    "missing_critical_fields": [
+      "encounter.discharge_date"
+    ]
+  },
+  "issues": [
+    {
+      "code": "CONFLICTING_ENCOUNTER_DATES",
+      "severity": "error",
+      "description": "Admission date (2024-03-25) is chronologically after Discharge date (2024-03-10).",
+      "page_number": null,
+      "field_reference": "encounter.admission_date / encounter.discharge_date"
+    },
+    {
+      "code": "MISSING_CRITICAL_FIELD",
+      "severity": "info",
+      "description": "Field 'encounter.discharge_date' typically expected for a 'discharge_summary' was not found.",
+      "page_number": null,
+      "field_reference": "encounter.discharge_date"
+    }
+  ]
+}

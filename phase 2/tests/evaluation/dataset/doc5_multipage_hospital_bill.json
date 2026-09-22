@@ -1,0 +1,37 @@
+{
+  "document_id": "eval_mp_005",
+  "filename": "max_super_specialty_multipage_bill.pdf",
+  "source_type": "pdf",
+  "page_count": 2,
+  "pages": [
+    {
+      "page_number": 1,
+      "raw_text": "MAX SUPER SPECIALTY HOSPITAL\nINPATIENT ADMISSION & BILLING SUMMARY - PAGE 1\n\nPatient Name: Ananya Mukherjee            Patient ID: MAX-IP-10294\nAge: 28 Yrs    Gender: Female             Date of Admission: 01/03/2024\nTreating Doctor: Dr. Vivek Murthy         Date of Discharge: 04/03/2024\nInvoice No: INV-MAX-2024-88               Invoice Date: 04/03/2024\n\nADMISSION DETAILS\nAdmitted for acute gastroenteritis with moderate dehydration.\nPatient kept in General Ward for IV fluid rehydration and monitoring.\nContinued on page 2 for detailed itemized charges.\n",
+      "blocks": [],
+      "tables": [],
+      "is_scanned": false,
+      "ocr_confidence_avg": null
+    },
+    {
+      "page_number": 2,
+      "raw_text": "MAX SUPER SPECIALTY HOSPITAL\nFINAL TAX INVOICE - ITEMIZED BREAKDOWN - PAGE 2\nInvoice No: INV-MAX-2024-88\n\nITEMIZED CHARGES\nDescription                       Qty    Rate       Amount\nTwin Sharing Ward                   3    2500.00    7500.00\nNursing Charges                     3     800.00    2400.00\nPhysician Rounds                    3    1000.00    3000.00\nIV Fluids & Medicines               1    3100.00    3100.00\n\nTotal Amount: ₹ 16,000.00\nPaid Amount: ₹ 16,000.00\nBalance Amount: ₹ 0.00\n",
+      "blocks": [],
+      "tables": [
+        {
+          "page_number": 2,
+          "rows": [
+            ["Description", "Qty", "Rate", "Amount"],
+            ["Twin Sharing Ward", "3", "2500.00", "7500.00"],
+            ["Nursing Charges", "3", "800.00", "2400.00"],
+            ["Physician Rounds", "3", "1000.00", "3000.00"],
+            ["IV Fluids & Medicines", "1", "3100.00", "3100.00"]
+          ]
+        }
+      ],
+      "is_scanned": false,
+      "ocr_confidence_avg": null
+    }
+  ],
+  "metadata": {"hospital": "Max Super Specialty Hospital"},
+  "ingestion_warnings": []
+}
