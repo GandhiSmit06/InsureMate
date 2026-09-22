@@ -42,6 +42,19 @@ from .document_understanding import (
     Phase1InputAdapter,
 )
 
+# Phase 3 (requirement extraction)
+from .requirement_extraction import (
+    RequirementExtractionEngine,
+    PageText,
+    RequirementItem,
+    Phase3Request,
+    Phase3Response,
+    ExtractionSummary,
+    Category,
+    Priority,
+)
+from . import requirement_extraction
+
 __all__ = [
     # Unified pipeline
     "process_document",
@@ -60,4 +73,14 @@ __all__ = [
     "RawTableInput",
     "RawBlockInput",
     "Phase1InputAdapter",
+    # Phase 3: Requirement Extraction
+    "RequirementExtractionEngine",
+    "PageText",
+    "RequirementItem",
+    "Phase3Request",
+    "Phase3Response",
+    "ExtractionSummary",
+    "Category",
+    "Priority",
+    "requirement_extraction",
 ]

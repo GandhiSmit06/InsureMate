@@ -47,12 +47,12 @@ InsureMate/
 │
 └── AI/                                 # Unified AI Module
     ├── __init__.py                     # Unified package exports & pipeline integration
-    ├── insuremate_pipeline.py          # End-to-end process_document() pipeline
+    ├── insuremate_pipeline.py          # End-to-end 3-phase process_document() pipeline
     ├── documentIngestion/              # Phase 1: Ingestion & PaddleOCR extraction
     │   ├── __init__.py
     │   ├── documentIngestor.py         # PyMuPDF & PaddleOCR ingestor
-    │   ├── paddle_ocr.py               # Pure PaddleOCR wrapper
-    │   └── utils.py                    # PDF rendering & bbox utils
+    │   ├── paddleOcr.py                # Pure GPU PaddleOCR engine
+    │   └── pdfReader.py                # Fast PDF reader & validator
     ├── document_understanding/         # Phase 2: Understanding & structuring
     │   ├── __init__.py                 # Module exports
     │   ├── config.py                   # Thresholds, currencies, doc types
@@ -65,18 +65,28 @@ InsureMate/
     │   ├── classification/             # Type hinting
     │   ├── provenance/                 # Evidence traceability
     │   └── quality/                    # OCR evaluation & arithmetic reconciliation
+    ├── requirement_extraction/         # Phase 3: Medical Insurance Requirement Extraction
+    │   ├── __init__.py                 # RequirementExtractionEngine exports
+    │   ├── engine.py                   # RequirementExtractionEngine orchestrator
+    │   ├── config.py                   # Phase 3 environment & LLM configuration
+    │   ├── schema/                     # Strict Pydantic models (RequirementItem, Phase3Response)
+    │   ├── extractor/                  # Deterministic rule & hybrid LLM extractors
+    │   ├── validator/                  # Hallucination guard & schema validator
+    │   ├── normalizer/                 # Canonical name & deadline normalizer
+    │   ├── deduplicator/               # Clause & requirement deduplicator
+    │   ├── ingestion/                  # PDF reader & page-by-page tracker
+    │   ├── api/                        # FastAPI REST routes (/api/phase3)
+    │   └── main.py                     # Standalone FastAPI application
     ├── tests/                          # Pipeline and unit test suite
     │   ├── conftest.py                 # Shared pytest fixtures
-    │   ├── test_pipeline.py            # End-to-end integration tests
+    │   ├── test_pipeline.py            # End-to-end Phase 2 integration tests
+    │   ├── requirement_extraction/     # 12 test suites for Phase 3 requirements
     │   └── evaluation/                 # Evaluation dataset & benchmarks
     ├── examples/                       # Concrete demonstrations
-    │   ├── input_example.json          # Sample input from Phase 1
-    │   ├── output_example.json         # Sample Schema v1.0 output
-    │   └── run_demo.py                 # Executable demonstration script
     └── docs/                           # Integration guides & reports
         ├── evaluation_report.md        # Comprehensive evaluation report
         ├── integration.md              # Phase 1-2 integration guide
-        └── phase3_integration_guide.md # Guide for Phase 3 integration
+        └── requirement_extraction.md   # Phase 3 requirement extraction documentation
 ```
 
 ---
@@ -88,14 +98,23 @@ InsureMate/
 pip install -r requirements.txt
 ```
 
-### Running the Test Suite
+### Running the End-to-End Pipeline
+```bash
+# Run all 3 phases (Ingestion + Understanding + Policy Requirements)
+python testWorking.py <path_to_pdf>
+
+# Run claim document against a specific policy
+python testWorking.py <claim.pdf> --policy <policy.pdf>
+```
+
+### Running the Test Suite (51 Unit Tests)
 ```bash
 pytest AI/tests/
 ```
 
-### Running the Demonstration
+### Running the Phase 3 REST API Server
 ```bash
-python AI/examples/run_demo.py
+python run_server.py
 ```
 
 ---

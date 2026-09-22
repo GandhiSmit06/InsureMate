@@ -9,8 +9,8 @@ if str(root_dir) not in sys.path:
     sys.path.insert(0, str(root_dir))
 
 import uvicorn
-from phase3.main import app
-from phase3.config import config
+from AI.requirement_extraction.main import app
+from AI.requirement_extraction.config import config
 
 if __name__ == "__main__":
     print(f"Starting InsureMate Phase 3 on http://127.0.0.1:{config.PORT}")
