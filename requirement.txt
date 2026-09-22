@@ -1,0 +1,20 @@
+# InsureMate - Document Ingestion & AI Pipeline Requirements
+
+# Core PDF & Image Processing
+pymupdf>=1.24.0
+numpy>=1.24.0,<2.4.0
+opencv-python>=4.8.0
+pillow>=10.0.0
+
+# PaddleOCR Engine (Recommended: casing, punctuation, table layouts)
+paddleocr>=2.7.0
+paddlepaddle>=3.0.0
+
+# Optional Keras-OCR Engine
+keras-ocr>=0.9.3
+tensorflow>=2.15.0
+tf-keras>=2.15.0
+
+# Environment & Config
+python-dotenv>=1.0.0
+pydantic>=2.0.0

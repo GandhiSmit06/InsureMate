@@ -1,0 +1,32 @@
+{
+  "document_id": "doc_inv_sample_01",
+  "filename": "apollo_hospital_invoice_ramesh.pdf",
+  "source_type": "pdf",
+  "page_count": 1,
+  "pages": [
+    {
+      "page_number": 1,
+      "raw_text": "APOLLO HOSPITALS AHMEDABAD\nPlot No. 1A, Bhat GIDC, Gandhinagar - 382428\nFINAL INPATIENT BILL / TAX INVOICE\n\nPatient Name: Ramesh Sharma                 Patient ID: UHID-2024-9812\nAge / Sex: 52 Yrs / Male                   Date of Admission: 12/03/2024\nTreating Doctor: Dr. Rajiv Mehta           Date of Discharge: 15/03/2024\nInvoice No: INV-2024-00452                 Invoice Date: 15/03/2024\n\nITEMIZED CHARGES\nDescription                       Qty    Rate       Amount\nICU Room Charges                    3    5000.00   15000.00\nNursing Care Charges                3    1200.00    3600.00\nConsultation Charges                1    2500.00    2500.00\nPharmacy & Consumables              1    4400.00    4400.00\n\nTotal Amount: ₹ 25,500.00\nPaid Amount: ₹ 25,500.00\nBalance Amount: ₹ 0.00\n",
+      "blocks": [],
+      "tables": [
+        {
+          "page_number": 1,
+          "rows": [
+            ["Description", "Qty", "Rate", "Amount"],
+            ["ICU Room Charges", "3", "5000.00", "15000.00"],
+            ["Nursing Care Charges", "3", "1200.00", "3600.00"],
+            ["Consultation Charges", "1", "2500.00", "2500.00"],
+            ["Pharmacy & Consumables", "1", "4400.00", "4400.00"]
+          ]
+        }
+      ],
+      "is_scanned": false,
+      "ocr_confidence_avg": null
+    }
+  ],
+  "metadata": {
+    "hospital": "Apollo Hospitals",
+    "invoice_id": "INV-2024-00452"
+  },
+  "ingestion_warnings": []
+}

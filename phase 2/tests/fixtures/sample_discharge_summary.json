@@ -1,0 +1,20 @@
+{
+  "document_id": "doc_ds_sample_02",
+  "filename": "sterling_discharge_summary_sunita.pdf",
+  "source_type": "pdf",
+  "page_count": 1,
+  "pages": [
+    {
+      "page_number": 1,
+      "raw_text": "STERLING HOSPITAL - MULTISPECIALTY CENTER\nDISCHARGE SUMMARY\n\nPatient Name: Sunita Patel                 UHID: ST-90214\nAge / Sex: 42 Yrs / Female                 DOA: 10/02/2024\nConsultant: Dr. Arvind Joshi               DOD: 14/02/2024\n\nCLINICAL SUMMARY\nPatient presented with acute right lower quadrant abdominal pain, nausea, and low-grade fever of 2 days duration.\n\nFINAL DIAGNOSIS\nAcute Appendicitis with localized peritonitis.\n\nTREATMENT GIVEN\nEmergency Laparoscopic Appendectomy performed under general anesthesia on 10/02/2024. Post-operative recovery uneventful.\n\nDISCHARGE ADVICE\nTab Cefixime 200 mg BD for 5 days.\nTab Paracetamol 650 mg SOS for pain.\nFollow up in surgical OPD after 7 days for suture check.\n",
+      "blocks": [],
+      "tables": [],
+      "is_scanned": false,
+      "ocr_confidence_avg": null
+    }
+  ],
+  "metadata": {
+    "hospital": "Sterling Hospital"
+  },
+  "ingestion_warnings": []
+}

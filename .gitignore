@@ -1,7 +1,14 @@
-# Python bytecode & cache
+# Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
 *$py.class
+
+# Environment & Secrets (CRITICAL: Do not commit API keys)
+.env
+.env.*
+.env.local
+.env.*.local
+*.env
 
 # Environments & Virtualenv
 .venv/
@@ -11,18 +18,26 @@ ENV/
 env.bak/
 venv.bak/
 
-# Environment Variables & Secrets (CRITICAL: Do not commit API keys)
-.env
-.env.local
-.env.*.local
-*.env
-
 # Testing & Coverage
 .pytest_cache/
 .coverage
 htmlcov/
 .tox/
 .nox/
+
+# PowerShell & Shell runners
+*.ps1
+*.ps
+*.sh
+
+# Scratch and test scripts in root
+test_*.py
+inspect_*.py
+
+# Extracted document OCR output dumps & PDFs
+*_extracted.txt
+*_extracted.json
+*.pdf
 
 # IDE & Editor files
 .vscode/
