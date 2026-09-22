@@ -1,0 +1,29 @@
+{
+  "document_id": "eval_inv_001",
+  "filename": "apollo_cardiac_invoice.pdf",
+  "source_type": "pdf",
+  "page_count": 1,
+  "pages": [
+    {
+      "page_number": 1,
+      "raw_text": "APOLLO HOSPITALS ENTERPRISE LTD\nCardiology & Inpatient Billing\nFINAL TAX INVOICE\n\nPatient Name: Vikramaditya Singhania      Patient ID: UHID-78192\nAge: 61 Yrs    Gender: Male             Date of Admission: 15/01/2024\nTreating Doctor: Dr. Sanjeev Kapoor      Date of Discharge: 18/01/2024\nInvoice No: INV-AP-99012                Invoice Date: 18/01/2024\n\nITEMIZED CHARGES\nDescription                       Qty    Rate       Amount\nCoronary Angiography Package        1    18000.00   18000.00\nDeluxe Room Charges                 3    4000.00    12000.00\nNursing & Monitoring Charges        3    1500.00     4500.00\nMedicines & Consumables             1    6500.00     6500.00\n\nTotal Amount: ₹ 41,000.00\nPaid Amount: ₹ 41,000.00\nBalance Amount: ₹ 0.00\n",
+      "blocks": [],
+      "tables": [
+        {
+          "page_number": 1,
+          "rows": [
+            ["Description", "Qty", "Rate", "Amount"],
+            ["Coronary Angiography Package", "1", "18000.00", "18000.00"],
+            ["Deluxe Room Charges", "3", "4000.00", "12000.00"],
+            ["Nursing & Monitoring Charges", "3", "1500.00", "4500.00"],
+            ["Medicines & Consumables", "1", "6500.00", "6500.00"]
+          ]
+        }
+      ],
+      "is_scanned": false,
+      "ocr_confidence_avg": null
+    }
+  ],
+  "metadata": {"hospital": "Apollo Hospitals", "department": "Cardiology"},
+  "ingestion_warnings": []
+}

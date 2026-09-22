@@ -1,0 +1,18 @@
+{
+  "document_id": "eval_conflict_006",
+  "filename": "conflicting_dates_admission_slip.pdf",
+  "source_type": "pdf",
+  "page_count": 1,
+  "pages": [
+    {
+      "page_number": 1,
+      "raw_text": "SHREE KRISHNA HOSPITAL\nADMISSION AND DISCHARGE RECORD\n\nPatient Name: Harish Chandra              Patient ID: SKH-9921\nAge: 65 Yrs    Gender: Male\nDate of Admission: 25/04/2024\nDate of Discharge: 15/04/2024\nTreating Doctor: Dr. K. P. Joshi\n\nDIAGNOSIS\nChronic Obstructive Pulmonary Disease (COPD) with acute exacerbation.\n",
+      "blocks": [],
+      "tables": [],
+      "is_scanned": false,
+      "ocr_confidence_avg": null
+    }
+  ],
+  "metadata": {"hospital": "Shree Krishna Hospital"},
+  "ingestion_warnings": []
+}
