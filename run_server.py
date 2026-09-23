@@ -8,6 +8,16 @@ root_dir = Path(__file__).resolve().parent
 if str(root_dir) not in sys.path:
     sys.path.insert(0, str(root_dir))
 
+# Auto-delegate to .venv if current interpreter lacks dependencies and .venv exists
+_venv_python = root_dir / ".venv" / "Scripts" / "python.exe"
+if _venv_python.exists() and Path(sys.executable).resolve() != _venv_python.resolve():
+    try:
+        import paddle  # type: ignore
+    except ImportError:
+        import subprocess
+        _res = subprocess.run([str(_venv_python)] + sys.argv)
+        sys.exit(_res.returncode)
+
 import uvicorn
 from AI.requirement_extraction.main import app
 from AI.requirement_extraction.config import config

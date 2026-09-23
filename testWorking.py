@@ -47,6 +47,16 @@ PROJECT_ROOT = Path(__file__).resolve().parent
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
+# Auto-delegate to .venv if current interpreter lacks paddle and .venv exists
+_venv_python = PROJECT_ROOT / ".venv" / "Scripts" / "python.exe"
+if _venv_python.exists() and Path(sys.executable).resolve() != _venv_python.resolve():
+    try:
+        import paddle  # type: ignore
+    except ImportError:
+        import subprocess
+        _res = subprocess.run([str(_venv_python)] + sys.argv)
+        sys.exit(_res.returncode)
+
 from AI.documentIngestion.documentIngestor import ingest_document
 from AI.insuremate_pipeline import (
     _convert_phase1_to_phase2,
