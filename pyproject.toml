@@ -28,5 +28,8 @@ dev = [
 ]
 
 [tool.pytest.ini_options]
-testpaths = ["AI/tests"]
+testpaths = ["AI/tests", "phase4/tests"]
 pythonpath = ["."]
+markers = [
+    "integration: mark test as live integration test requiring local Ollama service",
+]

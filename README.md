@@ -87,6 +87,15 @@ InsureMate/
         ├── evaluation_report.md        # Comprehensive evaluation report
         ├── integration.md              # Phase 1-2 integration guide
         └── requirement_extraction.md   # Phase 3 requirement extraction documentation
+├── phase4/                             # Phase 4: Missing-Document Detection Engine
+│   ├── config.py                       # Phase 4 environment & Ollama configuration
+│   ├── detector.py                     # Missing document detection orchestrator
+│   ├── gateway/                        # Ollama HTTP API client & gateway
+│   ├── prompts/                        # Structured system & user prompts
+│   ├── schemas/                        # Strict Pydantic input/output schemas
+│   ├── mock/                           # Phase 3 mock input fixtures
+│   └── tests/                          # Phase 4 test suite (unit & integration)
+├── run_phase4.py                       # Phase 4 CLI runner
 ```
 
 ---
@@ -96,6 +105,7 @@ InsureMate/
 ### Installation
 ```bash
 pip install -r requirements.txt
+cp .env.example .env
 ```
 
 ### Running the End-to-End Pipeline
@@ -107,9 +117,25 @@ python testWorking.py <path_to_pdf>
 python testWorking.py <claim.pdf> --policy <policy.pdf>
 ```
 
-### Running the Test Suite (51 Unit Tests)
+### Running Phase 4 (Missing-Document Detection)
 ```bash
+# Verify Ollama service and gemma3 model
+python run_phase4.py --check
+
+# Run detection on sample Phase 3 input
+python run_phase4.py
+
+# Run demo with missing discharge document
+python run_phase4.py --demo-discharge
+```
+
+### Running the Test Suites
+```bash
+# Phase 2 & 3 test suite
 pytest AI/tests/
+
+# Phase 4 detector test suite
+pytest phase4/tests/test_phase4_detector.py
 ```
 
 ### Running the Phase 3 REST API Server
