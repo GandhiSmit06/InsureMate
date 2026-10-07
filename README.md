@@ -273,31 +273,97 @@ SUMMARY REASONS FOR CLAIM DECISION:
 
 ---
 
-## 9. Agentic Readiness & Tool Registry
+## 9. Phase 4: Dynamic Missing-Document Detection
 
-All three modules are encapsulated as standardized callable tools ready to be registered directly with the Phase 4 Agent Orchestrator:
+### Architectural Shift: Old Design vs. New Dynamic Design
 
-1. **`QwenVLExtractionTool`**:
-   - `tool.schema`: JSON Schema defining function name, parameters (`pdf_path`, `max_pages`), and descriptions.
-   - `tool.run(pdf_path, max_pages)`: Invocable by the Agent to inspect new PDF files and observe page-level extractions.
-2. **`DocumentValidationTool`**:
-   - `tool.schema`: Evaluates completeness of documents against schema requirements.
-   - `tool.run(extracted_documents, requirements)`: Invocable by the Agent to detect missing required fields.
-3. **`ValidityCheckerTool`**:
-   - `tool.schema`: Cross-references dates and patient coverage.
-   - `tool.run(policy_data, document_data)`: Invocable by the Agent to assess whether claim events fall within the policy term.
+| Dimension | Old Design (Legacy) | New Design (Dynamic Agentic) |
+| :--- | :--- | :--- |
+| **Requirement Source** | Static list hardcoded in Python code | **Dynamically extracted by LLM from actual policy document** |
+| **Fixed Assumption** | Assumed all claims need discharge summary & bills | **No assumptions**: Only requires what the specific policy states |
+| **Document Matching** | Simple string/contains matching or static synonyms | **Semantic reasoning** by Gemma 3 (`gemma3:latest` on local Ollama) |
+| **Page Traceability** | Arbitrary or manual | **1-indexed page number strictly preserved from Phase 1** |
+| **Missing Status** | Static dictionary lookup | `missing=true` -> `page_no=null`; `missing=false` -> exact `page_no` |
 
-A convenience registry function is provided in `tools/__init__.py`:
+### Integrated Pipeline Flow:
+```
+        PDF Document(s)
+              │
+              ▼
+           PHASE 1: Qwen-VL Vision Extractor
+              │
+       ┌───────┴────────────────────────┐
+       ▼                                ▼
+Policy Information             Submitted Claim Documents
+       │                                │
+       ▼                                │
+Dynamic Policy Requirements            │
+       │                                │
+       ▼                                │
+PHASE 2: Field Validation              │
+       │                                │
+       ▼                                │
+PHASE 3: Validity Checker              │
+       │                                │
+       └───────┬────────────────────────┘
+               │
+               ▼
+    PHASE 4: Gemma 3 LLM Gateway (http://localhost:11434)
+               │
+       (Semantic Equivalence Matching + Exactly-Once Retry)
+               │
+               ▼
+    Final Missing Document Checklist Table
+```
+
+### Example Output (Illustrative Demonstration Only):
+```markdown
+| Sr.No | Document Title | Missing or not | Page No. |
+| :---: | :------------- | :------------: | :------: |
+| 1 | Original Discharge Summary | No | 5 |
+| 2 | Final Hospital Bill | No | 7 |
+| 3 | Investigation Reports | Yes | null |
+```
+*(Note: The document titles above are illustrative examples. The production system produces titles dynamically matching the uploaded policy).*
+
+---
+
+## 10. Agentic Readiness & Tool Registry
+
+All four modules are encapsulated as standardized callable tools ready to be registered directly with an Agent Orchestrator:
+
+1. **`QwenVLExtractionTool`** (`tools/qwen_vl_tool.py`): Extracts visual documents with 1-indexed pages and zero disk images.
+2. **`DocumentValidationTool`** (`tools/document_validation_tool.py`): Deterministically checks required field completeness per document category.
+3. **`ValidityCheckerTool`** (`tools/validity_checker_tool.py`): Deterministically verifies claim dates against policy coverage term and checks patient identity.
+4. **`MissingDocumentTool` / `MissingDocumentDetectorTool`** (`tools/missing_document_tool.py`): Dynamically determines required documents from policy terms and semantically compares submitted claim documents.
+
+Registry in `tools/__init__.py`:
 ```python
-from tools import get_insuremate_tools
+from tools import get_insuremate_tools, MissingDocumentTool
 
-# In Phase 4, the LLM Agent can register all tools with one call:
+# Register all 4 tools in one line:
 tools = get_insuremate_tools()
 ```
 
 ---
 
-## 10. Next Phase
+## 11. Command-Line Usage
 
-**Phase 4** should implement the **InsureMate Agent Orchestrator + Planning + Tool Calling + Decision Loop**.
-Phase 4 will ingest user queries, dynamically invoke these three tools, evaluate intermediate observations, and direct subsequent missing-document requests and claim finalization.
+```bash
+# Run full 4-phase end-to-end pipeline:
+python main.py --end-to-end
+
+# Run complete test suite (Phase 1, Phase 2, Phase 3, Phase 4, and End-to-End):
+python main.py --test-all
+
+# Run Phase 4 detector independently:
+python run_phase4.py --demo-policy-a
+python run_phase4.py --demo-policy-b
+
+# Run Phase 4 dedicated test suite (8 mandatory dynamic tests + anti-hardcoding):
+python -m pytest tests/test_phase4.py -v
+
+# Run full project pytest suite:
+python -m pytest -v
+```
+

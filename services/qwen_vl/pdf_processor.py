@@ -49,6 +49,7 @@ class PDFPage:
     height: int
     image: Image.Image
     base64_data_url: str
+    text: str = ""
 
     def to_dict(self) -> dict:
         return {
@@ -56,6 +57,7 @@ class PDFPage:
             "width": self.width,
             "height": self.height,
             "has_image": self.image is not None,
+            "text": self.text,
         }
 
 
@@ -129,12 +131,21 @@ class PDFProcessor:
                 b64_str = base64.b64encode(image_bytes).decode("utf-8")
                 data_url = f"data:image/jpeg;base64,{b64_str}"
 
+                # Extract digital text if present
+                page_text = ""
+                try:
+                    textpage = page.get_textpage()
+                    page_text = textpage.get_text_range()
+                except Exception:
+                    page_text = ""
+
                 pdf_page = PDFPage(
                     page_number=page_num,
                     width=pil_image.width,
                     height=pil_image.height,
                     image=pil_image,
-                    base64_data_url=data_url
+                    base64_data_url=data_url,
+                    text=page_text
                 )
                 processed_pages.append(pdf_page)
 

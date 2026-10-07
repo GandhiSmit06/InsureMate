@@ -31,6 +31,14 @@ class InsureLogger:
         print(f"[VALIDITY] {msg}")
 
     @staticmethod
+    def missing_doc(msg: str) -> None:
+        print(f"[MISSING-DOC] {msg}")
+
+    @staticmethod
+    def llm(msg: str) -> None:
+        print(f"[LLM] {msg}")
+
+    @staticmethod
     def result(msg: str) -> None:
         print(f"[RESULT] {msg}")
 
