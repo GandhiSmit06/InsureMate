@@ -24,3 +24,6 @@ env/
 # Testing & Logs
 .pytest_cache/
 *.log
+
+# Sensitive documents & PDFs
+*.pdf
