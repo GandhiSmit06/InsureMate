@@ -1,61 +1,26 @@
-# Byte-compiled / optimized / DLL files
+# Python
 __pycache__/
 *.py[cod]
 *$py.class
+*.so
+.Python
 
-# Environment & Secrets (CRITICAL: Do not commit API keys)
-.env
-.env.*
-!.env.example
-.env.local
-.env.*.local
-*.env
-
-# Environments & Virtualenv
+# Virtual Environment
 .venv/
 venv/
-env/
 ENV/
-env.bak/
-venv.bak/
+env/
 
-# Testing & Coverage
-.pytest_cache/
-.coverage
-htmlcov/
-.tox/
-.nox/
+# Environment variables & secrets
+.env
+*.env.local
 
-# PowerShell & Shell runners
-*.ps1
-*.ps
-*.sh
-
-# Scratch and test scripts in root
-/test_*.py
-/inspect_*.py
-
-# Extracted document OCR output dumps & PDFs
-*_extracted.txt
-*_extracted.json
-*.pdf
-
-# IDE & Editor files
+# IDE & OS
 .vscode/
 .idea/
-*.swp
-*.swo
-*~
-
-# Operating System files
-Thumbs.db
-ehthumbs.db
-Desktop.ini
-$RECYCLE.BIN/
 .DS_Store
+*.swp
 
-# Logs & Temporary files
+# Testing & Logs
+.pytest_cache/
 *.log
-*.tmp
-temp/
-tmp/
