@@ -47,7 +47,8 @@ class PageExtractionResult:
     policy_end_date: Optional[str] = None
     document_date: Optional[str] = None
     relevant_conditions: List[str] = field(default_factory=list)
-    required_documents: List[str] = field(default_factory=list)
+    policy_clauses: List[str] = field(default_factory=list)
+    policy_relevant_text: Optional[str] = None
     extracted_text_summary: Optional[str] = None
     raw_response: Optional[str] = None
 
@@ -75,6 +76,14 @@ STRICT INSTRUCTIONS:
    - "other"
    - "unknown"
 
+5. POLICY CLAUSES & CONDITIONS EXTRACTION:
+   For insurance_policy pages, extract visible policy conditions, terms, claim submission clauses, and claim procedures verbatim or near-verbatim as visible.
+   - Do NOT attempt to interpret or generate a final claim document checklist.
+   - Extract visible policy clauses into "policy_clauses" (list of strings).
+   - Extract visible text sections regarding claim procedures or submission rules into "policy_relevant_text" (string or null).
+   - Extract benefits, terms, sum insured, or waiting periods into "relevant_conditions" (list of strings).
+   - If not visible, return empty list [] or null.
+
 Return a strictly valid JSON object matching this schema:
 {
   "document_title": "string or null",
@@ -91,7 +100,8 @@ Return a strictly valid JSON object matching this schema:
   "policy_end_date": "string or null (e.g. DD/MM/YYYY or YYYY-MM-DD)",
   "document_date": "string or null (e.g. DD/MM/YYYY)",
   "relevant_conditions": ["string"],
-  "required_documents": ["string"],
+  "policy_clauses": ["string"],
+  "policy_relevant_text": "string or null",
   "extracted_text_summary": "brief summary of visible text"
 }
 """
@@ -235,7 +245,8 @@ class QwenVLExtractor:
             policy_end_date=data.get("policy_end_date"),
             document_date=data.get("document_date"),
             relevant_conditions=data.get("relevant_conditions", []) if isinstance(data.get("relevant_conditions"), list) else [],
-            required_documents=data.get("required_documents", []) if isinstance(data.get("required_documents"), list) else [],
+            policy_clauses=data.get("policy_clauses", []) if isinstance(data.get("policy_clauses"), list) else [],
+            policy_relevant_text=data.get("policy_relevant_text"),
             extracted_text_summary=data.get("extracted_text_summary"),
             raw_response=content
         )
@@ -243,8 +254,98 @@ class QwenVLExtractor:
     def _extract_page_offline(self, page: PDFPage, filename_hint: str) -> PageExtractionResult:
         """
         Deterministic, grounded extraction for testing and local runs without API credits.
-        Grounds extraction on verified repository documents.
+        If page.text contains digital text, dynamically parses metadata and policy requirements.
+        Otherwise grounds extraction on verified repository documents.
         """
+        # Dynamic digital text extraction if page has text
+        if getattr(page, "text", None) and page.text.strip():
+            text = page.text.strip()
+            text_lower = text.lower()
+
+            if "policy" in text_lower or "insurance" in text_lower or "certificate" in text_lower:
+                doc_type = "insurance_policy"
+            elif "bill" in text_lower or "invoice" in text_lower:
+                doc_type = "medical_bill"
+            elif "fir" in text_lower or "police" in text_lower or "incident" in text_lower:
+                doc_type = "incident_document"
+            elif "report" in text_lower or "pathology" in text_lower or "diagnostic" in text_lower:
+                doc_type = "medical_report"
+            elif "hospital" in text_lower or "admission" in text_lower:
+                doc_type = "hospital_document"
+            else:
+                doc_type = "other"
+
+            lines = [ln.strip() for ln in text.splitlines() if ln.strip() and not ln.strip().startswith("=")]
+            title = lines[0] if lines else f"{doc_type.replace('_', ' ').title()} (Page {page.page_number})"
+
+            pol_num_m = re.search(r"Policy Number:\s*([^\n\r]+)", text, re.I)
+            pol_num = pol_num_m.group(1).strip() if pol_num_m else None
+
+            holder_m = re.search(r"Policy Holder(?:\s*Name)?:\s*([^\n\r]+)", text, re.I)
+            holder = holder_m.group(1).strip() if holder_m else None
+
+            insured_m = re.search(r"Insured Persons?:\s*([^\n\r]+)", text, re.I)
+            insured = [name.strip() for name in insured_m.group(1).split(",")] if insured_m else ([holder] if holder else [])
+
+            period_m = re.search(r"Policy Period:\s*(\d{2}/\d{2}/\d{4})\s*to\s*(\d{2}/\d{2}/\d{4})", text, re.I)
+            if period_m:
+                start_date, end_date = period_m.group(1).strip(), period_m.group(2).strip()
+            else:
+                incept_m = re.search(r"Inception Date:\s*(\d{2}/\d{2}/\d{4})", text, re.I)
+                expiry_m = re.search(r"Expiry Date:\s*(\d{2}/\d{2}/\d{4})", text, re.I)
+                start_date = incept_m.group(1).strip() if incept_m else None
+                end_date = expiry_m.group(1).strip() if expiry_m else None
+
+            pat_m = re.search(r"(?:Patient|Complainant)\s*Name:\s*([^\n\r]+)", text, re.I)
+            patient = pat_m.group(1).strip() if pat_m else None
+
+            hosp_m = re.search(r"(?:Hospital|Police Station):\s*([^\n\r]+)", text, re.I)
+            hospital = hosp_m.group(1).strip() if hosp_m else None
+
+            bill_num_m = re.search(r"(?:Bill|Invoice|Report)\s*Number:\s*([^\n\r]+)", text, re.I)
+            bill_num = bill_num_m.group(1).strip() if bill_num_m else None
+
+            amount_m = re.search(r"(?:Total Bill Amount|Bill Amount|Sum Insured):\s*Rs\.?\s*([0-9,.]+)", text, re.I)
+            amount = amount_m.group(1).strip() if amount_m else None
+
+            doc_date_m = re.search(r"(?:Date of Incident|Bill Date|Admission Date|Date):\s*(\d{2}/\d{2}/\d{4})", text, re.I)
+            doc_date = doc_date_m.group(1).strip() if doc_date_m else start_date
+
+            policy_clauses: List[str] = []
+            policy_relevant_text: Optional[str] = None
+            if doc_type == "insurance_policy":
+                clause_match = re.search(r"(?:CLAIMS|MANDATORY|DOCUMENTS REQUIRED|TERMS AND CONDITIONS|COVERAGE)[^\n]*\n([\s\S]*?)(?:\n\n[A-Z]|\Z)", text, re.I)
+                if clause_match:
+                    policy_relevant_text = clause_match.group(0).strip()
+                    for line in clause_match.group(1).splitlines():
+                        line = line.strip()
+                        item_m = re.match(r"^\d+[\.\)]\s*(.+)$", line)
+                        if item_m:
+                            clause_text = item_m.group(1).strip()
+                            if clause_text and clause_text not in policy_clauses:
+                                policy_clauses.append(clause_text)
+
+            return PageExtractionResult(
+                page_number=page.page_number,
+                document_type=doc_type,
+                document_title=title,
+                policy_number=pol_num,
+                policy_holder_name=holder,
+                insured_names=insured,
+                patient_name=patient,
+                hospital_name=hospital,
+                bill_number=bill_num,
+                invoice_number=bill_num,
+                bill_amount=amount,
+                policy_start_date=start_date,
+                policy_end_date=end_date,
+                document_date=doc_date,
+                relevant_conditions=[],
+                policy_clauses=policy_clauses,
+                policy_relevant_text=policy_relevant_text,
+                extracted_text_summary=text[:200]
+            )
+
         name_lower = filename_hint.lower()
 
         # Document 1: ICICI Lombard Health Elevate Policy Copy
@@ -275,13 +376,6 @@ class QwenVLExtractor:
                         "Cumulative Bonus: 10% per claim-free year",
                         "Grace Period: 30 days for renewal"
                     ],
-                    required_documents=[
-                        "Duly completed and signed claim form",
-                        "Original discharge summary with hospital seal",
-                        "Original hospital final itemized bill and payment receipts",
-                        "Investigation reports along with prescriptions",
-                        "Doctor consultation notes and medicine bills"
-                    ],
                     extracted_text_summary="ICICI Lombard Policy Certificate issued to Maulikkumar Pathak covering family floater with Parth Maulikkumar Pathak from 12-Mar-2025 to 11-Mar-2028."
                 )
             else:
@@ -296,7 +390,6 @@ class QwenVLExtractor:
                     policy_end_date="11/03/2028",
                     document_date=None,
                     relevant_conditions=["Standard waiting periods and specific exclusions apply"],
-                    required_documents=["Original supporting bills for claim reimbursement"],
                     extracted_text_summary=f"Section {page.page_number} of policy terms and coverage details."
                 )
 
@@ -319,7 +412,6 @@ class QwenVLExtractor:
                     policy_end_date=None,
                     document_date="19/10/2024",  # Admission date
                     relevant_conditions=["Treating Consultant: Dr. Dhaval Sheth, M.S. (Gen Surg)"],
-                    required_documents=[],
                     extracted_text_summary="Indoor case papers showing admission of Parth M. Pathak on 19/10/2024 at Shree Vallabh Hospital."
                 )
             elif page.page_number == 2:
@@ -339,7 +431,6 @@ class QwenVLExtractor:
                     policy_end_date=None,
                     document_date="25/10/2024",  # Discharge/bill date
                     relevant_conditions=["Payment mode: Cash and TPA pending"],
-                    required_documents=[],
                     extracted_text_summary="Final consolidated hospital bill amounting to Rs 48,500 dated 25/10/2024 for patient Parth M. Pathak."
                 )
             elif page.page_number == 3:
@@ -359,7 +450,6 @@ class QwenVLExtractor:
                     policy_end_date=None,
                     document_date="20/10/2024",
                     relevant_conditions=["Complete Blood Count & Liver Function Test"],
-                    required_documents=[],
                     extracted_text_summary="Diagnostic blood investigation report dated 20/10/2024 for Parth M. Pathak."
                 )
             else:
