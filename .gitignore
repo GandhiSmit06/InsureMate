@@ -6,6 +6,7 @@ __pycache__/
 # Environment & Secrets (CRITICAL: Do not commit API keys)
 .env
 .env.*
+!.env.example
 .env.local
 .env.*.local
 *.env
@@ -31,8 +32,8 @@ htmlcov/
 *.sh
 
 # Scratch and test scripts in root
-test_*.py
-inspect_*.py
+/test_*.py
+/inspect_*.py
 
 # Extracted document OCR output dumps & PDFs
 *_extracted.txt

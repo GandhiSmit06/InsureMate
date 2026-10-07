@@ -1,0 +1,33 @@
+{
+  "policy_requirements": [
+    {
+      "document_title": "Discharge Summary"
+    },
+    {
+      "document_title": "Final Hospital Bill"
+    },
+    {
+      "document_title": "Investigation Reports"
+    },
+    {
+      "document_title": "Prescription"
+    },
+    {
+      "document_title": "Pharmacy Bills"
+    }
+  ],
+  "submitted_documents": [
+    {
+      "document_title": "Patient Discharge Record",
+      "page_no": 5
+    },
+    {
+      "document_title": "Final Hospital Invoice",
+      "page_no": 7
+    },
+    {
+      "document_title": "Doctor Prescription",
+      "page_no": 10
+    }
+  ]
+}
