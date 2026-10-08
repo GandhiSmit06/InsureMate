@@ -6,7 +6,8 @@ Provides direct invocation of:
 - Phase 2: Document Validation Tool
 - Phase 3: Validity Checker Tool
 - Phase 4: Dynamic Missing-Document Detector Tool
-- Complete End-to-End Execution Pipeline (Phases 1 -> 2 -> 3 -> 4)
+- Phase 5: InsureMate Agent Orchestrator & Planning (Autonomous Agent Workflow)
+- Complete End-to-End Execution Pipeline
 - Comprehensive Test Suites
 """
 
@@ -14,6 +15,7 @@ import argparse
 import json
 import sys
 from pathlib import Path
+from typing import Optional
 
 # Add project root to sys.path
 ROOT_DIR = Path(__file__).resolve().parent
@@ -25,10 +27,13 @@ from tools.document_validation_tool import DocumentValidationTool
 from tools.validity_checker_tool import ValidityCheckerTool
 from tools.missing_document_tool import MissingDocumentTool
 from services.missing_document.detector import format_detection_table
+from agent.insuremate_agent import InsureMateAgent
+from agent.state import ClaimState
 from tests.test_phase1 import run_phase1_tests
 from tests.test_phase2 import run_phase2_tests
 from tests.test_phase3 import run_phase3_tests
 from tests.test_phase4 import run_phase4_all_tests
+from tests.test_phase5 import run_phase5_tests
 from tests.test_end_to_end import run_end_to_end_test
 from utils.logger import logger
 
@@ -122,12 +127,52 @@ def run_phase_4(phase1_data=None, phase2_data=None, phase3_data=None):
     return res
 
 
+def run_phase_5(
+    policy_pdf: Optional[str] = None,
+    claim_pdf: Optional[str] = None,
+    goal: Optional[str] = None,
+    max_pages: int = 2,
+    offline_mode: bool = False
+) -> ClaimState:
+    print("\n" + "=" * 70)
+    print("PHASE 5: INSUREMATE AGENT ORCHESTRATOR & PLANNING")
+    print("=" * 70)
+
+    docs = []
+    if policy_pdf and Path(policy_pdf).exists():
+        docs.append(str(policy_pdf))
+    if claim_pdf and Path(claim_pdf).exists():
+        docs.append(str(claim_pdf))
+
+    if not docs:
+        p_default = ROOT_DIR / "4225IELVT38453879200000_policy_copy.pdf"
+        c_default = ROOT_DIR / "DOCUMENTS FOR Re- activation REQUEST OF CLAIM NO.95151709.pdf"
+        if p_default.exists():
+            docs.append(str(p_default))
+        if c_default.exists():
+            docs.append(str(c_default))
+
+    agent = InsureMateAgent(offline_mode=offline_mode)
+    state = agent.run(
+        documents=docs,
+        goal=goal or "Determine claim readiness.",
+        max_pages=max_pages
+    )
+    print("\n")
+    agent.print_execution_trace(state)
+    print("\nFINAL CLAIM READINESS PACKAGE:")
+    print(json.dumps(state.final_report, indent=2))
+    return state
+
+
 def main():
     parser = argparse.ArgumentParser(
-        description="InsureMate — Phase 1, 2, 3, 4 Agentic Claim Preparation Pipeline"
+        description="InsureMate — Agentic Claim Preparation Pipeline & Agent Orchestrator"
     )
-    parser.add_argument("--phase", type=int, choices=[1, 2, 3, 4], help="Execute a specific phase (1, 2, 3, or 4)")
+    parser.add_argument("--phase", type=int, choices=[1, 2, 3, 4, 5], help="Execute a specific phase (1, 2, 3, 4, or 5)")
+    parser.add_argument("--agent", action="store_true", help="Execute InsureMate Agent Orchestrator (Phase 5)")
     parser.add_argument("--phase4", action="store_true", help="Execute Phase 4 Missing-Document Detector")
+    parser.add_argument("--phase5", action="store_true", help="Execute Phase 5 InsureMate Agent Orchestrator")
     parser.add_argument("--test-all", action="store_true", help="Execute all unit and integration test suites")
     parser.add_argument("--end-to-end", action="store_true", help="Execute full end-to-end pipeline on real documents")
     parser.add_argument("--policy", "-p", type=str, help="Target policy PDF file to process")
@@ -135,6 +180,8 @@ def main():
     parser.add_argument("--pdf", type=str, help="Target PDF file to extract using Phase 1 tool")
     parser.add_argument("--max-pages", type=int, default=3, help="Max pages to extract from PDF (default 3)")
     parser.add_argument("--real", action="store_true", help="Execute complete analysis on real repository documents")
+    parser.add_argument("--goal", type=str, help="Custom natural language goal for InsureMate Agent")
+    parser.add_argument("--offline", action="store_true", help="Run agent in offline deterministic mode")
 
     args = parser.parse_args()
 
@@ -155,12 +202,24 @@ def main():
         p2 = run_phase2_tests()
         p3 = run_phase3_tests()
         p4 = run_phase4_all_tests()
+        p5 = run_phase5_tests()
         pe2e = run_end_to_end_test(policy_pdf=args.policy, claim_pdf=args.claim)
-        all_passed = p1 and p2 and p3 and p4 and pe2e
+        all_passed = p1 and p2 and p3 and p4 and p5 and pe2e
         print("\n=======================================================")
         print(f"OVERALL TEST SUITE STATUS: {'ALL TESTS PASSED' if all_passed else 'SOME TESTS FAILED'}")
         print("=======================================================")
         sys.exit(0 if all_passed else 1)
+
+    elif args.agent or args.phase5 or args.phase == 5:
+        target_policy = args.policy or default_policy
+        target_claim = args.claim or str(ROOT_DIR / "DOCUMENTS FOR Re- activation REQUEST OF CLAIM NO.95151709.pdf")
+        run_phase_5(
+            policy_pdf=target_policy,
+            claim_pdf=target_claim,
+            goal=args.goal,
+            max_pages=args.max_pages,
+            offline_mode=args.offline
+        )
 
     elif args.end_to_end or (args.policy and args.claim):
         success = run_end_to_end_test(policy_pdf=args.policy, claim_pdf=args.claim)
@@ -183,10 +242,17 @@ def main():
         run_phase_4(phase1_data=phase1_data)
 
     else:
-        # Default run: Complete end-to-end demonstration
-        print("Running complete End-to-End pipeline on repository documents...\n")
-        success = run_end_to_end_test(policy_pdf=args.policy, claim_pdf=args.claim)
-        sys.exit(0 if success else 1)
+        # Default run: Complete Agentic Demonstration
+        print("Executing InsureMate Agent on repository documents...\n")
+        target_policy = args.policy or default_policy
+        target_claim = args.claim or str(ROOT_DIR / "DOCUMENTS FOR Re- activation REQUEST OF CLAIM NO.95151709.pdf")
+        run_phase_5(
+            policy_pdf=target_policy,
+            claim_pdf=target_claim,
+            goal=args.goal,
+            max_pages=args.max_pages,
+            offline_mode=args.offline
+        )
 
 
 if __name__ == "__main__":

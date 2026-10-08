@@ -39,6 +39,18 @@ class InsureLogger:
         print(f"[LLM] {msg}")
 
     @staticmethod
+    def agent(msg: str) -> None:
+        print(f"[AGENT] {msg}")
+
+    @staticmethod
+    def info(msg: str) -> None:
+        print(f"[INFO] {msg}")
+
+    @staticmethod
+    def warning(msg: str) -> None:
+        print(f"[WARNING] {msg}")
+
+    @staticmethod
     def result(msg: str) -> None:
         print(f"[RESULT] {msg}")
 
