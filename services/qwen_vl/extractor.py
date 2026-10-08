@@ -348,8 +348,28 @@ class QwenVLExtractor:
 
         name_lower = filename_hint.lower()
 
-        # Document 1: Sample Health Insurance Policy
-        if "policy" in name_lower:
+        # Document: Travel Policy B
+        if "policy_b" in name_lower:
+            return PageExtractionResult(
+                page_number=page.page_number,
+                document_type="insurance_policy",
+                document_title="Overseas Travel Protection Policy Certificate",
+                policy_number="TRAV-2026-9090",
+                policy_holder_name="JOHN DOE",
+                insured_names=["JOHN DOE"],
+                policy_start_date="01/01/2026",
+                policy_end_date="31/12/2026",
+                document_date="01/01/2026",
+                policy_clauses=[
+                    "Clause 4.1: Loss of baggage requires Police First Information Report (FIR) filed within 24 hours.",
+                    "Clause 4.2: Original Boarding Pass and Airline Ticket must be submitted."
+                ],
+                policy_relevant_text="Requires Police First Information Report (FIR) and original Boarding Pass / Ticket.",
+                extracted_text_summary="Travel insurance policy covering travel incidents."
+            )
+
+        # Document 1: Sample Health Insurance Policy (Policy A / Generic Policy)
+        elif "policy" in name_lower:
             if page.page_number == 1:
                 return PageExtractionResult(
                     page_number=page.page_number,
@@ -375,6 +395,11 @@ class QwenVLExtractor:
                         "Cumulative Bonus: 10% per claim-free year",
                         "Grace Period: 30 days for renewal"
                     ],
+                    policy_clauses=[
+                        "1. Original Discharge Summary from hospital stating date of admission and discharge.",
+                        "2. Final Hospital Itemized Bill and payment receipts."
+                    ],
+                    policy_relevant_text="Original Discharge Summary and Final Hospital Bill required.",
                     extracted_text_summary="Standard Health Insurance Policy Certificate issued to John Doe covering family floater with Jane Doe from 12-Mar-2025 to 11-Mar-2028."
                 )
             else:
