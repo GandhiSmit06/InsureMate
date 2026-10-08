@@ -38,7 +38,9 @@ const DocumentsView = {
       tbody.innerHTML = `
         <tr>
           <td colspan="8" class="empty-state" style="padding: 40px;">
-            <div class="empty-state-icon">📂</div>
+            <div class="empty-state-icon">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
+            </div>
             <h4>No Active Claim Selected</h4>
             <p>Select or create a claim session to inspect uploaded documents.</p>
           </td>
@@ -94,7 +96,9 @@ const DocumentsView = {
       tbody.innerHTML = `
         <tr>
           <td colspan="8" class="empty-state" style="padding: 40px;">
-            <div class="empty-state-icon">📄</div>
+            <div class="empty-state-icon">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+            </div>
             <h4>No Documents Attached</h4>
             <p>This claim has no policy or supporting files uploaded.</p>
           </td>
@@ -106,11 +110,11 @@ const DocumentsView = {
     tbody.innerHTML = docs.map((doc, idx) => `
       <tr>
         <td>
-          <div style="font-weight: 600; color: var(--text-primary); display: flex; align-items: center; gap: 8px;">
-            <span>📄</span>
+          <div style="font-weight: 600; color: #FFFFFF; display: flex; align-items: center; gap: 8px;">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
             <span>${Utils.escapeHtml(doc.name)}</span>
           </div>
-          <div style="font-size: 0.74rem; color: var(--text-muted);">${Utils.escapeHtml(doc.role)}</div>
+          <div style="font-size: 0.72rem; color: var(--text-muted);">${Utils.escapeHtml(doc.role)}</div>
         </td>
         <td>
           <span class="badge" style="background: var(--bg-elevated); color: var(--text-secondary); text-transform: capitalize;">
@@ -174,7 +178,7 @@ const DocumentsView = {
           </div>
           <div>
             <div style="font-size: 0.72rem; color: var(--text-muted); text-transform: uppercase;">Document Type</div>
-            <div style="font-weight: 600; font-size: 0.88rem; color: var(--cyan-primary); text-transform: capitalize;">${Utils.escapeHtml(pageData.document_type || 'PDF Document')}</div>
+            <div style="font-weight: 600; font-size: 0.88rem; color: var(--primary); text-transform: capitalize;">${Utils.escapeHtml(pageData.document_type || 'PDF Document')}</div>
           </div>
           <div>
             <div style="font-size: 0.72rem; color: var(--text-muted); text-transform: uppercase;">Page Reference</div>
@@ -182,7 +186,7 @@ const DocumentsView = {
           </div>
           <div>
             <div style="font-size: 0.72rem; color: var(--text-muted); text-transform: uppercase;">Status</div>
-            <div style="font-weight: 600; font-size: 0.88rem; color: var(--emerald-primary);">✓ Extracted by Qwen-VL</div>
+            <div style="font-weight: 600; font-size: 0.88rem; color: var(--emerald);">✓ Extracted by Qwen-VL</div>
           </div>
         </div>
       `;
@@ -240,7 +244,7 @@ const DocumentsView = {
                     <td style="font-weight: 600; text-transform: capitalize; color: var(--text-secondary);">${Utils.escapeHtml(e.label)}</td>
                     <td style="color: var(--text-primary); font-family: var(--font-mono);">${Utils.escapeHtml(e.val)}</td>
                     <td>
-                      <span class="badge" style="background: rgba(6, 182, 212, 0.12); color: var(--cyan-primary);">
+                      <span class="badge" style="background: var(--primary-light); color: var(--primary); border: 1px solid var(--primary-border);">
                         Page ${e.page}
                       </span>
                     </td>

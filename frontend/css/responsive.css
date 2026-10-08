@@ -1,10 +1,10 @@
 /* frontend/css/responsive.css
-   Responsive styling across Laptop, Tablet, and Mobile displays
+   Responsive design for Desktop, Laptop, Tablet, and Mobile displays
 */
 
 @media (max-width: 1024px) {
   :root {
-    --sidebar-width: 220px;
+    --sidebar-w: 220px;
   }
 
   .dropzones-container {
@@ -31,7 +31,7 @@
   }
 
   .header-toggle-mobile {
-    display: flex;
+    display: inline-flex;
   }
 
   .top-header {
@@ -39,7 +39,7 @@
   }
 
   .page-container {
-    padding: 20px 16px;
+    padding: 18px 16px;
   }
 
   .kpi-grid {
@@ -97,7 +97,7 @@
 
 @media (max-width: 480px) {
   .page-title-group h2 {
-    font-size: 1.3rem;
+    font-size: 1.25rem;
   }
 
   .form-actions {
@@ -106,5 +106,10 @@
 
   .form-actions .btn {
     width: 100%;
+  }
+
+  .demo-scenarios-bar {
+    flex-direction: column;
+    align-items: flex-start;
   }
 }

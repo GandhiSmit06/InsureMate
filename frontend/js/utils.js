@@ -71,7 +71,7 @@ const Utils = {
     const toast = document.createElement('div');
     toast.className = `toast toast-${type}`;
 
-    let icon = 'ℹ️';
+    let icon = '●';
     if (type === 'success') icon = '✓';
     else if (type === 'error') icon = '✕';
     else if (type === 'warning') icon = '⚠';

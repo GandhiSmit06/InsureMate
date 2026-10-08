@@ -1,59 +1,71 @@
 /* frontend/css/agent.css
-   Agent Workflow Stepper (8 nodes), Agent Decision Panel, Live Activity Timeline
+   Agent Workflow Pipeline (8 stages), Agent Decision Panel, Agent Tools Orchestration, Tool Execution Activity
+   Sophisticated dark AI operations console (Linear / Vercel style)
 */
 
+/* Active Execution Banner */
 .execution-banner {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  background: linear-gradient(135deg, rgba(6, 182, 212, 0.1) 0%, rgba(15, 23, 42, 0.6) 100%);
-  border: 1px solid rgba(6, 182, 212, 0.25);
-  border-radius: var(--border-radius);
-  padding: 18px 24px;
-  margin-bottom: 24px;
+  background: var(--bg-card);
+  border: 1px solid var(--border-card);
+  border-radius: var(--radius-md);
+  padding: 16px 20px;
+  margin-bottom: 18px;
   flex-wrap: wrap;
-  gap: 16px;
+  gap: 14px;
+  box-shadow: var(--shadow-sm);
+  position: relative;
+  overflow: hidden;
+}
+
+.execution-banner::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; width: 3px; height: 100%;
+  background: var(--accent);
 }
 
 .banner-left {
   display: flex;
   align-items: center;
-  gap: 16px;
+  gap: 12px;
 }
 
 .agent-icon-badge {
-  width: 44px;
-  height: 44px;
-  border-radius: 12px;
-  background: linear-gradient(135deg, #06b6d4 0%, #3b82f6 100%);
+  width: 34px;
+  height: 34px;
+  border-radius: var(--radius-sm);
+  background: var(--primary-light);
+  border: 1px solid var(--primary-border);
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #ffffff;
-  font-size: 1.3rem;
-  box-shadow: 0 0 15px rgba(6, 182, 212, 0.35);
+  color: var(--accent);
 }
 
 .banner-meta {
   display: flex;
   align-items: center;
-  gap: 18px;
-  font-size: 0.85rem;
-  color: var(--text-secondary);
+  gap: 14px;
+  font-size: 0.78rem;
+  color: var(--text-muted);
 }
 
 .banner-meta strong {
-  color: var(--text-primary);
+  color: #FFFFFF;
   font-family: var(--font-mono);
 }
 
-/* Stepper Track & Nodes */
+/* 8-Stage Pipeline Stepper */
 .stepper-container {
   background: var(--bg-card);
   border: 1px solid var(--border-card);
-  border-radius: var(--border-radius);
-  padding: 24px 20px;
-  margin-bottom: 24px;
+  border-radius: var(--radius-md);
+  padding: 18px 16px;
+  margin-bottom: 20px;
+  box-shadow: var(--shadow-sm);
   overflow-x: auto;
 }
 
@@ -63,17 +75,17 @@
   justify-content: space-between;
   position: relative;
   min-width: 820px;
-  padding: 10px 0;
+  padding: 6px 0;
 }
 
 .stepper-track::before {
   content: '';
   position: absolute;
-  top: 32px;
-  left: 40px;
-  right: 40px;
-  height: 2px;
-  background-color: var(--border-card);
+  top: 22px;
+  left: 36px;
+  right: 36px;
+  height: 1px;
+  background-color: var(--border-subtle);
   z-index: 1;
 }
 
@@ -88,113 +100,184 @@
 }
 
 .step-circle {
-  width: 44px;
-  height: 44px;
+  width: 32px;
+  height: 32px;
   border-radius: 50%;
-  background-color: var(--bg-secondary);
-  border: 2px solid var(--border-card);
+  background-color: #09101E;
+  border: 1px solid var(--border-hover);
   color: var(--text-muted);
   display: flex;
   align-items: center;
   justify-content: center;
-  font-weight: 700;
-  font-size: 0.95rem;
-  margin-bottom: 10px;
-  transition: all var(--transition-normal);
+  font-weight: 600;
+  font-size: 0.78rem;
+  font-family: var(--font-mono);
+  margin-bottom: 7px;
+  transition: all var(--tr-fast);
 }
 
 .step-label {
-  font-size: 0.82rem;
+  font-size: 0.74rem;
   font-weight: 600;
   color: var(--text-secondary);
-  margin-bottom: 2px;
+  margin-bottom: 1px;
   white-space: nowrap;
 }
 
 .step-subtext {
-  font-size: 0.7rem;
-  color: var(--text-muted);
+  font-size: 0.65rem;
+  color: var(--text-subtle);
   white-space: nowrap;
 }
 
 /* Step Node States */
 .step-node.completed .step-circle {
-  background-color: #10b981;
-  border-color: #10b981;
-  color: #ffffff;
-  box-shadow: 0 0 12px rgba(16, 185, 129, 0.4);
+  background-color: var(--emerald);
+  border-color: #34D399;
+  color: #FFFFFF;
+  box-shadow: 0 0 10px rgba(16, 185, 129, 0.35);
 }
 
 .step-node.completed .step-label {
-  color: #10b981;
+  color: #34D399;
 }
 
 .step-node.running .step-circle {
-  background-color: #06b6d4;
-  border-color: #06b6d4;
-  color: #ffffff;
-  box-shadow: 0 0 16px rgba(6, 182, 212, 0.6);
-  animation: pulse-step 1.5s infinite;
+  background-color: var(--primary);
+  border-color: #60A5FA;
+  color: #FFFFFF;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.3), 0 0 12px rgba(37, 99, 235, 0.5);
+  animation: stepPulse 1.6s ease infinite;
+}
+
+@keyframes stepPulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.06); }
 }
 
 .step-node.running .step-label {
-  color: #06b6d4;
+  color: var(--accent);
 }
 
 .step-node.failed .step-circle {
-  background-color: #f43f5e;
-  border-color: #f43f5e;
-  color: #ffffff;
+  background-color: var(--rose);
+  border-color: #F87171;
+  color: #FFFFFF;
 }
 
 .step-node.failed .step-label {
-  color: #f43f5e;
+  color: #F87171;
 }
 
-@keyframes pulse-step {
-  0% { transform: scale(1); box-shadow: 0 0 0 0 rgba(6, 182, 212, 0.7); }
-  70% { transform: scale(1.08); box-shadow: 0 0 0 10px rgba(6, 182, 212, 0); }
-  100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(6, 182, 212, 0); }
-}
-
-/* Agent Decision Card (Section 14) */
-.decision-card {
-  background: linear-gradient(135deg, rgba(30, 41, 59, 0.7) 0%, rgba(15, 23, 42, 0.8) 100%);
+/* Agent Tools Orchestration Grid */
+.agent-tools-panel {
+  background: var(--bg-card);
   border: 1px solid var(--border-card);
-  border-radius: var(--border-radius);
-  padding: 24px;
-  margin-bottom: 24px;
+  border-radius: var(--radius-md);
+  padding: 16px 20px;
+  margin-bottom: 20px;
+  box-shadow: var(--shadow-sm);
+}
+
+.agent-tools-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.agent-tools-title {
+  font-size: 0.8rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--accent);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.agent-tools-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 12px;
+}
+
+.tool-card {
+  background: #09101E;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  padding: 10px 14px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  transition: border-color var(--tr-fast);
+}
+
+.tool-card:hover {
+  border-color: var(--border-hover);
+}
+
+.tool-card-info {
+  display: flex;
+  flex-direction: column;
+}
+
+.tool-card-name {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: #FFFFFF;
+}
+
+.tool-card-desc {
+  font-size: 0.68rem;
+  color: var(--text-subtle);
+}
+
+.tool-card-status {
+  font-size: 0.72rem;
+  font-weight: 600;
+}
+
+/* Agent Decision Panel (2x2 Grid) */
+.decision-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-card);
+  border-radius: var(--radius-md);
+  padding: 20px;
+  margin-bottom: 20px;
+  box-shadow: var(--shadow-sm);
 }
 
 .decision-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 20px;
+  gap: 14px;
 }
 
 .decision-block {
-  background-color: rgba(15, 23, 42, 0.6);
+  background-color: #09101E;
   border: 1px solid var(--border-subtle);
-  border-radius: var(--border-radius-sm);
-  padding: 16px;
+  border-radius: var(--radius-sm);
+  padding: 12px 16px;
 }
 
 .decision-block-title {
-  font-size: 0.78rem;
+  font-size: 0.68rem;
   font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: 0.06em;
-  color: var(--cyan-primary);
-  margin-bottom: 8px;
+  letter-spacing: 0.07em;
+  color: var(--accent);
+  margin-bottom: 6px;
   display: flex;
   align-items: center;
   gap: 6px;
 }
 
 .decision-block-content {
-  font-size: 0.9rem;
-  color: var(--text-primary);
-  line-height: 1.5;
+  font-size: 0.82rem;
+  color: var(--text-secondary);
+  line-height: 1.45;
 }
 
 .action-checklist {
@@ -207,98 +290,99 @@
 .action-checklist li {
   display: flex;
   align-items: flex-start;
-  gap: 8px;
-  font-size: 0.86rem;
+  gap: 7px;
+  font-size: 0.78rem;
   color: var(--text-secondary);
 }
 
 .action-checklist li svg {
-  color: var(--emerald-primary);
+  color: var(--emerald);
   flex-shrink: 0;
   margin-top: 2px;
 }
 
-/* Agent Live Activity Timeline (Section 12 & 33) */
+/* Chronological Tool Activity Timeline */
 .timeline-container {
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 10px;
   position: relative;
-  padding-left: 28px;
+  padding-left: 22px;
 }
 
 .timeline-container::before {
   content: '';
   position: absolute;
-  top: 10px;
-  bottom: 10px;
-  left: 10px;
-  width: 2px;
-  background-color: var(--border-card);
+  top: 8px;
+  bottom: 8px;
+  left: 7px;
+  width: 1px;
+  background-color: var(--border-subtle);
 }
 
 .timeline-item {
   position: relative;
-  background: var(--bg-card);
-  border: 1px solid var(--border-card);
-  border-radius: var(--border-radius-sm);
-  padding: 16px 20px;
-  transition: border-color var(--transition-fast);
+  background: #09101E;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  padding: 12px 16px;
+  box-shadow: var(--shadow-sm);
+  transition: border-color var(--tr-fast);
 }
 
 .timeline-item:hover {
-  border-color: rgba(255, 255, 255, 0.2);
+  border-color: var(--border-hover);
 }
 
 .timeline-marker {
   position: absolute;
-  left: -24px;
-  top: 18px;
-  width: 12px;
-  height: 12px;
+  left: -19px;
+  top: 15px;
+  width: 8px;
+  height: 8px;
   border-radius: 50%;
-  background-color: var(--cyan-primary);
-  box-shadow: 0 0 8px var(--cyan-glow);
+  background-color: var(--primary);
+  border: 2px solid var(--bg-body);
 }
 
 .timeline-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 8px;
+  margin-bottom: 5px;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: 6px;
 }
 
 .timeline-tool {
-  font-size: 0.92rem;
+  font-size: 0.82rem;
   font-weight: 600;
-  color: var(--text-primary);
+  color: #FFFFFF;
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 7px;
 }
 
 .timeline-time {
-  font-size: 0.74rem;
-  color: var(--text-muted);
+  font-size: 0.68rem;
+  color: var(--text-subtle);
   font-family: var(--font-mono);
 }
 
 .timeline-body {
-  font-size: 0.86rem;
+  font-size: 0.78rem;
   color: var(--text-secondary);
-  line-height: 1.5;
+  line-height: 1.45;
 }
 
 .timeline-tag {
   display: inline-block;
-  padding: 2px 8px;
-  border-radius: 4px;
-  font-size: 0.7rem;
+  padding: 2px 6px;
+  border-radius: 3px;
+  font-size: 0.65rem;
   font-family: var(--font-mono);
-  background: var(--bg-elevated);
-  color: var(--cyan-primary);
+  background: var(--bg-card);
+  color: var(--text-muted);
   border: 1px solid var(--border-subtle);
   margin-top: 6px;
 }

@@ -97,6 +97,9 @@ const AgentView = {
     // Update Stepper Nodes according to completed steps & tools executed
     this.updateStepperFromState(bundle);
 
+    // Update Orchestrated Tools Panel
+    this.updateToolsPanel(tools);
+
     // Update Decision Panel
     this.renderDecisionPanel(bundle);
 
@@ -108,6 +111,30 @@ const AgentView = {
     if (btnResults) {
       btnResults.style.display = report ? 'inline-flex' : 'none';
     }
+  },
+
+  updateToolsPanel(tools = []) {
+    const executedTools = new Set(tools.map(t => t.tool_name));
+    
+    const updateCard = (cardId, isExecuted) => {
+      const card = document.getElementById(cardId);
+      if (!card) return;
+      const badge = card.querySelector('.badge');
+      if (badge) {
+        if (isExecuted) {
+          badge.className = 'badge badge-success';
+          badge.textContent = 'Executed ✓';
+        } else {
+          badge.className = 'badge badge-ready';
+          badge.textContent = 'Online';
+        }
+      }
+    };
+
+    updateCard('tool-card-extraction', executedTools.has('document_extraction_tool'));
+    updateCard('tool-card-validation', executedTools.has('document_validation_tool'));
+    updateCard('tool-card-validity', executedTools.has('validity_checker_tool'));
+    updateCard('tool-card-missing', executedTools.has('missing_document_tool'));
   },
 
   updateStepperFromState(bundle) {
@@ -240,7 +267,9 @@ const AgentView = {
     if (tools.length === 0 && trace.length === 0) {
       container.innerHTML = `
         <div class="empty-state" style="padding: 30px;">
-          <div class="empty-state-icon">🤖</div>
+          <div class="empty-state-icon">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+          </div>
           <h4>No Agent Activity Recorded</h4>
           <p>Click "Start InsureMate Agent" to begin autonomous execution.</p>
         </div>
@@ -256,18 +285,18 @@ const AgentView = {
 
       return `
         <div class="timeline-item">
-          <div class="timeline-marker" style="background-color: ${success ? 'var(--emerald-primary)' : 'var(--rose-primary)'};"></div>
+          <div class="timeline-marker" style="background-color: ${success ? 'var(--emerald)' : 'var(--rose)'};"></div>
           <div class="timeline-header">
             <div class="timeline-tool">
               <span>Step ${tool.step_index || idx + 1}:</span>
-              <strong style="color: var(--text-highlight);">${Utils.escapeHtml(tool.tool_name.replace(/_/g, ' '))}</strong>
+              <strong style="color: var(--navy);">${Utils.escapeHtml(tool.tool_name.replace(/_/g, ' '))}</strong>
               ${statusBadge}
             </div>
             <div class="timeline-time">${Utils.formatDate(tool.timestamp)}</div>
           </div>
           <div class="timeline-body">
             <p>${Utils.escapeHtml(tool.output_data?.summary || tool.output_data?.decision_summary || (typeof tool.output_data === 'string' ? tool.output_data : 'Executed successfully.'))}</p>
-            ${tool.error_data ? `<p style="color: var(--rose-primary); margin-top: 4px;"><strong>Error:</strong> ${Utils.escapeHtml(JSON.stringify(tool.error_data))}</p>` : ''}
+            ${tool.error_data ? `<p style="color: var(--rose); margin-top: 4px;"><strong>Error:</strong> ${Utils.escapeHtml(JSON.stringify(tool.error_data))}</p>` : ''}
           </div>
           <div class="timeline-tag">${Utils.escapeHtml(tool.tool_name)}</div>
         </div>

@@ -68,19 +68,29 @@ const ClaimView = {
     // 2. Metrics Grid
     this.renderMetrics(bundle);
 
-    // 3. Missing Evidence Table (Section 16)
+    // 3. Overview Executive Summary
+    const overviewEl = document.getElementById('results-overview-summary-text');
+    if (overviewEl) {
+      overviewEl.textContent = report?.decision_summary || (
+        String(verdict).toUpperCase().includes('READY')
+          ? 'All required evidence documents have been validated and coverage dates confirmed. Claim is ready for submission.'
+          : 'Claim assessment completed. Action is required due to missing mandatory documentation or date mismatches.'
+      );
+    }
+
+    // 4. Missing Evidence Table (Section 16)
     this.renderMissingTable(latestState.missing_documents || report?.missing_documents_analysis);
 
-    // 4. Validity Analysis (Section 17)
+    // 5. Validity Analysis (Section 17)
     this.renderValiditySection(latestState.validity_result || report?.validity_check);
 
-    // 5. Validation Analysis (Section 18)
+    // 6. Validation Analysis (Section 18)
     this.renderValidationSection(latestState.validation_result);
 
-    // 6. Extracted Entities Grid
+    // 7. Extracted Entities Grid
     this.renderExtractedGrid(latestState.extracted_data || []);
 
-    // 7. Raw JSON Viewer
+    // 8. Raw JSON Viewer
     const jsonCode = document.getElementById('claim-raw-json-code');
     if (jsonCode) {
       jsonCode.textContent = JSON.stringify(bundle, null, 2);
@@ -96,37 +106,35 @@ const ClaimView = {
     if (!banner || !titleEl || !descEl || !iconEl) return;
 
     const s = String(verdict).toUpperCase();
+    banner.className = 'card';
+    banner.style.background = 'var(--bg-card)';
 
     if (s.includes('READY') || s.includes('CLAIM_READY')) {
-      banner.className = 'card' ;
-      banner.style.background = 'linear-gradient(135deg, rgba(16, 185, 129, 0.15) 0%, rgba(15, 23, 42, 0.8) 100%)';
-      banner.style.borderColor = 'rgba(16, 185, 129, 0.35)';
+      banner.style.borderLeft = '3px solid var(--emerald)';
+      banner.style.borderColor = 'var(--emerald-border)';
       iconEl.textContent = '✓';
-      iconEl.style.color = 'var(--emerald-primary)';
+      iconEl.style.color = '#34D399';
       titleEl.textContent = 'CLAIM READY FOR SUBMISSION';
       descEl.textContent = report?.decision_summary || 'All required evidence has been submitted and verified. The claim satisfies coverage validity and required evidence policies.';
     } else if (s.includes('MISSING')) {
-      banner.className = 'card';
-      banner.style.background = 'linear-gradient(135deg, rgba(245, 158, 11, 0.15) 0%, rgba(15, 23, 42, 0.8) 100%)';
-      banner.style.borderColor = 'rgba(245, 158, 11, 0.35)';
+      banner.style.borderLeft = '3px solid var(--amber)';
+      banner.style.borderColor = 'var(--amber-border)';
       iconEl.textContent = '⚠';
-      iconEl.style.color = 'var(--amber-primary)';
+      iconEl.style.color = '#FBBF24';
       titleEl.textContent = 'ACTION REQUIRED: MISSING EVIDENCE DETECTED';
       descEl.textContent = report?.decision_summary || 'The submitted documents do not contain all mandatory evidence required by the insurance policy clauses.';
     } else if (s.includes('INVALID') || s.includes('FAILED')) {
-      banner.className = 'card';
-      banner.style.background = 'linear-gradient(135deg, rgba(244, 63, 94, 0.15) 0%, rgba(15, 23, 42, 0.8) 100%)';
-      banner.style.borderColor = 'rgba(244, 63, 94, 0.35)';
+      banner.style.borderLeft = '3px solid var(--rose)';
+      banner.style.borderColor = 'var(--rose-border)';
       iconEl.textContent = '✕';
-      iconEl.style.color = 'var(--rose-primary)';
+      iconEl.style.color = '#F87171';
       titleEl.textContent = s.includes('DATES') ? 'INVALID CLAIM DATES (OUTSIDE POLICY PERIOD)' : 'ACTION REQUIRED: INVALID DOCUMENTS';
       descEl.textContent = report?.decision_summary || 'Document validation or policy coverage verification failed.';
     } else {
-      banner.className = 'card';
-      banner.style.background = 'linear-gradient(135deg, rgba(6, 182, 212, 0.1) 0%, rgba(15, 23, 42, 0.8) 100%)';
-      banner.style.borderColor = 'rgba(6, 182, 212, 0.25)';
+      banner.style.borderLeft = '3px solid var(--accent)';
+      banner.style.borderColor = 'var(--primary-border)';
       iconEl.textContent = '●';
-      iconEl.style.color = 'var(--cyan-primary)';
+      iconEl.style.color = 'var(--accent)';
       titleEl.textContent = 'ASSESSMENT PENDING / IN PROGRESS';
       descEl.textContent = 'Launch the InsureMate Agent to evaluate this claim.';
     }
@@ -286,16 +294,17 @@ const ClaimView = {
     container.innerHTML = extractedPages.map(page => `
       <div class="card" style="margin-bottom: 0;">
         <div class="card-header" style="margin-bottom: 12px;">
-          <div style="font-weight: 600; font-size: 0.95rem; color: var(--cyan-primary);">
-            📄 Page ${page.page_number} (${Utils.escapeHtml(page.document_type || 'Document')})
+          <div style="font-weight: 600; font-size: 0.88rem; color: var(--accent); display: flex; align-items: center; gap: 7px;">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+            <span>Page ${page.page_number} (${Utils.escapeHtml(page.document_type || 'Document')})</span>
           </div>
           <span class="badge badge-success">✓ Extracted</span>
         </div>
-        <div style="display: flex; flex-direction: column; gap: 6px; font-size: 0.85rem;">
+        <div style="display: flex; flex-direction: column; gap: 6px; font-size: 0.8rem;">
           ${page.patient_name ? `<div><span style="color: var(--text-muted);">Patient:</span> <strong>${Utils.escapeHtml(page.patient_name)}</strong></div>` : ''}
           ${page.policy_number ? `<div><span style="color: var(--text-muted);">Policy #:</span> <strong>${Utils.escapeHtml(page.policy_number)}</strong></div>` : ''}
           ${page.hospital_name ? `<div><span style="color: var(--text-muted);">Hospital:</span> <strong>${Utils.escapeHtml(page.hospital_name)}</strong></div>` : ''}
-          ${page.total_amount ? `<div><span style="color: var(--text-muted);">Amount:</span> <strong style="color: var(--emerald-primary);">${Utils.formatCurrency(page.total_amount)}</strong></div>` : ''}
+          ${page.total_amount ? `<div><span style="color: var(--text-muted);">Amount:</span> <strong style="color: var(--emerald);">${Utils.formatCurrency(page.total_amount)}</strong></div>` : ''}
           ${page.admission_date ? `<div><span style="color: var(--text-muted);">Admission:</span> <strong>${Utils.escapeHtml(page.admission_date)}</strong></div>` : ''}
           ${page.discharge_date ? `<div><span style="color: var(--text-muted);">Discharge:</span> <strong>${Utils.escapeHtml(page.discharge_date)}</strong></div>` : ''}
         </div>
@@ -308,7 +317,9 @@ const ClaimView = {
     if (banner) {
       banner.innerHTML = `
         <div class="empty-state" style="padding: 40px;">
-          <div class="empty-state-icon">⚖️</div>
+          <div class="empty-state-icon">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+          </div>
           <h4>No Claim Assessment Available</h4>
           <p>Please select a claim or launch the InsureMate Agent to generate an assessment.</p>
         </div>

@@ -5,7 +5,9 @@
  */
 
 const API = {
-  BASE_URL: '', // Relative path to support same-origin deployment
+  BASE_URL: (typeof window !== 'undefined' && window.location.protocol === 'file:')
+    ? 'http://localhost:8000'
+    : '',
 
   /**
    * Internal generic request helper with JSON parsing and timeout handling.

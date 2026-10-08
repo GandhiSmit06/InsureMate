@@ -94,6 +94,20 @@ const App = {
       }
     });
 
+    // Update Header View Title
+    const titleEl = document.getElementById('header-view-title');
+    if (titleEl) {
+      const titles = {
+        'dashboard': 'Dashboard',
+        'new-claim': 'New Claim Registration',
+        'claims': 'Claims Archive',
+        'documents': 'Claim Documents',
+        'agent': 'Agent Operations Console',
+        'results': 'Claim Assessment & Results'
+      };
+      titleEl.textContent = titles[viewName] || 'Operations';
+    }
+
     window.scrollTo({ top: 0, behavior: 'smooth' });
   },
 
