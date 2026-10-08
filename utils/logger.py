@@ -43,6 +43,14 @@ class InsureLogger:
         print(f"[RESULT] {msg}")
 
     @staticmethod
+    def info(msg: str) -> None:
+        print(msg)
+
+    @staticmethod
+    def tool(msg: str) -> None:
+        print(f"[TOOL] {msg}")
+
+    @staticmethod
     def error(msg: str) -> None:
         print(f"[ERROR] {msg}", file=sys.stderr)
 
