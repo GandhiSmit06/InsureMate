@@ -1,0 +1,383 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>InsureMate — Autonomous Insurance Claim Preparation Agent</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <!-- Header / Nav -->
+  <header class="app-header">
+    <div class="header-container">
+      <div class="logo-group">
+        <div class="logo-icon">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M12 2L3 7v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V7l-9-5z"/>
+            <path d="M9 12l2 2 4-4"/>
+          </svg>
+        </div>
+        <div>
+          <div class="logo-title">InsureMate</div>
+          <div class="logo-subtitle">Autonomous Claim Preparation Agent</div>
+        </div>
+      </div>
+
+      <div class="header-badges">
+        <span class="badge badge-track">Track B: Agentic AI Application</span>
+        <span class="badge badge-system" id="system-status-badge">
+          <span class="status-dot"></span> System Ready
+        </span>
+        <button class="btn btn-secondary btn-sm" id="btn-toggle-history">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
+          </svg>
+          Claim Memory (<span id="history-count">0</span>)
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Container -->
+  <main class="main-layout">
+    <!-- Sidebar: Claim History Memory -->
+    <aside class="history-sidebar" id="history-sidebar">
+      <div class="sidebar-header">
+        <h3>Claim Memory Database</h3>
+        <button class="btn-icon" id="btn-close-history" title="Close Memory Panel">&times;</button>
+      </div>
+      <p class="sidebar-desc">Historical claim sessions persisted in SQLite database.</p>
+      <div class="history-list" id="history-list">
+        <div class="empty-history">No claim sessions yet.</div>
+      </div>
+    </aside>
+
+    <!-- Content Workspace -->
+    <section class="workspace">
+      <!-- Section 1: Upload & Session Setup -->
+      <div class="card glass-card upload-card" id="upload-section">
+        <div class="card-header">
+          <div class="card-title-group">
+            <span class="step-pill">Phase 7</span>
+            <h2>Create Claim Session & Upload Documents</h2>
+          </div>
+          <div class="demo-actions">
+            <span class="demo-label">Quick Demo:</span>
+            <button class="btn btn-chip" id="btn-demo-health">🏥 Health Claim (Policy A)</button>
+            <button class="btn btn-chip" id="btn-demo-travel">✈️ Travel Claim (Policy B)</button>
+          </div>
+        </div>
+
+        <form id="claim-upload-form" class="upload-form">
+          <div class="dropzones-grid">
+            <!-- Dropzone 1: Policy Document -->
+            <div class="dropzone-box" id="policy-dropzone">
+              <input type="file" id="policy-file-input" accept=".pdf" class="file-input">
+              <div class="dropzone-content">
+                <div class="dropzone-icon">📄</div>
+                <div class="dropzone-title">Insurance Policy Document</div>
+                <div class="dropzone-hint">Drag & drop policy PDF, or browse</div>
+                <div class="file-chip hidden" id="policy-file-chip">
+                  <span class="file-name">policy.pdf</span>
+                  <button type="button" class="btn-chip-remove" id="btn-remove-policy">&times;</button>
+                </div>
+              </div>
+            </div>
+
+            <!-- Dropzone 2: Claim Document(s) -->
+            <div class="dropzone-box" id="claim-dropzone">
+              <input type="file" id="claim-file-input" accept=".pdf" class="file-input">
+              <div class="dropzone-content">
+                <div class="dropzone-icon">📑</div>
+                <div class="dropzone-title">Claim / Incident Documents</div>
+                <div class="dropzone-hint">Hospital bills, discharge summaries, FIRs</div>
+                <div class="file-chip hidden" id="claim-file-chip">
+                  <span class="file-name">claim_docs.pdf</span>
+                  <button type="button" class="btn-chip-remove" id="btn-remove-claim">&times;</button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Configuration Row -->
+          <div class="config-row">
+            <div class="form-group flex-2">
+              <label for="input-goal">Agent Objective / Natural Language Goal</label>
+              <input type="text" id="input-goal" class="form-input"
+                value="Determine claim readiness, validate medical bills, and detect any missing evidence."
+                placeholder="Enter custom instructions or goal for the Agent...">
+            </div>
+
+            <div class="form-group flex-1">
+              <label for="input-session-name">Session Name (Optional)</label>
+              <input type="text" id="input-session-name" class="form-input" placeholder="e.g. Inpatient Surgery Claim">
+            </div>
+
+            <div class="form-group flex-0">
+              <label>Execution Mode</label>
+              <div class="toggle-group">
+                <label class="toggle-label" title="Fast deterministic grounded extraction">
+                  <input type="checkbox" id="toggle-offline-mode" checked>
+                  <span class="toggle-slider"></span>
+                  <span class="toggle-text">Offline Mode</span>
+                </label>
+              </div>
+            </div>
+          </div>
+
+          <!-- Action Button -->
+          <div class="form-footer">
+            <div class="footer-note">
+              <span>🔒 Processed securely in-memory. Zero PDF files permanently tracked in Git.</span>
+            </div>
+            <button type="submit" class="btn btn-primary btn-glow" id="btn-start-agent">
+              <span class="btn-text">Launch InsureMate Agent</span>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polygon points="5 3 19 12 5 21 5 3"/>
+              </svg>
+            </button>
+          </div>
+        </form>
+      </div>
+
+      <!-- Section 2: Agent Live Execution Stepper (Appears during/after run) -->
+      <div class="card glass-card execution-card hidden" id="execution-card">
+        <div class="card-header">
+          <div>
+            <div class="execution-badge" id="execution-status-pill">AGENT EXECUTING</div>
+            <h3 id="execution-title">Autonomous Workflow Progression</h3>
+          </div>
+          <div class="session-meta">
+            <span class="meta-item">Session ID: <strong id="active-claim-id">--</strong></span>
+            <span class="meta-item">Iteration: <strong id="active-iteration-count">0</strong></span>
+          </div>
+        </div>
+
+        <!-- Progress Bar -->
+        <div class="progress-track">
+          <div class="progress-bar" id="agent-progress-bar" style="width: 10%;"></div>
+        </div>
+
+        <!-- Stepper Steps -->
+        <div class="stepper-grid">
+          <div class="stepper-step" id="step-planning">
+            <div class="step-num">1</div>
+            <div class="step-details">
+              <div class="step-name">Task Planning</div>
+              <div class="step-desc">Decompose goal into ordered steps</div>
+            </div>
+            <span class="step-status-tag" id="status-planning">WAITING</span>
+          </div>
+
+          <div class="stepper-step" id="step-extraction">
+            <div class="step-num">2</div>
+            <div class="step-details">
+              <div class="step-name">Vision Extraction</div>
+              <div class="step-desc">Qwen-VL multimodal page parsing</div>
+            </div>
+            <span class="step-status-tag" id="status-extraction">WAITING</span>
+          </div>
+
+          <div class="stepper-step" id="step-validation">
+            <div class="step-num">3</div>
+            <div class="step-details">
+              <div class="step-name">Document Validation</div>
+              <div class="step-desc">Deterministic field completeness</div>
+            </div>
+            <span class="step-status-tag" id="status-validation">WAITING</span>
+          </div>
+
+          <div class="stepper-step" id="step-validity">
+            <div class="step-num">4</div>
+            <div class="step-details">
+              <div class="step-name">Coverage Validity</div>
+              <div class="step-desc">Date coverage & member match</div>
+            </div>
+            <span class="step-status-tag" id="status-validity">WAITING</span>
+          </div>
+
+          <div class="stepper-step" id="step-missing">
+            <div class="step-num">5</div>
+            <div class="step-details">
+              <div class="step-name">Missing Evidence</div>
+              <div class="step-desc">Policy clauses dynamic detection</div>
+            </div>
+            <span class="step-status-tag" id="status-missing">WAITING</span>
+          </div>
+
+          <div class="stepper-step" id="step-report">
+            <div class="step-num">6</div>
+            <div class="step-details">
+              <div class="step-name">Verdict Package</div>
+              <div class="step-desc">Claim readiness synthesis</div>
+            </div>
+            <span class="step-status-tag" id="status-report">WAITING</span>
+          </div>
+        </div>
+
+        <!-- Agent Live Thought Bubble -->
+        <div class="thought-bubble" id="thought-bubble">
+          <div class="bubble-header">
+            <span class="bubble-icon">🧠</span>
+            <span class="bubble-label">Agent Observation & Decision:</span>
+          </div>
+          <div class="bubble-text" id="bubble-text">
+            Agent initialized. Ready to begin autonomous planning...
+          </div>
+        </div>
+      </div>
+
+      <!-- Section 3: Final Claim Readiness Result Card -->
+      <div class="card glass-card result-card hidden" id="result-card">
+        <div class="verdict-banner" id="verdict-banner">
+          <div class="verdict-main">
+            <div class="verdict-icon" id="verdict-icon">✓</div>
+            <div>
+              <div class="verdict-label">FINAL CLAIM READINESS VERDICT</div>
+              <div class="verdict-title" id="verdict-title">CLAIM READY FOR SUBMISSION</div>
+            </div>
+          </div>
+          <div class="verdict-actions">
+            <button class="btn btn-secondary btn-sm" id="btn-copy-summary">Copy Report</button>
+            <button class="btn btn-secondary btn-sm" id="btn-new-claim">New Session</button>
+          </div>
+        </div>
+
+        <!-- Executive Summary -->
+        <div class="decision-summary-box">
+          <h4 class="summary-heading">Decision Summary</h4>
+          <p id="decision-summary-text">...</p>
+        </div>
+
+        <!-- Metrics Overview Grid -->
+        <div class="metrics-grid">
+          <div class="metric-card">
+            <div class="metric-val" id="metric-docs-count">0</div>
+            <div class="metric-label">Pages Extracted</div>
+          </div>
+          <div class="metric-card">
+            <div class="metric-val" id="metric-validity-status">PASS</div>
+            <div class="metric-label">Policy Period Check</div>
+          </div>
+          <div class="metric-card">
+            <div class="metric-val text-amber" id="metric-missing-count">0</div>
+            <div class="metric-label">Missing Documents</div>
+          </div>
+          <div class="metric-card">
+            <div class="metric-val" id="metric-identity-match">MATCHED</div>
+            <div class="metric-label">Member Identity</div>
+          </div>
+        </div>
+
+        <!-- Tabbed Deep-Dive Views -->
+        <div class="tabs-container">
+          <div class="tabs-header">
+            <button class="tab-btn active" data-tab="tab-missing">Missing Evidence Table</button>
+            <button class="tab-btn" data-tab="tab-validity">Validity & Date Math</button>
+            <button class="tab-btn" data-tab="tab-extracted">Extracted Entities (Pages)</button>
+            <button class="tab-btn" data-tab="tab-history">Tool Execution Audit</button>
+            <button class="tab-btn" data-tab="tab-json">Raw Claim State JSON</button>
+          </div>
+
+          <!-- Tab 1: Missing Documents Table -->
+          <div class="tab-pane active" id="tab-missing">
+            <div class="table-responsive">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>Sr.</th>
+                    <th>Required Document (From Policy)</th>
+                    <th>Status</th>
+                    <th>Page #</th>
+                    <th>Matching Reason / Evidence Analysis</th>
+                  </tr>
+                </thead>
+                <tbody id="missing-table-body">
+                  <!-- Injected via JS -->
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- Tab 2: Validity & Period Analysis -->
+          <div class="tab-pane" id="tab-validity">
+            <div class="validity-container">
+              <div class="policy-window-card">
+                <div class="window-title">Insurance Policy Coverage Period</div>
+                <div class="window-dates">
+                  <span id="policy-start-display">--/--/----</span>
+                  <span class="window-arrow">⟶</span>
+                  <span id="policy-end-display">--/--/----</span>
+                </div>
+              </div>
+              <div class="table-responsive">
+                <table class="data-table">
+                  <thead>
+                    <tr>
+                      <th>Document Type</th>
+                      <th>Page #</th>
+                      <th>Date on Doc</th>
+                      <th>Normalized Date</th>
+                      <th>Coverage Check</th>
+                      <th>Finding</th>
+                    </tr>
+                  </thead>
+                  <tbody id="validity-table-body">
+                    <!-- Injected via JS -->
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+
+          <!-- Tab 3: Extracted Pages & Entities -->
+          <div class="tab-pane" id="tab-extracted">
+            <div class="extracted-cards-grid" id="extracted-cards-grid">
+              <!-- Injected via JS -->
+            </div>
+          </div>
+
+          <!-- Tab 4: Tool Execution Audit History -->
+          <div class="tab-pane" id="tab-history">
+            <div class="table-responsive">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>Step #</th>
+                    <th>Tool Name</th>
+                    <th>Status</th>
+                    <th>Output Summary</th>
+                    <th>Timestamp</th>
+                  </tr>
+                </thead>
+                <tbody id="tool-history-table-body">
+                  <!-- Injected via JS -->
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- Tab 5: Raw JSON State -->
+          <div class="tab-pane" id="tab-json">
+            <pre class="json-viewer"><code id="raw-json-code">{}</code></pre>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="app-footer">
+    <div class="footer-container">
+      <div>InsureMate — Agentic Claim Preparation & Evidence Extraction Engine</div>
+      <div class="footer-links">
+        <span>FastAPI + SQLite + Qwen-VL + Gemma 3 (Ollama)</span>
+      </div>
+    </div>
+  </footer>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>

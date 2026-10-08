@@ -27,3 +27,6 @@ env/
 
 # Sensitive documents & PDFs
 *.pdf
+uploads/
+*.db
+*.sqlite3

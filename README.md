@@ -328,42 +328,150 @@ PHASE 3: Validity Checker              │
 
 ---
 
-## 10. Agentic Readiness & Tool Registry
+## 10. Complete Multi-Phase Agent Architecture (Phases 1–7)
 
-All four modules are encapsulated as standardized callable tools ready to be registered directly with an Agent Orchestrator:
+The InsureMate system is structured as an end-to-end autonomous agentic workflow:
 
-1. **`QwenVLExtractionTool`** (`tools/qwen_vl_tool.py`): Extracts visual documents with 1-indexed pages and zero disk images.
-2. **`DocumentValidationTool`** (`tools/document_validation_tool.py`): Deterministically checks required field completeness per document category.
-3. **`ValidityCheckerTool`** (`tools/validity_checker_tool.py`): Deterministically verifies claim dates against policy coverage term and checks patient identity.
-4. **`MissingDocumentTool` / `MissingDocumentDetectorTool`** (`tools/missing_document_tool.py`): Dynamically determines required documents from policy terms and semantically compares submitted claim documents.
-
-Registry in `tools/__init__.py`:
-```python
-from tools import get_insuremate_tools, MissingDocumentTool
-
-# Register all 4 tools in one line:
-tools = get_insuremate_tools()
+```
+                    USER / WEB UI
+                          │ (Upload Policy & Claim PDFs)
+                          ▼
+               FASTAPI REST API SERVER
+             (Session ID & Upload Staging)
+                          │
+                          ▼
+                  AGENT SERVICE LAYER
+                          │
+                          ▼
+                  INSUREMATE AGENT
+            (Autonomous Planning & Reasoning)
+                          │
+                          ▼
+                    TOOL REGISTRY
+                          │
+                          ▼
+                    TOOL EXECUTOR
+                          │
+          ┌───────────────┼───────────────┬───────────────────┐
+          │               │               │                   │
+          ▼               ▼               ▼                   ▼
+      Qwen-VL        Document          Claim               Dynamic
+     Extraction     Validation        Validity             Missing
+        Tool           Tool           Checker             Documents
+     (Phase 1)      (Phase 2)        (Phase 3)            (Phase 4)
+          │               │               │                   │
+          └───────────────┼───────────────┴───────────────────┘
+                          │
+                          ▼
+                     CLAIM STATE
+             (Snapshot Memory & Audit Trail)
+                          │
+                          ▼
+                 DECISION ENGINE
+             (Final Readiness Verdict)
+                          │
+          ┌───────────────┴───────────────┐
+          ▼                               ▼
+   SQLITE DATABASE                  MODERN WEB UI
+   - claims                         - Glassmorphism dark aesthetic
+   - tool_executions                - Live 6-step progress stepper
+   - claim_state_snapshots          - Interactive Agent reasoning
+   - final_reports                  - Missing Evidence Checklist
+                                    - Date Validity Analysis
+                                    - Audit trail & Claim memory
 ```
 
 ---
 
-## 11. Command-Line Usage
+## 11. Phase 7: Web Application & UI Features
 
+InsureMate Phase 7 introduces an end-to-end fullstack interface crafted with vanilla HTML5, modern CSS3 (glassmorphic dark design with custom micro-animations), and reactive JavaScript:
+
+### Key UI Features:
+1. **Document Upload Hub:**
+   - Drag-and-drop file upload zones for Insurance Policy PDFs and Incident/Claim PDFs.
+   - Quick Demo preset buttons (`Health Claim Demo` and `Travel Claim Demo`) for instant one-click demonstration.
+   - Configurable analysis goal and deterministic execution mode toggles.
+2. **Interactive 6-Step Progress Stepper:**
+   - Visual step indicator tracking: Session Init ➔ Document Extraction ➔ Validation ➔ Validity Check ➔ Missing Evidence ➔ Claim Preparation.
+   - Dynamic step states (`active`, `completed`, `error`) with pulse indicators.
+3. **Agent Thought Bubble & Live Trace:**
+   - Real-time display of the Agent's reasoning, active tool selections, and intermediate observations.
+4. **Final Readiness Verdict Banner:**
+   - High-contrast visual verdict cards for `CLAIM_READY_FOR_SUBMISSION` (Emerald), `ACTION_REQUIRED_MISSING_DOCS` (Amber), and `INVALID_CLAIM_DATES` (Rose).
+   - High-level metric counters: Pages Analyzed, Validation Pass Rate, Required Docs Found, Missing Items.
+5. **Multi-Tab Inspection Panels:**
+   - **Missing Evidence Table:** Dynamic checklist matching policy requirements against submitted claim evidence with 1-indexed page links.
+   - **Validity Analysis:** Multi-date comparison table, coverage window check, and patient identity verification.
+   - **Extracted Pages:** Extracted document entities, classifications, and page numbers.
+   - **Tool Audit Log:** Chronological record of tool invocations, inputs, execution duration, and outputs.
+   - **Raw JSON:** Full inspection of the final claim readiness package.
+6. **Claim History & Memory Sidebar:**
+   - Persistent claim session recall allowing users to inspect past analyzed claims directly from SQLite database memory.
+
+---
+
+## 12. Phase 7: Database Architecture & Claim Memory
+
+InsureMate persists all claim sessions, intermediate execution envelopes, and final reports using a thread-safe SQLite database (`services/database/db.py`):
+
+- **`claims` Table:** Stores session ID, name, goal, policy/claim file paths, claim type, status, and timestamps.
+- **`tool_executions` Table:** Audit log storing each tool call, parameters, execution time (ms), success flag, and output data.
+- **`claim_state_snapshots` Table:** Serialized intermediate `ClaimState` snapshots taken at each phase.
+- **`final_reports` Table:** Structured final readiness report, verdict, missing count, validity pass flag, and decision summary.
+
+Foreign keys with `ON DELETE CASCADE` ensure complete data consistency upon session deletion.
+
+---
+
+## 13. REST API Endpoints
+
+The Phase 7 FastAPI application exposes the following endpoints:
+
+| Method | Endpoint | Description |
+| :--- | :--- | :--- |
+| `GET` | `/` | Serves the InsureMate Phase 7 Single Page Application |
+| `GET` | `/api/health` | Health check verifying tool registry and database connectivity |
+| `GET` | `/api/tools` | Discovers registered tools and their JSON schemas |
+| `POST` | `/api/claims/upload` | Uploads PDF files, creates session, and optionally auto-runs agent |
+| `POST` | `/api/claims/demo` | Creates preset demo session (`health` or `travel`) |
+| `POST` | `/api/claims/{id}/run` | Triggers autonomous Agent execution on an existing claim |
+| `GET` | `/api/claims/{id}` | Fetches complete claim memory bundle (state, tools, report) |
+| `GET` | `/api/claims` | Lists historical claim sessions with pagination |
+| `DELETE` | `/api/claims/{id}` | Deletes a claim session and cleans up uploaded files |
+
+---
+
+## 14. How to Run
+
+### Option A: Launch Web Application (Phase 7 UI)
 ```bash
-# Run full 4-phase end-to-end pipeline:
-python main.py --end-to-end
+# Launch via CLI shortcut
+python main.py --app
+# Or:
+python main.py --serve --port 8000
 
-# Run complete test suite (Phase 1, Phase 2, Phase 3, Phase 4, and End-to-End):
-python main.py --test-all
-
-# Run Phase 4 detector independently:
-python run_phase4.py --demo-policy-a
-python run_phase4.py --demo-policy-b
-
-# Run Phase 4 dedicated test suite (8 mandatory dynamic tests + anti-hardcoding):
-python -m pytest tests/test_phase4.py -v
-
-# Run full project pytest suite:
-python -m pytest -v
+# Open browser at:
+# http://localhost:8000
 ```
+
+### Option B: Run Autonomous Agent via CLI (Phase 5/6)
+```bash
+# Run agent on repository sample documents:
+python main.py --agent --offline
+
+# Run agent with specific documents:
+python main.py --agent --policy policy_A.pdf --claim claim_A.pdf --goal "Verify hospitalization claim"
+```
+
+### Option C: Run Complete Test Suite
+```bash
+# Run complete test suite across all 7 phases (73 tests):
+pytest
+
+# Run Phase 7 specific tests:
+pytest tests/test_phase7_database.py tests/test_phase7_api.py tests/test_phase7_integration.py
+```
+*(All 73/73 tests pass in ~90 seconds with 100% pass rate).*
+
 

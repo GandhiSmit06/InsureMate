@@ -175,14 +175,25 @@ def run_phase_5(
     return state
 
 
+def run_phase_7(host: str = "0.0.0.0", port: int = 8000):
+    print("\n" + "=" * 70)
+    print("PHASE 7: END-TO-END APPLICATION + UI + DATABASE + CLAIM MEMORY")
+    print("=" * 70)
+    from app.server import run_server
+    run_server(host=host, port=port)
+
+
 def main():
     parser = argparse.ArgumentParser(
         description="InsureMate — Agentic Claim Preparation Pipeline & Agent Orchestrator"
     )
-    parser.add_argument("--phase", type=int, choices=[1, 2, 3, 4, 5], help="Execute a specific phase (1, 2, 3, 4, or 5)")
+    parser.add_argument("--phase", type=int, choices=[1, 2, 3, 4, 5, 7], help="Execute a specific phase (1, 2, 3, 4, 5, or 7)")
     parser.add_argument("--agent", action="store_true", help="Execute InsureMate Agent Orchestrator (Phase 5)")
     parser.add_argument("--phase4", action="store_true", help="Execute Phase 4 Missing-Document Detector")
     parser.add_argument("--phase5", action="store_true", help="Execute Phase 5 InsureMate Agent Orchestrator")
+    parser.add_argument("--phase7", "--serve", "--app", dest="serve", action="store_true", help="Launch the InsureMate Phase 7 Web Application & REST API")
+    parser.add_argument("--host", type=str, default="0.0.0.0", help="Host address for web server (default 0.0.0.0)")
+    parser.add_argument("--port", type=int, default=8000, help="Port for web server (default 8000)")
     parser.add_argument("--test-all", action="store_true", help="Execute all unit and integration test suites")
     parser.add_argument("--end-to-end", action="store_true", help="Execute full end-to-end pipeline on real documents")
     parser.add_argument("--policy", "-p", type=str, help="Target policy PDF file to process")
@@ -208,7 +219,10 @@ def main():
         else None
     )
 
-    if args.real:
+    if args.serve or args.phase == 7:
+        run_phase_7(host=args.host, port=args.port)
+
+    elif args.real:
         print("\n" + "=" * 80)
         print("          TESTING ON REAL REPOSITORY DOCUMENTS")
         print("================================================================================")
@@ -276,6 +290,6 @@ def main():
         )
 
 
-
 if __name__ == "__main__":
     main()
+
