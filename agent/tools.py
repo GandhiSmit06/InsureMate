@@ -435,8 +435,9 @@ class ClaimPreparationAdapter(BaseAgentTool):
 
 class InsureMateToolRegistry:
     """
-    Central tool registry holding the 5 InsureMate Agent tools.
-    Provides uniform execution, lookup, and schema exposure.
+    Central tool registry holding the InsureMate Agent tools.
+    Provides uniform execution, lookup, alias resolution, and schema exposure
+    for both Phase 5 and Phase 6 workflows.
     """
 
     def __init__(
@@ -445,7 +446,8 @@ class InsureMateToolRegistry:
         validation_tool: Optional[DocumentValidationTool] = None,
         validity_tool: Optional[ValidityCheckerTool] = None,
         missing_doc_tool: Optional[MissingDocumentTool] = None,
-        offline_mode: Optional[bool] = None
+        offline_mode: Optional[bool] = None,
+        phase6_registry: Optional[Any] = None
     ):
         self.tools: Dict[str, BaseAgentTool] = {
             "document_extraction": DocumentExtractionAdapter(tool=extraction_tool, offline_mode=offline_mode),
@@ -455,8 +457,29 @@ class InsureMateToolRegistry:
             "claim_preparation": ClaimPreparationAdapter(),
         }
 
+        # Bidirectional aliases between Phase 5 and Phase 6
+        self.tools["document_extraction_tool"] = self.tools["document_extraction"]
+        self.tools["qwen_vl_extraction_tool"] = self.tools["document_extraction"]
+        self.tools["document_validation_tool"] = self.tools["document_validation"]
+        self.tools["validity_checker_tool"] = self.tools["validity_checker"]
+        self.tools["missing_document_tool"] = self.tools["missing_document_detector"]
+
+        self.phase6_registry = phase6_registry
+
+    def register(self, tool: Any, name: Optional[str] = None, alias: Optional[str] = None) -> None:
+        """Register custom tool or adapter into registry."""
+        tool_name = name or getattr(tool, "name", None)
+        if not tool_name:
+            raise ValueError(f"Tool {tool} must have a name.")
+        self.tools[tool_name] = tool
+        if alias:
+            self.tools[alias] = tool
+
     def get_tool(self, tool_name: str) -> Optional[BaseAgentTool]:
         return self.tools.get(tool_name)
+
+    def has(self, tool_name: str) -> bool:
+        return tool_name in self.tools
 
     def execute_tool(self, tool_name: str, state: ClaimState, **kwargs: Any) -> ToolExecutionResult:
         tool = self.get_tool(tool_name)
@@ -482,4 +505,17 @@ class InsureMateToolRegistry:
             )
 
     def list_tools(self) -> List[Dict[str, Any]]:
-        return [tool.get_schema() for tool in self.tools.values()]
+        """Return discovery list for unique canonical tools."""
+        canonical_keys = [
+            "document_extraction",
+            "document_validation",
+            "validity_checker",
+            "missing_document_detector",
+            "claim_preparation"
+        ]
+        return [self.tools[k].get_schema() for k in canonical_keys if k in self.tools]
+
+    def get_schemas(self) -> List[Dict[str, Any]]:
+        """Return schema definitions compatible with LLM function calling."""
+        return self.list_tools()
+

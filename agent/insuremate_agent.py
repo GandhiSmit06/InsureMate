@@ -12,6 +12,8 @@ from agent.planner import InsureMatePlanner, ClaimPlan
 from agent.state import ClaimState, ClaimStatus
 from agent.tools import InsureMateToolRegistry, ToolExecutionResult
 from services.missing_document.ollama_client import OllamaClient
+from tools.tool_registry import ToolRegistry
+from tools.tool_executor import ToolExecutor
 from utils.logger import logger
 
 
@@ -24,6 +26,7 @@ class InsureMateAgent:
     - Context & memory maintenance across intermediate steps
     - Dynamic decision-making conditioned on intermediate observations
     - Robust failure handling and loop guardrails
+    - Seamless Phase 6 ToolRegistry & ToolExecutor integration
     """
 
     DEFAULT_GOAL = "Determine claim readiness."
@@ -31,7 +34,8 @@ class InsureMateAgent:
     def __init__(
         self,
         llm_client: Optional[OllamaClient] = None,
-        tool_registry: Optional[InsureMateToolRegistry] = None,
+        tool_registry: Optional[Union[InsureMateToolRegistry, ToolRegistry]] = None,
+        executor: Optional[ToolExecutor] = None,
         offline_mode: Optional[bool] = None,
         max_iterations: int = 10
     ):
@@ -42,10 +46,20 @@ class InsureMateAgent:
         else:
             self.llm_client = OllamaClient()
 
-        self.tool_registry = tool_registry or InsureMateToolRegistry(offline_mode=offline_mode)
+        if executor is not None and tool_registry is None:
+            self.tool_registry = InsureMateToolRegistry(offline_mode=offline_mode, phase6_registry=executor.registry)
+            self.executor = executor
+        elif isinstance(tool_registry, ToolRegistry):
+            self.tool_registry = InsureMateToolRegistry(offline_mode=offline_mode, phase6_registry=tool_registry)
+            self.executor = ToolExecutor(registry=tool_registry)
+        else:
+            self.tool_registry = tool_registry or InsureMateToolRegistry(offline_mode=offline_mode)
+            self.executor = executor or ToolExecutor()
+
         self.planner = InsureMatePlanner(llm_client=self.llm_client)
         self.decision_engine = InsureMateDecisionEngine(llm_client=self.llm_client)
         self.max_iterations = max_iterations
+
 
     def run(
         self,

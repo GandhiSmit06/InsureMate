@@ -160,8 +160,80 @@ class ClaimState:
             "iteration_count": self.iteration_count,
         }
 
+    @property
+    def validation_results(self) -> Optional[Dict[str, Any]]:
+        return self.validation_result
+
+    @validation_results.setter
+    def validation_results(self, val: Optional[Dict[str, Any]]) -> None:
+        self.validation_result = val
+
+    @property
+    def validity_results(self) -> Optional[Dict[str, Any]]:
+        return self.validity_result
+
+    @validity_results.setter
+    def validity_results(self, val: Optional[Dict[str, Any]]) -> None:
+        self.validity_result = val
+
+    def record_history(self, entry: Dict[str, Any]) -> None:
+        """Phase 6 compatible tool history logging."""
+        self.tool_history.append(entry)
+
+    def update_from_tool_result(self, tool_name: str, result: Dict[str, Any]) -> None:
+        """Phase 6 compatible tool state updater."""
+        if not isinstance(result, dict):
+            return
+        payload = result.get("result") if ("result" in result and "success" in result) else result
+        if not isinstance(payload, dict):
+            return
+
+        if "claim_id" in payload and payload["claim_id"]:
+            self.claim_id = str(payload["claim_id"])
+
+        if tool_name in ("document_extraction_tool", "qwen_vl_extraction_tool", "document_extraction"):
+            if "extracted_data" in payload:
+                ed = payload["extracted_data"]
+                if isinstance(ed, dict) and "extracted_documents" in ed:
+                    self.extracted_data = ed["extracted_documents"]
+                elif isinstance(ed, list):
+                    self.extracted_data = ed
+            elif "extracted_documents" in payload:
+                self.extracted_data = payload["extracted_documents"]
+            self.current_step = "document_extraction_completed"
+
+        elif tool_name in ("document_validation_tool", "document_validation"):
+            if "validation_results" in payload:
+                self.validation_result = payload["validation_results"]
+            elif "validation_result" in payload:
+                self.validation_result = payload["validation_result"]
+            self.current_step = "document_validation_completed"
+
+        elif tool_name in ("validity_checker_tool", "validity_checker"):
+            if "validity_results" in payload:
+                self.validity_result = payload["validity_results"]
+            elif "validity_result" in payload:
+                self.validity_result = payload["validity_result"]
+            self.current_step = "validity_checker_completed"
+
+        elif tool_name in ("missing_document_tool", "missing_document_detector"):
+            self.missing_documents = payload
+            self.current_step = "missing_document_analysis_completed"
+
+    def __getitem__(self, key: str) -> Any:
+        if hasattr(self, key):
+            return getattr(self, key)
+        raise KeyError(key)
+
+    def __setitem__(self, key: str, value: Any) -> None:
+        setattr(self, key, value)
+
+    def __contains__(self, key: str) -> bool:
+        return hasattr(self, key)
+
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "ClaimState":
         """Instantiate ClaimState from dictionary."""
         filtered = {k: v for k, v in data.items() if k in cls.__dataclass_fields__}
         return cls(**filtered)
+

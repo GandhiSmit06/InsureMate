@@ -49,6 +49,10 @@ def run_end_to_end_test(
     else:
         # Default policy search
         p_candidate = ROOT_DIR / "sample_policy.pdf"
+        if not p_candidate.exists():
+            p_candidate = ROOT_DIR / "policy_A.pdf"
+        if not p_candidate.exists():
+            p_candidate = ROOT_DIR / "4225IELVT38453879200000_policy_copy.pdf"
         p_path = p_candidate
 
     if claim_pdf is not None:
@@ -59,7 +63,12 @@ def run_end_to_end_test(
     else:
         # Default claim search
         c_candidate = ROOT_DIR / "sample_claim.pdf"
+        if not c_candidate.exists():
+            c_candidate = ROOT_DIR / "claim_A.pdf"
+        if not c_candidate.exists():
+            c_candidate = ROOT_DIR / "DOCUMENTS FOR Re- activation REQUEST OF CLAIM NO.95151709.pdf"
         c_path = c_candidate
+
 
     if not p_path.exists():
         print(f"Error: Target policy document does not exist: {p_path}", file=sys.stderr)

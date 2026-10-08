@@ -133,6 +133,60 @@ class ClaimState:
                 self.missing_documents = payload["document_results"]
             self.current_step = "missing_document_analysis_completed"
 
+    @property
+    def validation_result(self) -> Dict[str, Any]:
+        return self.validation_results
+
+    @validation_result.setter
+    def validation_result(self, val: Dict[str, Any]) -> None:
+        self.validation_results = val or {}
+
+    @property
+    def validity_result(self) -> Dict[str, Any]:
+        return self.validity_results
+
+    @validity_result.setter
+    def validity_result(self, val: Dict[str, Any]) -> None:
+        self.validity_results = val or {}
+
+    def record_tool_execution(
+        self,
+        tool_name: str,
+        status: str,
+        summary: str,
+        inputs_summary: Optional[str] = None,
+        error: Optional[str] = None
+    ) -> None:
+        """Record tool execution in tool history."""
+        self.tool_history.append({
+            "tool_name": tool_name,
+            "status": status,
+            "summary": summary,
+            "inputs_summary": inputs_summary,
+            "error": error,
+            "timestamp": datetime.now(timezone.utc).isoformat()
+        })
+
+    def record_trace(
+        self,
+        decision: str,
+        tool: Optional[str] = None,
+        tool_result: Optional[str] = None
+    ) -> None:
+        """Record human-readable trace entry."""
+        if not hasattr(self, "execution_trace"):
+            self.execution_trace = []
+        self.execution_trace.append({
+            "step_number": len(getattr(self, "execution_trace", [])) + 1,
+            "decision": decision,
+            "tool": tool,
+            "tool_result": tool_result,
+            "timestamp": datetime.now(timezone.utc).isoformat()
+        })
+
+    def is_finished(self) -> bool:
+        return getattr(self, "final_status", None) is not None or self.final_result is not None
+
     # Dict-like access compatibility for ease of use in Phase 5
     def __getitem__(self, key: str) -> Any:
         return getattr(self, key)
@@ -145,3 +199,4 @@ class ClaimState:
 
     def get(self, key: str, default: Any = None) -> Any:
         return getattr(self, key, default)
+

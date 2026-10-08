@@ -240,5 +240,34 @@ def test_phase5_agent_orchestration_simulation(integrated_registry):
     assert claim_state.final_result["total_tools_invoked"] == 4
 
 
+def test_insuremate_agent_with_phase6_executor(integrated_registry):
+    """
+    TEST 11: Live InsureMateAgent orchestrating Phase 6 ToolRegistry & ToolExecutor.
+    Verifies Phase 5 Agent directly accepts and runs with Phase 6 infrastructure.
+    """
+    from agent.insuremate_agent import InsureMateAgent
+
+    executor = ToolExecutor(registry=integrated_registry)
+    agent = InsureMateAgent(tool_registry=integrated_registry, executor=executor, offline_mode=True)
+
+    policy_pdf = ROOT_DIR / "sample_policy.pdf"
+    if not policy_pdf.exists():
+        policy_pdf = ROOT_DIR / "policy_A.pdf"
+    claim_pdf = ROOT_DIR / "sample_claim.pdf"
+    if not claim_pdf.exists():
+        claim_pdf = ROOT_DIR / "claim_A.pdf"
+
+    state = agent.run(
+        documents=[str(policy_pdf), str(claim_pdf)],
+        max_pages=2
+    )
+
+    assert state.final_status is not None
+    assert len(state.tool_history) >= 3
+    assert state.current_plan is not None
+    print(f"\n[PHASE 5 + PHASE 6 INTEGRATION] Final Status: {state.final_status}")
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
+

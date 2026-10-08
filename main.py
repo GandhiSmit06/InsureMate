@@ -146,7 +146,17 @@ def run_phase_5(
 
     if not docs:
         p_default = ROOT_DIR / "sample_policy.pdf"
+        if not p_default.exists():
+            p_default = ROOT_DIR / "policy_A.pdf"
+        if not p_default.exists():
+            p_default = ROOT_DIR / "4225IELVT38453879200000_policy_copy.pdf"
+
         c_default = ROOT_DIR / "sample_claim.pdf"
+        if not c_default.exists():
+            c_default = ROOT_DIR / "claim_A.pdf"
+        if not c_default.exists():
+            c_default = ROOT_DIR / "DOCUMENTS FOR Re- activation REQUEST OF CLAIM NO.95151709.pdf"
+
         if p_default.exists():
             docs.append(str(p_default))
         if c_default.exists():
@@ -185,7 +195,18 @@ def main():
 
     args = parser.parse_args()
 
-    default_policy = args.policy or (str(ROOT_DIR / "sample_policy.pdf") if (ROOT_DIR / "sample_policy.pdf").exists() else None)
+    default_policy = args.policy or (
+        str(ROOT_DIR / "sample_policy.pdf") if (ROOT_DIR / "sample_policy.pdf").exists()
+        else str(ROOT_DIR / "policy_A.pdf") if (ROOT_DIR / "policy_A.pdf").exists()
+        else str(ROOT_DIR / "4225IELVT38453879200000_policy_copy.pdf") if (ROOT_DIR / "4225IELVT38453879200000_policy_copy.pdf").exists()
+        else None
+    )
+    default_claim = args.claim or (
+        str(ROOT_DIR / "sample_claim.pdf") if (ROOT_DIR / "sample_claim.pdf").exists()
+        else str(ROOT_DIR / "claim_A.pdf") if (ROOT_DIR / "claim_A.pdf").exists()
+        else str(ROOT_DIR / "DOCUMENTS FOR Re- activation REQUEST OF CLAIM NO.95151709.pdf") if (ROOT_DIR / "DOCUMENTS FOR Re- activation REQUEST OF CLAIM NO.95151709.pdf").exists()
+        else None
+    )
 
     if args.real:
         print("\n" + "=" * 80)
@@ -212,7 +233,7 @@ def main():
 
     elif args.agent or args.phase5 or args.phase == 5:
         target_policy = args.policy or default_policy
-        target_claim = args.claim or (str(ROOT_DIR / "sample_claim.pdf") if (ROOT_DIR / "sample_claim.pdf").exists() else None)
+        target_claim = args.claim or default_claim
         run_phase_5(
             policy_pdf=target_policy,
             claim_pdf=target_claim,
@@ -245,7 +266,7 @@ def main():
         # Default run: Complete Agentic Demonstration
         print("Executing InsureMate Agent on repository documents...\n")
         target_policy = args.policy or default_policy
-        target_claim = args.claim or (str(ROOT_DIR / "sample_claim.pdf") if (ROOT_DIR / "sample_claim.pdf").exists() else None)
+        target_claim = args.claim or default_claim
         run_phase_5(
             policy_pdf=target_policy,
             claim_pdf=target_claim,
@@ -253,6 +274,7 @@ def main():
             max_pages=args.max_pages,
             offline_mode=args.offline
         )
+
 
 
 if __name__ == "__main__":

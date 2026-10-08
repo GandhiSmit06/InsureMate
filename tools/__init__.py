@@ -25,7 +25,34 @@ __all__ = [
     "ToolErrorDict",
     "create_tool_registry",
     "get_insuremate_tools",
+    "InsureMateAgent",
+    "InsureMatePlanner",
+    "InsureMateDecisionEngine",
+    "InsureMateToolRegistry",
+    "ClaimStatus",
 ]
+
+
+def __getattr__(name: str):
+    """Lazy-load agent components to avoid circular import during initialization."""
+    if name == "InsureMateAgent":
+        from agent.insuremate_agent import InsureMateAgent
+        return InsureMateAgent
+    if name == "InsureMatePlanner":
+        from agent.planner import InsureMatePlanner
+        return InsureMatePlanner
+    if name == "InsureMateDecisionEngine":
+        from agent.decision import InsureMateDecisionEngine
+        return InsureMateDecisionEngine
+    if name == "InsureMateToolRegistry":
+        from agent.tools import InsureMateToolRegistry
+        return InsureMateToolRegistry
+    if name == "ClaimStatus":
+        from agent.state import ClaimStatus
+        return ClaimStatus
+    raise AttributeError(f"module '{__name__}' has no attribute '{name}'")
+
+
 
 
 def get_insuremate_tools():
