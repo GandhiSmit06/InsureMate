@@ -100,59 +100,65 @@ class PDFProcessor:
             logger.error(err_msg)
             raise CorruptedPDFError(err_msg) from e
 
-        total_pages = len(doc)
-        if total_pages == 0:
-            err_msg = f"PDF document contains 0 pages: {path.name}"
-            logger.error(err_msg)
-            raise EmptyPDFError(err_msg)
-
-        pages_to_process = min(total_pages, max_pages) if max_pages is not None else total_pages
-        logger.pdf(f"Processing {pages_to_process} of {total_pages} total pages (in-memory)")
-
-        processed_pages: List[PDFPage] = []
-
-        for idx in range(pages_to_process):
-            page_num = idx + 1  # Strictly 1-indexed
-            try:
-                logger.pdf(f"Rendering page {page_num}/{pages_to_process} in-memory")
-                page = doc[idx]
-                bitmap = page.render(scale=self.scale)
-                pil_image = bitmap.to_pil()
-
-                # Convert PIL Image to Base64 Data URL purely in memory (JPEG format for compactness)
-                buffer = io.BytesIO()
-                # Convert to RGB in case page rendered in RGBA
-                if pil_image.mode != "RGB":
-                    rgb_image = pil_image.convert("RGB")
-                else:
-                    rgb_image = pil_image
-                rgb_image.save(buffer, format="JPEG", quality=85)
-                image_bytes = buffer.getvalue()
-                b64_str = base64.b64encode(image_bytes).decode("utf-8")
-                data_url = f"data:image/jpeg;base64,{b64_str}"
-
-                # Extract digital text if present
-                page_text = ""
-                try:
-                    textpage = page.get_textpage()
-                    page_text = textpage.get_text_range()
-                except Exception:
-                    page_text = ""
-
-                pdf_page = PDFPage(
-                    page_number=page_num,
-                    width=pil_image.width,
-                    height=pil_image.height,
-                    image=pil_image,
-                    base64_data_url=data_url,
-                    text=page_text
-                )
-                processed_pages.append(pdf_page)
-
-            except Exception as e:
-                err_msg = f"Failed to render PDF page {page_num}: {e}"
+        try:
+            total_pages = len(doc)
+            if total_pages == 0:
+                err_msg = f"PDF document contains 0 pages: {path.name}"
                 logger.error(err_msg)
-                raise PageRenderError(err_msg) from e
+                raise EmptyPDFError(err_msg)
 
-        logger.pdf(f"Successfully processed {len(processed_pages)} pages in-memory without writing images to disk")
-        return processed_pages
+            pages_to_process = min(total_pages, max_pages) if max_pages is not None else total_pages
+            logger.pdf(f"Processing {pages_to_process} of {total_pages} total pages (in-memory)")
+
+            processed_pages: List[PDFPage] = []
+
+            for idx in range(pages_to_process):
+                page_num = idx + 1  # Strictly 1-indexed
+                try:
+                    logger.pdf(f"Rendering page {page_num}/{pages_to_process} in-memory")
+                    page = doc[idx]
+                    bitmap = page.render(scale=self.scale)
+                    pil_image = bitmap.to_pil()
+
+                    # Convert PIL Image to Base64 Data URL purely in memory (JPEG format for compactness)
+                    buffer = io.BytesIO()
+                    # Convert to RGB in case page rendered in RGBA
+                    if pil_image.mode != "RGB":
+                        rgb_image = pil_image.convert("RGB")
+                    else:
+                        rgb_image = pil_image
+                    rgb_image.save(buffer, format="JPEG", quality=85)
+                    image_bytes = buffer.getvalue()
+                    b64_str = base64.b64encode(image_bytes).decode("utf-8")
+                    data_url = f"data:image/jpeg;base64,{b64_str}"
+
+                    # Extract digital text if present
+                    page_text = ""
+                    try:
+                        textpage = page.get_textpage()
+                        page_text = textpage.get_text_range()
+                    except Exception:
+                        page_text = ""
+
+                    pdf_page = PDFPage(
+                        page_number=page_num,
+                        width=pil_image.width,
+                        height=pil_image.height,
+                        image=pil_image,
+                        base64_data_url=data_url,
+                        text=page_text
+                    )
+                    processed_pages.append(pdf_page)
+
+                except Exception as e:
+                    err_msg = f"Failed to render PDF page {page_num}: {e}"
+                    logger.error(err_msg)
+                    raise PageRenderError(err_msg) from e
+
+            logger.pdf(f"Successfully processed {len(processed_pages)} pages in-memory without writing images to disk")
+            return processed_pages
+        finally:
+            try:
+                doc.close()
+            except Exception:
+                pass
