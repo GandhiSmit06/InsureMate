@@ -44,7 +44,17 @@ def run_phase1_tests():
     # TEST 1: In-Memory PDF Processing & Page Tracking (1-indexed)
     # -------------------------------------------------------------
     print_test_banner("1. In-Memory PDF Processing & Page Tracking")
-    pdf_path = ROOT_DIR / "4225IELVT38453879200000_policy_copy.pdf"
+    import tempfile
+    import pypdfium2 as pdfium
+
+    tmp_pdf = Path(tempfile.gettempdir()) / "sample_policy.pdf"
+    doc = pdfium.PdfDocument.new()
+    for _ in range(3):
+        doc.new_page(width=595, height=842)
+    doc.save(str(tmp_pdf))
+    doc.close()
+
+    pdf_path = tmp_pdf
     processor = PDFProcessor()
     pages = processor.process_pdf(pdf_path, max_pages=3)
 

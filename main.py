@@ -60,8 +60,8 @@ def run_phase_2(extracted_data=None):
             {
                 "page_number": 1,
                 "document_type": "insurance_policy",
-                "policy_number": "4225i/ELVT/384538792/00/000",
-                "policy_holder_name": "Maulikkumar Pathak",
+                "policy_number": "POL-2025-00123",
+                "policy_holder_name": "John Doe",
                 "policy_start_date": "12/03/2025",
                 "policy_end_date": "11/03/2028",
             },
@@ -69,7 +69,7 @@ def run_phase_2(extracted_data=None):
                 "page_number": 2,
                 "document_type": "medical_bill",
                 "bill_number": "BILL-101",
-                "patient_name": "Parth Pathak",
+                "patient_name": "Jane Doe",
                 "document_date": "15/08/2026",
                 "bill_amount": "25000.00",
             }
@@ -86,11 +86,11 @@ def run_phase_3(policy_data=None, claim_data=None):
     tool = ValidityCheckerTool()
     if not policy_data:
         policy_data = {
-            "policy_number": "4225i/ELVT/384538792/00/000",
-            "policy_holder_name": "Maulikkumar Pathak",
+            "policy_number": "POL-2025-00123",
+            "policy_holder_name": "John Doe",
             "policy_start_date": "12/03/2025",
             "policy_end_date": "11/03/2028",
-            "insured_names": ["Maulikkumar Pathak", "Parth Pathak"]
+            "insured_names": ["John Doe", "Jane Doe"]
         }
     if not claim_data:
         claim_data = [
@@ -98,7 +98,7 @@ def run_phase_3(policy_data=None, claim_data=None):
                 "document_type": "medical_bill",
                 "page_number": 2,
                 "document_date": "15/08/2026",
-                "patient_name": "Parth Pathak",
+                "patient_name": "Jane Doe",
                 "bill_amount": "25000.00"
             }
         ]
@@ -145,8 +145,8 @@ def run_phase_5(
         docs.append(str(claim_pdf))
 
     if not docs:
-        p_default = ROOT_DIR / "4225IELVT38453879200000_policy_copy.pdf"
-        c_default = ROOT_DIR / "DOCUMENTS FOR Re- activation REQUEST OF CLAIM NO.95151709.pdf"
+        p_default = ROOT_DIR / "sample_policy.pdf"
+        c_default = ROOT_DIR / "sample_claim.pdf"
         if p_default.exists():
             docs.append(str(p_default))
         if c_default.exists():
@@ -185,7 +185,7 @@ def main():
 
     args = parser.parse_args()
 
-    default_policy = args.policy or str(ROOT_DIR / "policy_A.pdf") if (ROOT_DIR / "policy_A.pdf").exists() else str(ROOT_DIR / "4225IELVT38453879200000_policy_copy.pdf")
+    default_policy = args.policy or (str(ROOT_DIR / "sample_policy.pdf") if (ROOT_DIR / "sample_policy.pdf").exists() else None)
 
     if args.real:
         print("\n" + "=" * 80)
@@ -212,7 +212,7 @@ def main():
 
     elif args.agent or args.phase5 or args.phase == 5:
         target_policy = args.policy or default_policy
-        target_claim = args.claim or str(ROOT_DIR / "DOCUMENTS FOR Re- activation REQUEST OF CLAIM NO.95151709.pdf")
+        target_claim = args.claim or (str(ROOT_DIR / "sample_claim.pdf") if (ROOT_DIR / "sample_claim.pdf").exists() else None)
         run_phase_5(
             policy_pdf=target_policy,
             claim_pdf=target_claim,
@@ -245,7 +245,7 @@ def main():
         # Default run: Complete Agentic Demonstration
         print("Executing InsureMate Agent on repository documents...\n")
         target_policy = args.policy or default_policy
-        target_claim = args.claim or str(ROOT_DIR / "DOCUMENTS FOR Re- activation REQUEST OF CLAIM NO.95151709.pdf")
+        target_claim = args.claim or (str(ROOT_DIR / "sample_claim.pdf") if (ROOT_DIR / "sample_claim.pdf").exists() else None)
         run_phase_5(
             policy_pdf=target_policy,
             claim_pdf=target_claim,

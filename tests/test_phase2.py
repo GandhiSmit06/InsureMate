@@ -41,9 +41,9 @@ def run_phase2_tests():
     doc_1 = {
         "page_number": 1,
         "document_type": "insurance_policy",
-        "document_title": "ICICI Lombard Policy Certificate",
-        "policy_number": "4225i/ELVT/384538792/00/000",
-        "policy_holder_name": "Maulikkumar Pathak",
+        "document_title": "Comprehensive Health Insurance Policy Certificate",
+        "policy_number": "POL-2025-00123",
+        "policy_holder_name": "John Doe",
         "policy_start_date": "12/03/2025",
         "policy_end_date": "11/03/2028",
     }
@@ -66,7 +66,7 @@ def run_phase2_tests():
         "document_type": "insurance_policy",
         "document_title": "Policy Document",
         "policy_number": None,  # Missing!
-        "policy_holder_name": "Maulikkumar Pathak",
+        "policy_holder_name": "John Doe",
         "policy_start_date": "12/03/2025",
         "policy_end_date": "11/03/2028",
     }
@@ -89,8 +89,8 @@ def run_phase2_tests():
         "page_number": 2,
         "document_type": "medical_bill",
         "document_title": "Final Inpatient Bill",
-        "bill_number": "BILL-2024-95151",
-        "patient_name": "Parth M. Pathak",
+        "bill_number": "BILL-2024-001",
+        "patient_name": "Jane Doe",
         "document_date": "25/10/2024",
         "bill_amount": "48,500.00",
     }
@@ -112,8 +112,8 @@ def run_phase2_tests():
         "page_number": 2,
         "document_type": "medical_bill",
         "document_title": "Hospital Bill",
-        "bill_number": "BILL-2024-95151",
-        "patient_name": "Parth M. Pathak",
+        "bill_number": "BILL-2024-001",
+        "patient_name": "Jane Doe",
         "document_date": None,  # Missing!
         "bill_amount": "48,500.00",
     }
@@ -136,8 +136,8 @@ def run_phase2_tests():
         "page_number": 3,
         "document_type": "medical_report",
         "document_title": "Pathology Diagnostic Report",
-        "patient_name": "Parth M. Pathak",
-        "hospital_name": "Shree Vallabh Hospital Pathology Lab",
+        "patient_name": "Jane Doe",
+        "hospital_name": "City General Hospital Pathology Lab",
         "document_date": "20/10/2024",
     }
     res_5 = validator_tool.run(doc_5)
@@ -194,7 +194,7 @@ def run_phase2_tests():
         "document_type": "medical_bill",
         "document_title": "Corrupt Inpatient Bill",
         "bill_number": "BILL-999",
-        "patient_name": "Parth M. Pathak",
+        "patient_name": "Jane Doe",
         "document_date": "25/10/2024",
         "bill_amount": "-500.00",  # Illegal negative amount!
     }

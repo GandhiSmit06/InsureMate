@@ -348,19 +348,18 @@ class QwenVLExtractor:
 
         name_lower = filename_hint.lower()
 
-        # Document 1: ICICI Lombard Health Elevate Policy Copy
-        if "policy" in name_lower or "4225ielvt" in name_lower:
+        # Document 1: Sample Health Insurance Policy
+        if "policy" in name_lower:
             if page.page_number == 1:
                 return PageExtractionResult(
                     page_number=page.page_number,
                     document_type="insurance_policy",
-                    document_title="ICICI Lombard Health AdvantEdge / Elevate Policy Certificate",
-                    policy_number="4225i/ELVT/384538792/00/000",
-                    policy_holder_name="MAULIKKUMAR PATHAK",
+                    document_title="Comprehensive Health Insurance Policy Certificate",
+                    policy_number="POL-2025-00123",
+                    policy_holder_name="JOHN DOE",
                     insured_names=[
-                        "MAULIKKUMAR PATHAK",
-                        "BINABEN PATHAK",
-                        "PARTH MAULIKKUMAR PATHAK"
+                        "JOHN DOE",
+                        "JANE DOE"
                     ],
                     patient_name=None,
                     hospital_name=None,
@@ -376,16 +375,16 @@ class QwenVLExtractor:
                         "Cumulative Bonus: 10% per claim-free year",
                         "Grace Period: 30 days for renewal"
                     ],
-                    extracted_text_summary="ICICI Lombard Policy Certificate issued to Maulikkumar Pathak covering family floater with Parth Maulikkumar Pathak from 12-Mar-2025 to 11-Mar-2028."
+                    extracted_text_summary="Standard Health Insurance Policy Certificate issued to John Doe covering family floater with Jane Doe from 12-Mar-2025 to 11-Mar-2028."
                 )
             else:
                 return PageExtractionResult(
                     page_number=page.page_number,
                     document_type="insurance_policy",
                     document_title=f"Policy Terms & Conditions - Page {page.page_number}",
-                    policy_number="4225i/ELVT/384538792/00/000",
-                    policy_holder_name="MAULIKKUMAR PATHAK",
-                    insured_names=["MAULIKKUMAR PATHAK", "BINABEN PATHAK", "PARTH MAULIKKUMAR PATHAK"],
+                    policy_number="POL-2025-00123",
+                    policy_holder_name="JOHN DOE",
+                    insured_names=["JOHN DOE", "JANE DOE"],
                     policy_start_date="12/03/2025",
                     policy_end_date="11/03/2028",
                     document_date=None,
@@ -393,45 +392,45 @@ class QwenVLExtractor:
                     extracted_text_summary=f"Section {page.page_number} of policy terms and coverage details."
                 )
 
-        # Document 2: Shree Vallabh Hospital Records / Claim reactivation
-        elif "reactivation" in name_lower or "claim" in name_lower or "hospital" in name_lower or "95151709" in name_lower:
+        # Document 2: Sample Hospital Records / Claim documents
+        elif "claim" in name_lower or "hospital" in name_lower:
             if page.page_number == 1:
                 return PageExtractionResult(
                     page_number=page.page_number,
                     document_type="hospital_document",
-                    document_title="Shree Vallabh Hospital Indoor Admission Record",
-                    policy_number="76400962",  # Care Health Policy cited on hospital file
+                    document_title="City Hospital Indoor Admission Record",
+                    policy_number="POL-2025-00123",
                     policy_holder_name=None,
                     insured_names=[],
-                    patient_name="PARTH M. PATHAK",
-                    hospital_name="Shree Vallabh Hospital",
-                    bill_number="IPD/2024/8842",
+                    patient_name="JANE DOE",
+                    hospital_name="City General Hospital",
+                    bill_number="IPD-2024-001",
                     invoice_number=None,
                     bill_amount=None,
                     policy_start_date=None,
                     policy_end_date=None,
                     document_date="19/10/2024",  # Admission date
-                    relevant_conditions=["Treating Consultant: Dr. Dhaval Sheth, M.S. (Gen Surg)"],
-                    extracted_text_summary="Indoor case papers showing admission of Parth M. Pathak on 19/10/2024 at Shree Vallabh Hospital."
+                    relevant_conditions=["Treating Consultant: Dr. Physician"],
+                    extracted_text_summary="Indoor case papers showing admission of Jane Doe on 19/10/2024 at City General Hospital."
                 )
             elif page.page_number == 2:
                 return PageExtractionResult(
                     page_number=page.page_number,
                     document_type="medical_bill",
-                    document_title="Shree Vallabh Hospital Final Inpatient Bill",
+                    document_title="City Hospital Final Inpatient Bill",
                     policy_number=None,
                     policy_holder_name=None,
                     insured_names=[],
-                    patient_name="PARTH M. PATHAK",
-                    hospital_name="Shree Vallabh Hospital",
-                    bill_number="BILL-2024-95151",
-                    invoice_number="INV-95151",
+                    patient_name="JANE DOE",
+                    hospital_name="City General Hospital",
+                    bill_number="BILL-2024-001",
+                    invoice_number="INV-2024-001",
                     bill_amount="48,500.00",
                     policy_start_date=None,
                     policy_end_date=None,
                     document_date="25/10/2024",  # Discharge/bill date
-                    relevant_conditions=["Payment mode: Cash and TPA pending"],
-                    extracted_text_summary="Final consolidated hospital bill amounting to Rs 48,500 dated 25/10/2024 for patient Parth M. Pathak."
+                    relevant_conditions=["Payment mode: Cash and Insurance pending"],
+                    extracted_text_summary="Final consolidated hospital bill amounting to Rs 48,500 dated 25/10/2024 for patient Jane Doe."
                 )
             elif page.page_number == 3:
                 return PageExtractionResult(
@@ -441,8 +440,8 @@ class QwenVLExtractor:
                     policy_number=None,
                     policy_holder_name=None,
                     insured_names=[],
-                    patient_name="PARTH M. PATHAK",
-                    hospital_name="Shree Vallabh Hospital Pathology Lab",
+                    patient_name="JANE DOE",
+                    hospital_name="City General Hospital Pathology Lab",
                     bill_number=None,
                     invoice_number=None,
                     bill_amount=None,
@@ -450,7 +449,7 @@ class QwenVLExtractor:
                     policy_end_date=None,
                     document_date="20/10/2024",
                     relevant_conditions=["Complete Blood Count & Liver Function Test"],
-                    extracted_text_summary="Diagnostic blood investigation report dated 20/10/2024 for Parth M. Pathak."
+                    extracted_text_summary="Diagnostic blood investigation report dated 20/10/2024 for Jane Doe."
                 )
             else:
                 return PageExtractionResult(
@@ -458,8 +457,8 @@ class QwenVLExtractor:
                     document_type="hospital_document",
                     document_title=f"Clinical Notes / Vitals Chart - Page {page.page_number}",
                     policy_number=None,
-                    patient_name="PARTH M. PATHAK",
-                    hospital_name="Shree Vallabh Hospital",
+                    patient_name="JANE DOE",
+                    hospital_name="City General Hospital",
                     document_date="22/10/2024",
                     extracted_text_summary=f"Clinical progress note sheet page {page.page_number}."
                 )

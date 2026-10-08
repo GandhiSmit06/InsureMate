@@ -56,10 +56,10 @@ def test_1_valid_policy_and_bill():
         {
             "page_number": 1,
             "document_type": "insurance_policy",
-            "document_title": "ICICI Lombard Health Elevate Certificate",
-            "policy_number": "4225i/ELVT/384538792/00/000",
-            "policy_holder_name": "Maulikkumar Pathak",
-            "insured_names": ["Maulikkumar Pathak", "Parth Pathak"],
+            "document_title": "Comprehensive Health Floater Certificate",
+            "policy_number": "POL-2025-00123",
+            "policy_holder_name": "John Doe",
+            "insured_names": ["John Doe", "Jane Doe"],
             "policy_start_date": "12/03/2025",
             "policy_end_date": "11/03/2028",
             "policy_clauses": [
@@ -72,8 +72,8 @@ def test_1_valid_policy_and_bill():
             "document_type": "medical_bill",
             "document_title": "Final Hospital Inpatient Bill",
             "bill_number": "BILL-101",
-            "patient_name": "Parth Pathak",
-            "hospital_name": "Shree Vallabh Hospital",
+            "patient_name": "Jane Doe",
+            "hospital_name": "City General Hospital",
             "document_date": "15/08/2026",
             "bill_amount": "25000.00"
         },
@@ -81,8 +81,8 @@ def test_1_valid_policy_and_bill():
             "page_number": 3,
             "document_type": "hospital_document",
             "document_title": "Patient Discharge Summary Record",
-            "patient_name": "Parth Pathak",
-            "hospital_name": "Shree Vallabh Hospital",
+            "patient_name": "Jane Doe",
+            "hospital_name": "City General Hospital",
             "document_date": "15/08/2026"
         }
     ]
@@ -154,8 +154,8 @@ def test_2_date_outside_policy_period():
             "document_type": "insurance_policy",
             "document_title": "Annual Standard Health Policy",
             "policy_number": "POL-2026-001",
-            "policy_holder_name": "Maulikkumar Pathak",
-            "insured_names": ["Maulikkumar Pathak", "Parth Pathak"],
+            "policy_holder_name": "John Doe",
+            "insured_names": ["John Doe", "Jane Doe"],
             "policy_start_date": "01/01/2026",
             "policy_end_date": "31/12/2026",
             "policy_clauses": ["1. Final Hospital Bill"]
@@ -165,7 +165,7 @@ def test_2_date_outside_policy_period():
             "document_type": "medical_bill",
             "document_title": "Hospital Consultation Bill",
             "bill_number": "BILL-999",
-            "patient_name": "Parth Pathak",
+            "patient_name": "Jane Doe",
             "hospital_name": "Apex Clinic",
             "document_date": "15/10/2025",  # PRIOR to policy start date (01/01/2026)
             "bill_amount": "5000.00"
@@ -225,8 +225,8 @@ def test_3_required_document_missing():
             "document_type": "insurance_policy",
             "document_title": "Comprehensive Floater Policy",
             "policy_number": "POL-5555",
-            "policy_holder_name": "Maulikkumar Pathak",
-            "insured_names": ["Maulikkumar Pathak"],
+            "policy_holder_name": "John Doe",
+            "insured_names": ["John Doe"],
             "policy_start_date": "01/01/2026",
             "policy_end_date": "31/12/2026",
             "policy_clauses": [
@@ -239,7 +239,7 @@ def test_3_required_document_missing():
             "document_type": "medical_bill",
             "document_title": "Final Itemized Bill",
             "bill_number": "BILL-555",
-            "patient_name": "Maulikkumar Pathak",
+            "patient_name": "John Doe",
             "document_date": "10/05/2026",
             "bill_amount": "15000.00"
         }
@@ -414,11 +414,11 @@ def test_8_real_documents_agent_run():
     """
     print_test_banner("TEST 8: Real Repository PDF Documents Agent Run")
 
-    policy_pdf = ROOT_DIR / "4225IELVT38453879200000_policy_copy.pdf"
-    claim_pdf = ROOT_DIR / "DOCUMENTS FOR Re- activation REQUEST OF CLAIM NO.95151709.pdf"
+    policy_pdf = ROOT_DIR / "sample_policy.pdf"
+    claim_pdf = ROOT_DIR / "sample_claim.pdf"
 
     if not policy_pdf.exists() or not claim_pdf.exists():
-        pytest.skip("Repository PDF documents not present; skipping live PDF run.")
+        pytest.skip("Sample PDF documents not present; skipping live PDF run.")
         return
 
     agent = InsureMateAgent(offline_mode=True)

@@ -119,7 +119,7 @@ QWEN_TEMPERATURE=0.1
 ### A. Phase 1: Qwen-VL Document Extraction Tool
 Converts PDF pages into memory images and extracts structured insurance fields:
 ```bash
-python main.py --phase 1 --max-pages 2 --pdf "4225IELVT38453879200000_policy_copy.pdf"
+python main.py --phase 1 --max-pages 2 --pdf "sample_policy.pdf"
 ```
 
 Programmatic Usage:
@@ -127,7 +127,7 @@ Programmatic Usage:
 from tools.qwen_vl_tool import QwenVLExtractionTool
 
 tool = QwenVLExtractionTool()
-result = tool.run(pdf_path="4225IELVT38453879200000_policy_copy.pdf", max_pages=1)
+result = tool.run(pdf_path="sample_policy.pdf", max_pages=1)
 print(result["extracted_documents"])
 ```
 
@@ -147,7 +147,7 @@ sample_docs = [
         "page_number": 2,
         "document_type": "medical_bill",
         "bill_number": "INV-101",
-        "patient_name": "Parth Pathak",
+        "patient_name": "Jane Doe",
         "document_date": "15/08/2026",
         "bill_amount": "48500.00"
     }
@@ -170,14 +170,14 @@ tool = ValidityCheckerTool()
 policy = {
     "policy_start_date": "12/03/2025",
     "policy_end_date": "11/03/2028",
-    "insured_names": ["Maulikkumar Pathak", "Parth Pathak"]
+    "insured_names": ["John Doe", "Jane Doe"]
 }
 claim_docs = [
     {
         "page_number": 2,
         "document_type": "medical_bill",
         "document_date": "15/08/2026",
-        "patient_name": "Parth Pathak"
+        "patient_name": "Jane Doe"
     }
 ]
 validity = tool.run(policy_data=policy, document_data=claim_docs)
@@ -248,9 +248,9 @@ python tests/test_end_to_end.py
 
 ## 8. End-to-End Execution Trace
 
-Example run on the two real PDF documents in the repository:
-1. `4225IELVT38453879200000_policy_copy.pdf` (ICICI Lombard Elevate Floater Policy)
-2. `DOCUMENTS FOR Re- activation REQUEST OF CLAIM NO.95151709.pdf` (Shree Vallabh Hospital Records)
+Example run on sample insurance and claim documents:
+1. `sample_policy.pdf` (Comprehensive Health Floater Policy)
+2. `sample_claim.pdf` (Hospital Admission and Inpatient Bill Records)
 
 ```
 ================================================================================
@@ -258,9 +258,9 @@ FINAL INTERMEDIATE OBSERVATION TABLE FOR AGENT
 ================================================================================
 Sr.No  | Document Title                      | Type               | Page  | Validation | Period Check
 -----------------------------------------------------------------------------------------------------
-1      | ICICI Lombard Health AdvantEdge /   | insurance_policy   | 1     | PASS       | POLICY BASE
-2      | Shree Vallabh Hospital Indoor Admi  | hospital_document  | 1     | PASS       | FAIL (Pre-Policy)
-3      | Shree Vallabh Hospital Final Inpat  | medical_bill       | 2     | PASS       | FAIL (Pre-Policy)
+1      | Health Floater Certificate          | insurance_policy   | 1     | PASS       | POLICY BASE
+2      | Hospital Indoor Admission Record    | hospital_document  | 1     | PASS       | FAIL (Pre-Policy)
+3      | Hospital Final Inpatient Bill       | medical_bill       | 2     | PASS       | FAIL (Pre-Policy)
 4      | Pathology Diagnostic Investigation  | medical_report     | 3     | PASS       | FAIL (Pre-Policy)
 
 SUMMARY REASONS FOR CLAIM DECISION:
@@ -268,7 +268,7 @@ SUMMARY REASONS FOR CLAIM DECISION:
  - Document date (19/10/2024) falls outside the policy validity period: prior to policy inception (12/03/2025) on page 1.
  - Document date (25/10/2024) falls outside the policy validity period: prior to policy inception (12/03/2025) on page 2.
  - Document date (20/10/2024) falls outside the policy validity period: prior to policy inception (12/03/2025) on page 3.
- - Patient name 'PARTH M. PATHAK' successfully matched against covered policy member(s).
+ - Patient name 'Jane Doe' successfully matched against covered policy member(s).
 ```
 
 ---

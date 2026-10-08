@@ -195,7 +195,7 @@ def test_4_all_required_documents_present():
         ],
         "submitted_documents": [
             {"document_title": "Patient Discharge Record", "page_no": 1},
-            {"document_title": "Shree Vallabh Hospital Final Inpatient Bill", "page_no": 2}
+            {"document_title": "City General Hospital Final Inpatient Bill", "page_no": 2}
         ]
     }
 
@@ -213,9 +213,9 @@ def test_4_all_required_documents_present():
                 "sr_no": 2,
                 "document_title": "Final Itemized Hospital Bill",
                 "missing": False,
-                "submitted_document_title": "Shree Vallabh Hospital Final Inpatient Bill",
+                "submitted_document_title": "City General Hospital Final Inpatient Bill",
                 "page_no": 2,
-                "reason": "Submitted 'Shree Vallabh Hospital Final Inpatient Bill' fulfills Final Bill."
+                "reason": "Submitted 'City General Hospital Final Inpatient Bill' fulfills Final Bill."
             }
         ]
     })
@@ -254,7 +254,7 @@ def test_5_one_required_document_missing():
             {"document_title": "Final Itemized Hospital Bill"}
         ],
         "submitted_documents": [
-            {"document_title": "Shree Vallabh Hospital Final Inpatient Bill", "page_no": 2}
+            {"document_title": "City General Hospital Final Inpatient Bill", "page_no": 2}
         ]
     }
 
@@ -272,9 +272,9 @@ def test_5_one_required_document_missing():
                 "sr_no": 2,
                 "document_title": "Final Itemized Hospital Bill",
                 "missing": False,
-                "submitted_document_title": "Shree Vallabh Hospital Final Inpatient Bill",
+                "submitted_document_title": "City General Hospital Final Inpatient Bill",
                 "page_no": 2,
-                "reason": "Submitted 'Shree Vallabh Hospital Final Inpatient Bill' fulfills requirement."
+                "reason": "Submitted 'City General Hospital Final Inpatient Bill' fulfills requirement."
             }
         ]
     })

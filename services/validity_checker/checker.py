@@ -404,7 +404,7 @@ class ValidityChecker:
         if not p_tokens or not m_tokens:
             return False
 
-        # Direct token intersection (e.g. ['parth', 'pathak'] vs ['parth', 'maulikkumar', 'pathak'])
+        # Direct token intersection (e.g. ['john', 'doe'] vs ['john', 'sample', 'doe'])
         p_set = set(p_tokens)
         m_set = set(m_tokens)
         if len(p_set.intersection(m_set)) >= 2:

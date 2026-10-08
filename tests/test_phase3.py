@@ -37,10 +37,10 @@ def run_phase3_tests():
     # Standard policy fixture for 2026
     standard_policy = {
         "policy_number": "POL-2026-9900",
-        "policy_holder_name": "Maulikkumar Pathak",
+        "policy_holder_name": "John Doe",
         "policy_start_date": "01/01/2026",
         "policy_end_date": "31/12/2026",
-        "insured_names": ["Maulikkumar Pathak", "Parth Pathak"],
+        "insured_names": ["John Doe", "Jane Doe"],
     }
 
     # -------------------------------------------------------------
@@ -51,7 +51,7 @@ def run_phase3_tests():
         "document_type": "medical_bill",
         "page_number": 1,
         "document_date": "15/08/2026",
-        "patient_name": "Parth Pathak",
+        "patient_name": "Jane Doe",
         "bill_amount": "25000",
     }
     res_1 = validity_tool.run(policy_data=standard_policy, document_data=bill_1)
@@ -73,7 +73,7 @@ def run_phase3_tests():
         "document_type": "medical_bill",
         "page_number": 2,
         "document_date": "15/10/2025",  # Prior to 01/01/2026!
-        "patient_name": "Parth Pathak",
+        "patient_name": "Jane Doe",
     }
     res_2 = validity_tool.run(policy_data=standard_policy, document_data=bill_2)
     exp_2 = "valid=False, reason mentions 'prior to policy inception' or 'outside'"
@@ -94,7 +94,7 @@ def run_phase3_tests():
         "document_type": "medical_bill",
         "page_number": 3,
         "document_date": "15/01/2027",  # After 31/12/2026!
-        "patient_name": "Parth Pathak",
+        "patient_name": "Jane Doe",
     }
     res_3 = validity_tool.run(policy_data=standard_policy, document_data=bill_3)
     exp_3 = "valid=False, reason mentions 'after policy expiry' or 'outside'"
@@ -155,7 +155,7 @@ def run_phase3_tests():
         "document_type": "medical_bill",
         "page_number": 4,
         "document_date": None,  # Missing!
-        "patient_name": "Parth Pathak",
+        "patient_name": "Jane Doe",
     }
     res_6 = validity_tool.run(policy_data=standard_policy, document_data=bill_no_date)
     exp_6 = "valid=False, reason mentions 'missing date on medical_bill'"
@@ -176,7 +176,7 @@ def run_phase3_tests():
         "document_type": "medical_bill",
         "page_number": 5,
         "document_date": "not_a_real_calendar_date_99/99/9999",  # Invalid!
-        "patient_name": "Parth Pathak",
+        "patient_name": "Jane Doe",
     }
     res_7 = validity_tool.run(policy_data=standard_policy, document_data=bill_invalid_date)
     exp_7 = "valid=False, reason mentions 'Invalid date format'"
@@ -198,19 +198,19 @@ def run_phase3_tests():
             "document_type": "hospital_document",
             "page_number": 1,
             "document_date": "10/05/2026",  # VALID (in 2026)
-            "patient_name": "Parth Pathak",
+            "patient_name": "Jane Doe",
         },
         {
             "document_type": "medical_bill",
             "page_number": 2,
             "document_date": "15/01/2027",  # INVALID (after 31/12/2026)
-            "patient_name": "Parth Pathak",
+            "patient_name": "Jane Doe",
         },
         {
             "document_type": "medical_report",
             "page_number": 3,
             "document_date": "12/05/2026",  # VALID (in 2026)
-            "patient_name": "Parth Pathak",
+            "patient_name": "Jane Doe",
         },
     ]
     res_8 = validity_tool.run(policy_data=standard_policy, document_data=mixed_docs)
