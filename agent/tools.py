@@ -387,6 +387,14 @@ class ClaimPreparationAdapter(BaseAgentTool):
                 reasons = ["Ensure all uploaded documents contain valid, legible claim details."]
             action_items.extend(reasons)
 
+        # If only policy was uploaded and no bills/claim documents are attached,
+        # the primary requirement is submitting the missing evidence, not date failure.
+        elif not any(d.get("document_type") not in ("insurance_policy", "unknown") for d in state.extracted_data) and missing_docs:
+            final_status = ClaimStatus.ACTION_REQUIRED_MISSING_EVIDENCE.value
+            decision_summary = f"Policy verified. Supporting claim evidence required: {', '.join(missing_docs)}."
+            for m in missing_docs:
+                action_items.append(f"Upload required document: {m}")
+
         elif is_valid_dates is False:
             final_status = ClaimStatus.INVALID_CLAIM_DATES.value
             reasons = state.validity_result.get("reasons", []) if state.validity_result else []

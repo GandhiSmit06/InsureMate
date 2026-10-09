@@ -4,6 +4,7 @@ Consumes real Phase 1, Phase 2, and Phase 3 outputs and uses Gemma 3 via LLMGate
 to dynamically reason about policy requirements and detect missing documents.
 """
 
+import re
 from typing import Any, Dict, List, Optional, Union
 from services.missing_document.llm_gateway import LLMGateway
 from services.missing_document.schemas import (
@@ -178,6 +179,25 @@ class MissingDocumentDetector:
                 conditions=all_conditions
             )
             req_docs.extend(extracted_from_llm)
+
+            if not req_docs:
+                # Dynamic derivation from verified policy clauses extracted from source document
+                clause_idx = 1
+                for p in policy_docs:
+                    for c in p.get("policy_clauses", []):
+                        clean_c = re.sub(r"^\d+[\.\)]\s*", "", c).strip()
+                        split_c = re.split(r"\s+(?:with|stating|and payment|supporting)\s+", clean_c, flags=re.I)
+                        title = split_c[0].strip() if split_c else clean_c
+                        if len(title) > 60:
+                            title = title[:60].strip()
+                        if title and not any(r["document_title"].lower() == title.lower() for r in req_docs):
+                            req_docs.append({
+                                "sr_no": clause_idx,
+                                "document_title": title,
+                                "source": "policy_clause",
+                                "reason": c
+                            })
+                            clause_idx += 1
 
         # Case C: No explicit requirements found in policy
         if not req_docs:

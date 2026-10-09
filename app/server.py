@@ -237,6 +237,18 @@ async def run_claim_agent(claim_id: str, request: RunRequest = RunRequest()):
     if not claim:
         raise HTTPException(status_code=404, detail=f"Claim session '{claim_id}' not found.")
 
+    if agent_service.is_claim_running(claim_id):
+        return JSONResponse(
+            status_code=status.HTTP_409_CONFLICT,
+            content={
+                "success": False,
+                "claim_id": claim_id,
+                "status": "in_progress",
+                "is_running": True,
+                "message": f"InsureMate Agent is already running for claim '{claim_id}'."
+            }
+        )
+
     try:
         run_data = agent_service.run_agent(claim_id=claim_id, max_pages=request.max_pages)
         return run_data
@@ -254,6 +266,18 @@ async def start_claim_agent(claim_id: str, request: StartAgentRequest = StartAge
     claim = agent_service.db.get_claim(claim_id)
     if not claim:
         raise HTTPException(status_code=404, detail=f"Claim session '{claim_id}' not found.")
+
+    if agent_service.is_claim_running(claim_id):
+        return JSONResponse(
+            status_code=status.HTTP_409_CONFLICT,
+            content={
+                "success": False,
+                "claim_id": claim_id,
+                "status": "in_progress",
+                "is_running": True,
+                "message": f"InsureMate Agent is already running for claim '{claim_id}'."
+            }
+        )
 
     if request.background:
         agent_service.db.update_claim_status(claim_id, "in_progress")
@@ -274,6 +298,7 @@ async def start_claim_agent(claim_id: str, request: StartAgentRequest = StartAge
             "success": True,
             "claim_id": claim_id,
             "status": "in_progress",
+            "is_running": True,
             "background": True,
             "message": "InsureMate Agent started in background."
         }
@@ -298,13 +323,13 @@ async def get_claim_agent_status(claim_id: str):
         raise HTTPException(status_code=404, detail=f"Claim session '{claim_id}' not found.")
     claim = data["claim"]
     status_val = claim.get("status", "pending")
-    is_running = str(status_val).lower() in ("in_progress", "running", "processing")
+    is_running = agent_service.is_claim_running(claim_id) or str(status_val).lower() in ("in_progress", "running", "processing")
     latest_state = data.get("latest_state") or {}
     tool_execs = data.get("tool_executions", [])
     report = data.get("final_report")
     return {
         "claim_id": claim_id,
-        "status": status_val,
+        "status": "in_progress" if is_running else status_val,
         "is_running": is_running,
         "verdict": data.get("verdict"),
         "current_step": latest_state.get("current_step"),

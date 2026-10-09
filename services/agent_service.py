@@ -6,6 +6,7 @@ and persistent claim memory.
 
 import os
 import shutil
+import threading
 import uuid
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
@@ -37,6 +38,26 @@ class AgentService:
 
         self.upload_dir = Path(upload_dir) if upload_dir else UPLOADS_DIR
         self.upload_dir.mkdir(parents=True, exist_ok=True)
+        self._running_claims: set = set()
+        self._lock = threading.Lock()
+
+    def is_claim_running(self, claim_id: str) -> bool:
+        """Check whether the agent is currently running for the claim."""
+        with self._lock:
+            return claim_id in self._running_claims
+
+    def acquire_claim_lock(self, claim_id: str) -> bool:
+        """Attempt to acquire execution lock for claim_id. Returns True if acquired."""
+        with self._lock:
+            if claim_id in self._running_claims:
+                return False
+            self._running_claims.add(claim_id)
+            return True
+
+    def release_claim_lock(self, claim_id: str) -> None:
+        """Release execution lock for claim_id."""
+        with self._lock:
+            self._running_claims.discard(claim_id)
 
     def create_session(
         self,
@@ -158,15 +179,32 @@ class AgentService:
         if not claim:
             raise ValueError(f"Claim session '{claim_id}' not found.")
 
+        if not self.acquire_claim_lock(claim_id):
+            logger.warning(f"[SERVICE] Duplicate execution blocked: Claim {claim_id} is already in progress.")
+            history = self.db.get_claim_full_history(claim_id) or {}
+            history["status"] = "in_progress"
+            history["is_running"] = True
+            history["message"] = f"Claim {claim_id} is already running."
+            return history
+
         self.db.update_claim_status(claim_id, ClaimStatus.IN_PROGRESS.value)
         logger.info(f"[SERVICE] Launching InsureMate Agent for claim {claim_id}")
 
-        # Assemble documents list
+        # Assemble documents list including all files in claim upload folder
         docs: List[str] = []
         if claim.get("policy_path") and Path(claim["policy_path"]).exists():
             docs.append(claim["policy_path"])
         if claim.get("claim_path") and Path(claim["claim_path"]).exists():
             docs.append(claim["claim_path"])
+
+        # Gather any additional uploaded claim documents
+        claim_dir = self.upload_dir / claim_id
+        if claim_dir.exists():
+            for f in sorted(claim_dir.iterdir()):
+                if f.is_file() and f.suffix.lower() == ".pdf":
+                    f_str = str(f)
+                    if f_str not in docs:
+                        docs.append(f_str)
 
         effective_offline = offline_mode if offline_mode is not None else claim.get("offline_mode", False)
 
@@ -241,6 +279,8 @@ class AgentService:
                 state_dict={"error": str(e)}
             )
             raise e
+        finally:
+            self.release_claim_lock(claim_id)
 
     run_claim = run_agent
 

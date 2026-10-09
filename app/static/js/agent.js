@@ -111,6 +111,32 @@ const AgentView = {
     if (btnResults) {
       btnResults.style.display = report ? 'inline-flex' : 'none';
     }
+
+    // Update Start / Run Agent button state
+    const isRunning = bundle.is_running || String(claim.status).toLowerCase().includes('in_progress');
+    const btnStart = document.getElementById('btn-agent-start-run');
+    if (btnStart) {
+      if (isRunning) {
+        btnStart.disabled = true;
+        btnStart.style.cursor = 'not-allowed';
+        btnStart.style.opacity = '0.75';
+        btnStart.innerHTML = `
+          <span class="spinner-sm" style="width: 14px; height: 14px; border: 2px solid #fff; border-top-color: transparent; border-radius: 50%; display: inline-block; animation: spin 1s linear infinite;"></span>
+          Agent Running…
+        `;
+      } else {
+        btnStart.disabled = false;
+        btnStart.style.cursor = 'pointer';
+        btnStart.style.opacity = '1';
+        btnStart.innerHTML = report ? `
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="1 4 1 10 7 10"/><polyline points="23 20 23 14 17 14"/><path d="M20.49 9A9 9 0 0 0 5.64 5.64L1 10m22 4l-4.64 4.36A9 9 0 0 1 3.51 15"/></svg>
+          Re-run Agent
+        ` : `
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+          Start InsureMate Agent
+        `;
+      }
+    }
   },
 
   updateToolsPanel(tools = []) {
@@ -341,9 +367,11 @@ const AgentView = {
     const btnStart = document.getElementById('btn-agent-start-run');
     if (btnStart) {
       btnStart.disabled = true;
+      btnStart.style.cursor = 'not-allowed';
+      btnStart.style.opacity = '0.75';
       btnStart.innerHTML = `
-        <span class="spinner" style="width: 14px; height: 14px; border: 2px solid #fff; border-top-color: transparent; border-radius: 50%; display: inline-block; animation: spin 1s linear infinite;"></span>
-        Executing Agent...
+        <span class="spinner-sm" style="width: 14px; height: 14px; border: 2px solid #fff; border-top-color: transparent; border-radius: 50%; display: inline-block; animation: spin 1s linear infinite;"></span>
+        Agent Running…
       `;
     }
 

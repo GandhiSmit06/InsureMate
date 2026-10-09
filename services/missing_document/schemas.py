@@ -120,6 +120,9 @@ class MissingDocumentResponse(BaseModel):
             {
                 "sr_no": r.sr_no,
                 "document_title": r.document_title,
+                "required_document": r.document_title,
+                "document_name": r.document_title,
+                "name": r.document_title,
                 "missing": r.missing,
                 "page_number": r.page_number,
                 "page_no": r.page_number,

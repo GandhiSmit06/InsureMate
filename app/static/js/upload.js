@@ -30,7 +30,6 @@ const Upload = {
 
   updateReviewCard() {
     const claimNum = document.getElementById('input-claim-number')?.value?.trim();
-    const policyNum = document.getElementById('input-policy-number')?.value?.trim();
     const claimType = document.getElementById('select-claim-type')?.value;
 
     const refEl = document.getElementById('review-claim-ref');
@@ -38,9 +37,9 @@ const Upload = {
     const policyEl = document.getElementById('review-policy-status');
     const countEl = document.getElementById('review-files-count');
 
-    if (refEl) refEl.textContent = claimNum || (policyNum ? `POL-${policyNum}` : 'Auto-Generated');
+    if (refEl) refEl.textContent = claimNum || 'Auto-Generated';
     if (typeEl) typeEl.textContent = claimType ? (claimType.charAt(0).toUpperCase() + claimType.slice(1)) : 'Health';
-    if (policyEl) policyEl.textContent = this.policyFile ? this.policyFile.name : 'None';
+    if (policyEl) policyEl.textContent = this.policyFile ? `${this.policyFile.name} (Auto-OCR)` : 'None';
     if (countEl) countEl.textContent = `${this.claimFiles.length} file(s)`;
   },
 
@@ -78,7 +77,7 @@ const Upload = {
     }
 
     // Form inputs change listener to track step progress & update review card
-    const inputs = ['input-claim-number', 'input-policy-number', 'select-claim-type', 'input-incident-date', 'input-claim-goal'];
+    const inputs = ['input-claim-number', 'select-claim-type', 'input-incident-date', 'input-incident-notes', 'input-claim-goal'];
     inputs.forEach(id => {
       const el = document.getElementById(id);
       if (el) {
@@ -261,16 +260,27 @@ const Upload = {
         }
 
         const claimNumber = document.getElementById('input-claim-number')?.value?.trim();
-        const policyNumber = document.getElementById('input-policy-number')?.value?.trim();
+        const incidentDate = document.getElementById('input-incident-date')?.value?.trim();
+        const incidentNotes = document.getElementById('input-incident-notes')?.value?.trim();
         const goalInput = document.getElementById('input-claim-goal');
         const claimTypeSelect = document.getElementById('select-claim-type');
         const toggleOffline = document.getElementById('toggle-offline-mode');
         const toggleAutoRun = document.getElementById('toggle-auto-run');
 
-        const sessionName = claimNumber ? `Claim ${claimNumber}` : (policyNumber ? `Policy ${policyNumber}` : null);
+        const sessionName = claimNumber
+          ? `Claim ${claimNumber}`
+          : (this.policyFile ? `Policy: ${this.policyFile.name.replace(/\.[^/.]+$/, '')}` : null);
         if (sessionName) formData.append('session_name', sessionName);
 
-        formData.append('goal', goalInput ? goalInput.value : 'Determine claim readiness and identify missing evidence.');
+        let finalGoal = goalInput ? goalInput.value.trim() : 'Determine claim readiness and identify missing evidence.';
+        if (incidentDate) {
+          finalGoal += ` Incident / admission date: ${incidentDate}.`;
+        }
+        if (incidentNotes) {
+          finalGoal += ` Note: ${incidentNotes}.`;
+        }
+
+        formData.append('goal', finalGoal);
         formData.append('claim_type', claimTypeSelect ? claimTypeSelect.value : 'general');
         formData.append('offline_mode', toggleOffline ? toggleOffline.checked : true);
         formData.append('auto_run', false);

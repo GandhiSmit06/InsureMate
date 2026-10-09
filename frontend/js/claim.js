@@ -181,18 +181,33 @@ const ClaimView = {
     }
 
     tbody.innerHTML = items.map((doc, idx) => {
-      const isFound = doc.status === 'found' || doc.status === 'available';
-      const statusBadge = isFound
-        ? '<span class="badge badge-success">✓ Available</span>'
-        : '<span class="badge badge-warning">⚠ Missing</span>';
+      const statusRaw = String(doc.status || '').toLowerCase();
+      const isFound = statusRaw === 'found' || statusRaw === 'available' || statusRaw === 'received' || statusRaw === 'present';
+      const isIncomplete = statusRaw === 'incomplete';
+      const isReview = statusRaw === 'needs_review' || statusRaw === 'review';
+      
+      let statusBadge;
+      if (isFound) {
+        statusBadge = '<span class="badge badge-success">✓ Received</span>';
+      } else if (isIncomplete) {
+        statusBadge = '<span class="badge badge-warning">⚠ Incomplete</span>';
+      } else if (isReview) {
+        statusBadge = '<span class="badge badge-info">ℹ Needs Review</span>';
+      } else {
+        statusBadge = '<span class="badge badge-warning">⚠ Missing</span>';
+      }
+
+      const docName = doc.document_title || doc.required_document || doc.document_name || doc.title || doc.name || 'Required Evidence Document';
+      const reasonText = doc.reason || doc.matching_reason || (isFound ? 'Matching document identified in claim inventory.' : 'No matching claim documents were submitted to fulfill this requirement.');
+      const pageInfo = doc.source_page ? `Page ${doc.source_page}` : (doc.page_number ? `Page ${doc.page_number}` : '—');
 
       return `
         <tr>
           <td style="font-family: var(--font-mono);">${idx + 1}</td>
-          <td style="font-weight: 600; color: var(--text-primary);">${Utils.escapeHtml(doc.required_document || doc.document_name || 'Evidence Document')}</td>
+          <td style="font-weight: 600; color: var(--text-primary);">${Utils.escapeHtml(docName)}</td>
           <td>${statusBadge}</td>
-          <td>${Utils.escapeHtml(doc.reason || doc.matching_reason || 'Required by policy conditions')}</td>
-          <td style="font-family: var(--font-mono);">${doc.page_number ? `Page ${doc.page_number}` : '—'}</td>
+          <td>${Utils.escapeHtml(reasonText)}</td>
+          <td style="font-family: var(--font-mono);">${pageInfo}</td>
         </tr>
       `;
     }).join('');
@@ -291,23 +306,36 @@ const ClaimView = {
       return;
     }
 
-    container.innerHTML = extractedPages.map(page => `
+    container.innerHTML = extractedPages.map((page, idx) => `
       <div class="card" style="margin-bottom: 0;">
         <div class="card-header" style="margin-bottom: 12px;">
           <div style="font-weight: 600; font-size: 0.88rem; color: var(--accent); display: flex; align-items: center; gap: 7px;">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
-            <span>Page ${page.page_number} (${Utils.escapeHtml(page.document_type || 'Document')})</span>
+            <span>Page ${page.page_number} (${Utils.escapeHtml((page.document_type || 'Document').replace(/_/g, ' '))})</span>
           </div>
           <span class="badge badge-success">✓ Extracted</span>
         </div>
-        <div style="display: flex; flex-direction: column; gap: 6px; font-size: 0.8rem;">
+        <div style="display: flex; flex-direction: column; gap: 6px; font-size: 0.8rem; margin-bottom: 12px;">
+          ${page.insurer_name ? `<div><span style="color: var(--text-muted);">Insurer:</span> <strong style="color: var(--primary);">${Utils.escapeHtml(page.insurer_name)}</strong></div>` : ''}
+          ${page.document_title ? `<div><span style="color: var(--text-muted);">Title:</span> <strong>${Utils.escapeHtml(page.document_title)}</strong></div>` : ''}
+          ${page.policy_number ? `<div><span style="color: var(--text-muted);">Policy #:</span> <strong style="font-family: var(--font-mono); color: var(--accent);">${Utils.escapeHtml(page.policy_number)}</strong></div>` : ''}
+          ${page.policy_holder_name ? `<div><span style="color: var(--text-muted);">Policy Holder:</span> <strong>${Utils.escapeHtml(page.policy_holder_name)}</strong></div>` : ''}
+          ${page.insured_names && page.insured_names.length > 0 ? `<div><span style="color: var(--text-muted);">Insured:</span> <strong>${Utils.escapeHtml(page.insured_names.join(', '))}</strong></div>` : ''}
+          ${page.policy_start_date && page.policy_end_date ? `<div><span style="color: var(--text-muted);">Coverage Window:</span> <strong>${Utils.escapeHtml(page.policy_start_date)} ⟶ ${Utils.escapeHtml(page.policy_end_date)}</strong></div>` : ''}
+          ${page.sum_insured ? `<div><span style="color: var(--text-muted);">Sum Insured:</span> <strong style="color: var(--emerald);">₹${Utils.escapeHtml(String(page.sum_insured))}</strong></div>` : ''}
+          ${page.bill_number ? `<div><span style="color: var(--text-muted);">Bill #:</span> <strong style="font-family: var(--font-mono);">${Utils.escapeHtml(page.bill_number)}</strong></div>` : ''}
           ${page.patient_name ? `<div><span style="color: var(--text-muted);">Patient:</span> <strong>${Utils.escapeHtml(page.patient_name)}</strong></div>` : ''}
-          ${page.policy_number ? `<div><span style="color: var(--text-muted);">Policy #:</span> <strong>${Utils.escapeHtml(page.policy_number)}</strong></div>` : ''}
           ${page.hospital_name ? `<div><span style="color: var(--text-muted);">Hospital:</span> <strong>${Utils.escapeHtml(page.hospital_name)}</strong></div>` : ''}
+          ${page.bill_amount ? `<div><span style="color: var(--text-muted);">Bill Amount:</span> <strong style="color: var(--emerald);">₹${Utils.escapeHtml(String(page.bill_amount))}</strong></div>` : ''}
           ${page.total_amount ? `<div><span style="color: var(--text-muted);">Amount:</span> <strong style="color: var(--emerald);">${Utils.formatCurrency(page.total_amount)}</strong></div>` : ''}
           ${page.admission_date ? `<div><span style="color: var(--text-muted);">Admission:</span> <strong>${Utils.escapeHtml(page.admission_date)}</strong></div>` : ''}
           ${page.discharge_date ? `<div><span style="color: var(--text-muted);">Discharge:</span> <strong>${Utils.escapeHtml(page.discharge_date)}</strong></div>` : ''}
+          ${page.diagnoses && page.diagnoses.length > 0 ? `<div><span style="color: var(--text-muted);">Diagnosis:</span> <strong>${Utils.escapeHtml(page.diagnoses.join(', '))}</strong></div>` : ''}
+          ${page.policy_clauses && page.policy_clauses.length > 0 ? `<div style="color: var(--accent); margin-top: 4px;">📋 ${page.policy_clauses.length} mandatory clause(s) detected</div>` : ''}
         </div>
+        <button class="btn btn-secondary btn-sm" style="width: 100%; justify-content: center;" onclick="DocumentsView.openDetailModal(${idx})">
+          Inspect Full OCR & Clauses
+        </button>
       </div>
     `).join('');
   },

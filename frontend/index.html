@@ -328,26 +328,21 @@
             <form id="claim-create-form">
               <!-- Step 1: Claim Information (Two-Column Layout) -->
               <h4 style="font-size: 0.82rem; font-weight: 700; color: var(--accent); margin-bottom: 14px; text-transform: uppercase; letter-spacing: 0.07em;">
-                Step 1: Claim Information
+                Step 1: Incident & Claim Details
               </h4>
 
               <div class="form-grid">
-                <div class="form-group">
-                  <label class="form-label" for="input-claim-number">Claim Number</label>
-                  <input type="text" id="input-claim-number" class="form-input" placeholder="e.g. CLM-2026-0012">
-                  <span class="form-hint">Internal claim tracking identifier.</span>
+                <div style="grid-column: 1 / -1; display: flex; align-items: center; gap: 12px; background: rgba(56, 189, 248, 0.08); border: 1px solid rgba(56, 189, 248, 0.25); border-radius: 8px; padding: 12px 16px; margin-bottom: 6px;">
+                  <div style="font-size: 1.3rem;">✨</div>
+                  <div style="font-size: 0.82rem; color: #bae6fd; line-height: 1.45;">
+                    <strong>Zero Manual Entry for Policy Info:</strong> Policy Number, Insured Member Names, and Policy Coverage Period will be extracted automatically from your uploaded policy PDF via Qwen-VL Vision/OCR.
+                  </div>
                 </div>
 
                 <div class="form-group">
-                  <label class="form-label" for="input-incident-date">Incident Date</label>
+                  <label class="form-label" for="input-incident-date">Incident / Admission Date</label>
                   <input type="date" id="input-incident-date" class="form-input">
-                  <span class="form-hint">Date of occurrence for policy coverage check.</span>
-                </div>
-
-                <div class="form-group">
-                  <label class="form-label" for="input-policy-number">Policy Number</label>
-                  <input type="text" id="input-policy-number" class="form-input" placeholder="e.g. POL-883921">
-                  <span class="form-hint">Policy contract reference.</span>
+                  <span class="form-hint">Date of occurrence or admission for policy coverage verification.</span>
                 </div>
 
                 <div class="form-group">
@@ -358,7 +353,19 @@
                     <option value="auto">Auto / Motor Vehicle</option>
                     <option value="general">General Insurance</option>
                   </select>
-                  <span class="form-hint">Governs policy clause extraction rules.</span>
+                  <span class="form-hint">Governs document requirement checklist.</span>
+                </div>
+
+                <div class="form-group">
+                  <label class="form-label" for="input-claim-number">Incident / Tracking Reference (Optional)</label>
+                  <input type="text" id="input-claim-number" class="form-input" placeholder="e.g. INC-2026-9515 (or leave blank)">
+                  <span class="form-hint">Leave blank to auto-generate a unique system Claim ID.</span>
+                </div>
+
+                <div class="form-group">
+                  <label class="form-label" for="input-incident-notes">Hospital / Incident Location (Optional)</label>
+                  <input type="text" id="input-incident-notes" class="form-input" placeholder="e.g. City Hospital, ER Admission">
+                  <span class="form-hint">Extra event details not found in the original policy.</span>
                 </div>
 
                 <div class="form-group full-width">

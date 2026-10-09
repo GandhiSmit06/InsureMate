@@ -192,15 +192,24 @@ const Dashboard = {
             </span>
           </td>
           <td>
-            <div style="display: flex; gap: 6px;">
+            <div style="display: flex; gap: 6px; align-items: center;">
               <button class="btn btn-secondary btn-sm" onclick="Dashboard.openClaim('${Utils.escapeHtml(c.claim_id)}')">
                 View
               </button>
-              ${String(c.status).toLowerCase() === 'pending' ? `
-                <button class="btn btn-primary btn-sm" onclick="Dashboard.runClaim('${Utils.escapeHtml(c.claim_id)}')">
+              ${(c.is_running || String(c.status).toLowerCase() === 'in_progress') ? `
+                <button class="btn btn-secondary btn-sm" disabled style="opacity: 0.75; cursor: not-allowed; display: inline-flex; align-items: center; gap: 6px;">
+                  <span class="spinner-sm" style="width: 12px; height: 12px; border: 2px solid currentColor; border-top-color: transparent; border-radius: 50%; display: inline-block; animation: spin 1s linear infinite;"></span>
+                  Agent Running…
+                </button>
+              ` : (String(c.status).toLowerCase() === 'pending' ? `
+                <button class="btn btn-primary btn-sm btn-run-agent" id="btn-run-${Utils.escapeHtml(c.claim_id)}" onclick="Dashboard.runClaim('${Utils.escapeHtml(c.claim_id)}', this)">
                   Run Agent
                 </button>
-              ` : ''}
+              ` : (c.final_report || c.verdict ? `
+                <button class="btn btn-secondary btn-sm" onclick="Dashboard.openClaim('${Utils.escapeHtml(c.claim_id)}')">
+                  Results
+                </button>
+              ` : ''))}
               <button class="btn btn-icon btn-sm" title="Delete Claim" onclick="Dashboard.deleteClaim('${Utils.escapeHtml(c.claim_id)}')">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
               </button>
@@ -243,14 +252,32 @@ const Dashboard = {
     }
   },
 
-  async runClaim(claimId) {
+  async runClaim(claimId, btnEl = null) {
+    const btn = btnEl || document.getElementById(`btn-run-${claimId}`);
+    if (btn) {
+      btn.disabled = true;
+      btn.style.opacity = '0.75';
+      btn.style.cursor = 'not-allowed';
+      btn.innerHTML = `
+        <span class="spinner-sm" style="width: 12px; height: 12px; border: 2px solid currentColor; border-top-color: transparent; border-radius: 50%; display: inline-block; animation: spin 1s linear infinite;"></span>
+        Agent Running…
+      `;
+    }
+
+    // Mark as running in local AppState to prevent any duplicate trigger
+    const claims = AppState.get().claimsList || [];
+    const updated = claims.map(c => c.claim_id === claimId ? { ...c, status: 'in_progress', is_running: true } : c);
+    AppState.set({ claimsList: updated });
+
     try {
       Utils.showToast(`Launching InsureMate Agent for ${claimId}...`, 'info');
       await AppState.setActiveClaim(claimId);
       window.App.navigateTo('agent');
-      window.AgentView.startExecution(claimId);
+      await window.AgentView.startExecution(claimId);
     } catch (err) {
       Utils.showToast(`Error running agent: ${err.message}`, 'error');
+    } finally {
+      await this.refresh();
     }
   },
 

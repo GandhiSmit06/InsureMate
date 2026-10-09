@@ -6,6 +6,7 @@ CRITICAL: Operates 100% in-memory; NO temporary image files are written to disk.
 """
 
 import base64
+import concurrent.futures
 import io
 from dataclasses import dataclass
 from pathlib import Path
@@ -14,6 +15,19 @@ import pypdfium2 as pdfium
 from PIL import Image
 
 from utils.logger import logger
+
+
+def extract_ocr_from_pil(pil_img: Image.Image) -> str:
+    """Run native OCR on rendered PIL image when embedded digital text is absent."""
+    try:
+        import winocr
+        with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
+            res = pool.submit(winocr.recognize_pil_sync, pil_img).result(timeout=25)
+            if isinstance(res, dict) and "text" in res:
+                return str(res["text"]).strip()
+    except Exception as e:
+        logger.debug(f"Native OCR extraction fallback skipped/unavailable: {e}")
+    return ""
 
 
 class PDFProcessingError(Exception):
@@ -139,6 +153,13 @@ class PDFProcessor:
                         page_text = textpage.get_text_range()
                     except Exception:
                         page_text = ""
+
+                    # If page has no extractable digital text, run native OCR on rendered image
+                    if not page_text or len(page_text.strip()) < 20:
+                        ocr_text = extract_ocr_from_pil(rgb_image)
+                        if ocr_text:
+                            page_text = ocr_text
+                            logger.pdf(f"Page {page_num}: OCR recognized {len(ocr_text)} characters")
 
                     pdf_page = PDFPage(
                         page_number=page_num,

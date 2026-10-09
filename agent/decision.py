@@ -134,18 +134,26 @@ class InsureMateDecisionEngine:
                 if d.get("document_type") in ("medical_bill", "medical_report", "hospital_document", "invoice", "incident_document")
             ]
 
-            if not policy_docs:
-                return AgentDecision(
-                    action="missing_document_detector",
-                    reason="No insurance policy document identified in submission. Skipping validity checking to detect missing evidence.",
-                    decision_type="TOOL_CALL"
-                )
-            elif not claim_docs:
-                return AgentDecision(
-                    action="missing_document_detector",
-                    reason="Only policy document available with no incident/bill documents. Skipping validity checking to detect missing evidence.",
-                    decision_type="TOOL_CALL"
-                )
+            if not policy_docs or not claim_docs:
+                # If missing evidence detector hasn't run yet, run it first
+                if state.missing_documents is None:
+                    reason = (
+                        "No insurance policy document identified in submission. Skipping validity checking to detect missing evidence."
+                        if not policy_docs
+                        else "Only policy document available with no incident/bill documents. Auditing required policy evidence."
+                    )
+                    return AgentDecision(
+                        action="missing_document_detector",
+                        reason=reason,
+                        decision_type="TOOL_CALL"
+                    )
+                else:
+                    # missing_document_detector already ran! Now run validity_checker to evaluate coverage window
+                    return AgentDecision(
+                        action="validity_checker",
+                        reason="Auditing policy coverage duration against submitted documentation.",
+                        decision_type="TOOL_CALL"
+                    )
             else:
                 return AgentDecision(
                     action="validity_checker",
@@ -156,18 +164,16 @@ class InsureMateDecisionEngine:
         # 7. Intermediate evaluation after validity checker
         if state.missing_documents is None:
             is_valid_dates = state.validity_result.get("valid", False)
-            if not is_valid_dates:
-                return AgentDecision(
-                    action="missing_document_detector",
-                    reason="Validity check identified date/coverage discrepancies. Required-document comparison is required.",
-                    decision_type="TOOL_CALL"
-                )
-            else:
-                return AgentDecision(
-                    action="missing_document_detector",
-                    reason="Required-document comparison is required.",
-                    decision_type="TOOL_CALL"
-                )
+            reason = (
+                "Validity check identified date/coverage discrepancies. Required-document comparison is required."
+                if not is_valid_dates
+                else "Required-document comparison is required."
+            )
+            return AgentDecision(
+                action="missing_document_detector",
+                reason=reason,
+                decision_type="TOOL_CALL"
+            )
 
         # 8. Check claim preparation
         if state.final_status is None:
