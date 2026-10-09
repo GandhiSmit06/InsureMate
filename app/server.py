@@ -280,6 +280,17 @@ async def start_claim_agent(claim_id: str, request: StartAgentRequest = StartAge
         )
 
     if request.background:
+        if not agent_service.acquire_claim_lock(claim_id):
+            return JSONResponse(
+                status_code=status.HTTP_409_CONFLICT,
+                content={
+                    "success": False,
+                    "claim_id": claim_id,
+                    "status": "in_progress",
+                    "is_running": True,
+                    "message": f"InsureMate Agent is already running for claim '{claim_id}'."
+                }
+            )
         agent_service.db.update_claim_status(claim_id, "in_progress")
 
         def _runner():
@@ -287,10 +298,12 @@ async def start_claim_agent(claim_id: str, request: StartAgentRequest = StartAge
                 agent_service.run_agent(
                     claim_id=claim_id,
                     max_pages=request.max_pages,
-                    offline_mode=request.offline_mode
+                    offline_mode=request.offline_mode,
+                    lock_preacquired=True
                 )
             except Exception as ex:
                 logger.error(f"[BACKGROUND AGENT] Error on claim {claim_id}: {ex}")
+                agent_service.release_claim_lock(claim_id)
 
         thread = threading.Thread(target=_runner, daemon=True)
         thread.start()
@@ -337,6 +350,17 @@ async def get_claim_agent_status(claim_id: str):
         "iteration_count": latest_state.get("iteration_count", len(tool_execs)),
         "tool_count": len(tool_execs),
         "has_result": report is not None
+    }
+
+
+@app.get("/api/agent/running")
+async def get_running_agent_claims():
+    """Retrieve list of claim IDs currently being processed by the agent."""
+    with agent_service._lock:
+        running = list(agent_service._running_claims)
+    return {
+        "count": len(running),
+        "running_claims": running
     }
 
 

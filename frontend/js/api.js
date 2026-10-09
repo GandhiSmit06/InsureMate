@@ -140,6 +140,13 @@ const API = {
   },
 
   /**
+   * List currently executing claim IDs.
+   */
+  async getRunningClaims() {
+    return this.request('/api/agent/running');
+  },
+
+  /**
    * Document list and extracted structured entities.
    */
   async getDocuments(claimId) {

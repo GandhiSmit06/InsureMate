@@ -41,6 +41,20 @@ class AgentService:
         self._running_claims: set = set()
         self._lock = threading.Lock()
 
+        # Startup cleanup: reset any orphaned in_progress claims from previous server shutdown
+        try:
+            conn = self.db._get_connection()
+            with conn:
+                conn.execute(
+                    "UPDATE claims SET status = 'pending' WHERE status = 'in_progress' AND claim_id NOT IN (SELECT claim_id FROM final_reports)"
+                )
+                conn.execute(
+                    "UPDATE claims SET status = 'completed' WHERE status = 'in_progress' AND claim_id IN (SELECT claim_id FROM final_reports)"
+                )
+            conn.close()
+        except Exception as e:
+            logger.warning(f"[SERVICE] Startup claim status cleanup: {e}")
+
     def is_claim_running(self, claim_id: str) -> bool:
         """Check whether the agent is currently running for the claim."""
         with self._lock:
@@ -169,6 +183,7 @@ class AgentService:
         claim_id: str,
         max_pages: Optional[int] = None,
         offline_mode: Optional[bool] = None,
+        lock_preacquired: bool = False,
         **kwargs: Any
     ) -> Dict[str, Any]:
         """
@@ -177,15 +192,18 @@ class AgentService:
         """
         claim = self.db.get_claim(claim_id)
         if not claim:
+            if lock_preacquired:
+                self.release_claim_lock(claim_id)
             raise ValueError(f"Claim session '{claim_id}' not found.")
 
-        if not self.acquire_claim_lock(claim_id):
-            logger.warning(f"[SERVICE] Duplicate execution blocked: Claim {claim_id} is already in progress.")
-            history = self.db.get_claim_full_history(claim_id) or {}
-            history["status"] = "in_progress"
-            history["is_running"] = True
-            history["message"] = f"Claim {claim_id} is already running."
-            return history
+        if not lock_preacquired:
+            if not self.acquire_claim_lock(claim_id):
+                logger.warning(f"[SERVICE] Duplicate execution blocked: Claim {claim_id} is already in progress.")
+                history = self.db.get_claim_full_history(claim_id) or {}
+                history["status"] = "in_progress"
+                history["is_running"] = True
+                history["message"] = f"Claim {claim_id} is already running."
+                return history
 
         self.db.update_claim_status(claim_id, ClaimStatus.IN_PROGRESS.value)
         logger.info(f"[SERVICE] Launching InsureMate Agent for claim {claim_id}")
@@ -286,11 +304,27 @@ class AgentService:
 
     def get_claim(self, claim_id: str) -> Optional[Dict[str, Any]]:
         """Retrieve full claim history, trace, and final report."""
-        return self.db.get_claim_full_history(claim_id)
+        data = self.db.get_claim_full_history(claim_id)
+        if data:
+            is_running = self.is_claim_running(claim_id) or str(data.get("claim", {}).get("status", "")).lower() in ("in_progress", "running")
+            data["is_running"] = is_running
+            if is_running and "claim" in data:
+                data["claim"]["status"] = "in_progress"
+        return data
 
     def list_claims(self, limit: int = 50, offset: int = 0) -> List[Dict[str, Any]]:
         """List past claim sessions from database memory."""
-        return self.db.list_claims(limit=limit, offset=offset)
+        claims = self.db.list_claims(limit=limit, offset=offset)
+        for c in claims:
+            cid = c.get("claim_id")
+            is_running = (cid in self._running_claims) if cid else False
+            status = str(c.get("status", "")).lower()
+            if is_running or status in ("in_progress", "running", "processing"):
+                c["is_running"] = True
+                c["status"] = "in_progress"
+            else:
+                c["is_running"] = False
+        return claims
 
     def delete_claim(self, claim_id: str) -> bool:
         """Delete claim record and associated files."""

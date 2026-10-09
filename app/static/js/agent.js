@@ -37,6 +37,10 @@ const AgentView = {
       btnStart.addEventListener('click', () => {
         const claimId = AppState.get().activeClaimId;
         if (claimId) {
+          if (AppState.isClaimRunning(claimId)) {
+            Utils.showToast(`Agent is already running for claim ${claimId}`, 'info');
+            return;
+          }
           this.startExecution(claimId);
         } else {
           Utils.showToast('No active claim selected.', 'warning');
@@ -113,7 +117,7 @@ const AgentView = {
     }
 
     // Update Start / Run Agent button state
-    const isRunning = bundle.is_running || String(claim.status).toLowerCase().includes('in_progress');
+    const isRunning = bundle.is_running || String(claim.status).toLowerCase().includes('in_progress') || AppState.isClaimRunning(claim.claim_id);
     const btnStart = document.getElementById('btn-agent-start-run');
     if (btnStart) {
       if (isRunning) {
@@ -124,6 +128,10 @@ const AgentView = {
           <span class="spinner-sm" style="width: 14px; height: 14px; border: 2px solid #fff; border-top-color: transparent; border-radius: 50%; display: inline-block; animation: spin 1s linear infinite;"></span>
           Agent Running…
         `;
+
+        if (!this.isPolling && claim.claim_id) {
+          this.startPolling(claim.claim_id);
+        }
       } else {
         btnStart.disabled = false;
         btnStart.style.cursor = 'pointer';
@@ -364,6 +372,18 @@ const AgentView = {
   async startExecution(claimId) {
     if (!claimId) return;
 
+    if (AppState.isClaimRunning(claimId)) {
+      Utils.showToast(`Agent is already analyzing claim ${claimId}`, 'info');
+      this.startPolling(claimId);
+      return;
+    }
+
+    this.stopPolling();
+    AppState.setClaimRunning(claimId, true);
+    if (window.Dashboard) {
+      window.Dashboard.startPolling();
+    }
+
     const btnStart = document.getElementById('btn-agent-start-run');
     if (btnStart) {
       btnStart.disabled = true;
@@ -382,26 +402,16 @@ const AgentView = {
     Utils.showToast(`InsureMate Agent started for claim ${claimId}`, 'info');
 
     try {
-      // Execute Agent call
-      const runData = await API.startAgent(claimId, { background: false });
+      // Execute Agent in background to allow non-blocking UI & real-time polling
+      await API.startAgent(claimId, { background: true });
 
-      // Refresh claim state
-      const bundle = await AppState.setActiveClaim(claimId);
-      Utils.showToast(`Agent completed claim assessment!`, 'success');
-
-      // Refresh dashboard list
-      Dashboard.refresh();
-
-      // Show View Results button
-      const btnResults = document.getElementById('btn-agent-view-results');
-      if (btnResults) btnResults.style.display = 'inline-flex';
+      // Start live polling to stream stepper & timeline updates
+      this.startPolling(claimId);
 
     } catch (err) {
-      console.error('Agent execution failed:', err);
+      console.error('Agent execution start failed:', err);
       Utils.showToast(`Agent execution error: ${err.message}`, 'error');
-      // Still refresh bundle to show partial state or failure
-      await AppState.setActiveClaim(claimId).catch(() => {});
-    } finally {
+      AppState.setClaimRunning(claimId, false);
       if (btnStart) {
         btnStart.disabled = false;
         btnStart.innerHTML = `
@@ -409,7 +419,77 @@ const AgentView = {
           Re-run Agent
         `;
       }
+      await AppState.setActiveClaim(claimId).catch(() => {});
     }
+  },
+
+  startPolling(claimId) {
+    this.stopPolling();
+    this.isPolling = true;
+
+    // Run first step immediately
+    this.pollStep(claimId);
+
+    this.pollInterval = setInterval(() => {
+      this.pollStep(claimId);
+    }, 1500);
+  },
+
+  async pollStep(claimId) {
+    try {
+      const bundle = await API.getClaim(claimId);
+      if (!bundle) return;
+
+      const isRunning = bundle.is_running ||
+                        String(bundle.claim?.status).toLowerCase() === 'in_progress' ||
+                        String(bundle.claim?.status).toLowerCase() === 'running';
+
+      // Update active bundle in AppState
+      AppState.set({
+        activeClaimId: claimId,
+        activeClaimBundle: bundle
+      });
+
+      this.renderBundle(bundle);
+
+      // Check if finished
+      if (!isRunning && (bundle.final_report || bundle.verdict || bundle.claim?.status === 'completed' || bundle.claim?.status === 'failed')) {
+        this.stopPolling();
+        AppState.setClaimRunning(claimId, false);
+
+        Utils.showToast(`Agent completed claim assessment!`, 'success');
+
+        const btnStart = document.getElementById('btn-agent-start-run');
+        if (btnStart) {
+          btnStart.disabled = false;
+          btnStart.style.cursor = 'pointer';
+          btnStart.style.opacity = '1';
+          btnStart.innerHTML = `
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="1 4 1 10 7 10"/><polyline points="23 20 23 14 17 14"/><path d="M20.49 9A9 9 0 0 0 5.64 5.64L1 10m22 4l-4.64 4.36A9 9 0 0 1 3.51 15"/></svg>
+            Re-run Agent
+          `;
+        }
+
+        const btnResults = document.getElementById('btn-agent-view-results');
+        if (btnResults) {
+          btnResults.style.display = 'inline-flex';
+        }
+
+        if (window.Dashboard) {
+          window.Dashboard.refresh(false);
+        }
+      }
+    } catch (e) {
+      console.warn('[AGENT POLL ERROR]', e);
+    }
+  },
+
+  stopPolling() {
+    if (this.pollInterval) {
+      clearInterval(this.pollInterval);
+      this.pollInterval = null;
+    }
+    this.isPolling = false;
   }
 };
 

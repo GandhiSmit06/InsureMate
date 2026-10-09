@@ -99,6 +99,46 @@ const AppState = {
       Utils.showToast(`Failed to load claim ${claimId}`, 'error');
       throw err;
     }
+  },
+
+  runningClaimIds: new Set(),
+
+  /**
+   * Check if a specific claim has an active running agent.
+   */
+  isClaimRunning(claimId) {
+    if (!claimId) return false;
+    return this.runningClaimIds.has(claimId);
+  },
+
+  /**
+   * Update active execution state for a claim and reactively notify views.
+   */
+  setClaimRunning(claimId, isRunning) {
+    if (!claimId) return;
+    if (isRunning) {
+      this.runningClaimIds.add(claimId);
+    } else {
+      this.runningClaimIds.delete(claimId);
+    }
+
+    const list = this.data.claimsList || [];
+    let modified = false;
+    const updated = list.map(c => {
+      if (c.claim_id === claimId) {
+        modified = true;
+        return {
+          ...c,
+          is_running: isRunning,
+          status: isRunning ? 'in_progress' : c.status
+        };
+      }
+      return c;
+    });
+
+    if (modified) {
+      this.set({ claimsList: updated });
+    }
   }
 };
 

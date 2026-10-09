@@ -584,6 +584,38 @@ svg {
   border: 1px solid var(--primary-border);
 }
 
+@keyframes pulseGlow {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.35; transform: scale(0.85); }
+}
+
+.pulse-dot-running {
+  width: 7px;
+  height: 7px;
+  background-color: var(--accent, #60A5FA);
+  border-radius: 50%;
+  display: inline-block;
+  box-shadow: 0 0 6px var(--accent, #60A5FA);
+  animation: pulseGlow 1.2s ease-in-out infinite;
+  flex-shrink: 0;
+}
+
+.btn-track-agent {
+  background: linear-gradient(135deg, #2563EB 0%, #1D4ED8 100%);
+  color: #FFFFFF !important;
+  border: 1px solid #3B82F6;
+  font-weight: 600;
+  box-shadow: 0 1px 4px rgba(37, 99, 235, 0.35);
+  transition: all var(--tr-fast);
+}
+
+.btn-track-agent:hover:not(:disabled) {
+  background: linear-gradient(135deg, #1D4ED8 0%, #1E40AF 100%);
+  border-color: #60A5FA;
+  box-shadow: 0 2px 8px rgba(37, 99, 235, 0.55);
+  transform: translateY(-1px);
+}
+
 .badge-pending {
   background-color: var(--bg-elevated);
   color: var(--text-muted);
