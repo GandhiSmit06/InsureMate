@@ -32,41 +32,103 @@ In this milestone (**Phases 1, 2, and 3**), we implement the core perceptual and
 
 ```
 InsureMate/
-├── .env.example                               # Environment template for Qwen-VL credentials
-├── .gitignore                                 # Git ignore file (virtualenv, cache, etc.)
-├── requirements.txt                           # Minimal pinned Python dependencies
-├── main.py                                    # Unified CLI runner for tools and tests
-├── README.md                                  # Comprehensive documentation
+├── .env.example                               # Environment template for Qwen-VL & Ollama credentials
+├── .gitignore                                 # Git ignore file (preserves test PDF fixtures)
+├── requirements.txt                           # Complete dependencies (FastAPI, pydantic, httpx, winocr)
+├── main.py                                    # Unified CLI runner for tools, agent, server, and tests
+├── README.md                                  # Comprehensive documentation & setup guide
 │
-├── services/
-│   ├── qwen_vl/
+├── agent/                                     # Phase 5: Autonomous Agent Orchestrator & State
+│   ├── __init__.py                            # Agent package exports
+│   ├── insuremate_agent.py                    # InsureMateAgent main loop & tool coordinator
+│   ├── planner.py                             # Multi-step strategic planning engine
+│   ├── decision.py                            # Dynamic reactive decision engine
+│   ├── state.py                               # ClaimState memory & step snapshots
+│   └── tools.py                               # Agent-level tool adapters & registry
+│
+├── app/                                       # Phase 7: REST API Server & Backend
+│   ├── __init__.py                            # Application package exports
+│   ├── server.py                              # FastAPI REST API & static file server
+│   └── static/                                # Packaged frontend static distribution
+│
+├── frontend/                                  # Phase 7: Web Application Interface
+│   ├── index.html                             # Single Page Application HTML5
+│   ├── css/                                   # Vanilla CSS stylesheets (glassmorphism dark UI)
+│   │   ├── style.css                          # Core tokens, reset, typography
+│   │   ├── dashboard.css                      # Layout, grid, inspection panels
+│   │   ├── agent.css                          # Stepper, thought bubble, trace log
+│   │   ├── upload.css                         # Drag-and-drop dropzones & demo buttons
+│   │   └── responsive.css                     # Mobile & tablet responsiveness
+│   └── js/                                    # Modular vanilla JavaScript logic
+│       ├── app.js                             # UI event controllers & state coordinator
+│       ├── api.js                             # REST API client
+│       ├── agent.js                           # Stepper, thought bubble, trace UI
+│       ├── claim.js                           # Claim status & inspection renderer
+│       ├── documents.js                       # Extracted pages & document cards
+│       ├── upload.js                          # File upload & dropzone handler
+│       └── utils.js                           # Date, currency, string helpers
+│
+├── services/                                  # Core Perceptual & Business Logic Services
+│   ├── agent_service.py                       # Unified service layer bridging API and Agent
+│   ├── database/                              # SQLite persistence & claim memory
+│   │   ├── __init__.py                        # Database package exports
+│   │   └── db.py                              # Thread-safe SQLite database manager
+│   ├── qwen_vl/                               # Phase 1: In-memory PDF & Qwen-VL Vision
 │   │   ├── __init__.py                        # Package exports
-│   │   ├── pdf_processor.py                   # Multi-page in-memory PDF renderer (pypdfium2/PIL)
+│   │   ├── pdf_processor.py                   # Multi-page in-memory PDF renderer (pypdfium2/PIL/winocr)
 │   │   └── extractor.py                       # Qwen-VL multi-modal extractor & grounded fallback
-│   │
-│   ├── document_validation/
+│   ├── document_validation/                   # Phase 2: Deterministic Document Validation
 │   │   ├── __init__.py                        # Package exports
-│   │   └── validator.py                       # Deterministic required-field rule engine
-│   │
-│   └── validity_checker/
+│   │   └── validator.py                       # Required-field rule engine
+│   ├── validity_checker/                      # Phase 3: Date Validity & Period Checker
+│   │   ├── __init__.py                        # Package exports
+│   │   └── checker.py                         # Date normalizer, coverage window checker, identity matcher
+│   └── missing_document/                      # Phase 4: Dynamic Missing Document Detection
 │       ├── __init__.py                        # Package exports
-│       └── checker.py                         # Date normalizer, coverage window checker, identity matcher
+│       ├── detector.py                        # Semantic document requirement matcher
+│       ├── llm_gateway.py                     # Ollama / Gemma 3 gateway with retry
+│       ├── ollama_client.py                   # Local Ollama client (http://localhost:11434)
+│       ├── prompt_builder.py                  # Structured extraction & matching prompts
+│       └── schemas.py                         # Pydantic V2 document requirement models
 │
-├── tools/
+├── tools/                                     # Tool Definitions & Dynamic Executor (Phase 6)
 │   ├── __init__.py                            # Agent Tool Registry (get_insuremate_tools)
-│   ├── qwen_vl_tool.py                        # QwenVLExtractionTool (LLM tool wrapper)
-│   ├── document_validation_tool.py            # DocumentValidationTool (LLM tool wrapper)
-│   └── validity_checker_tool.py               # ValidityCheckerTool (LLM tool wrapper)
+│   ├── base_tool.py                           # BaseTool abstract interface & schema exporter
+│   ├── tool_registry.py                       # Tool discovery & registration catalog
+│   ├── tool_executor.py                       # Safe execution wrapper with retries & logging
+│   ├── qwen_vl_tool.py                        # QwenVLExtractionTool wrapper
+│   ├── document_validation_tool.py            # DocumentValidationTool wrapper
+│   ├── validity_checker_tool.py               # ValidityCheckerTool wrapper
+│   └── missing_document_tool.py               # MissingDocumentTool wrapper
 │
-├── utils/
+├── utils/                                     # Cross-Cutting Utilities
 │   ├── config.py                              # QwenConfig loader and validator
-│   └── logger.py                              # Technical logger emitting [PDF], [QWEN-VL], [VALIDATION], [VALIDITY], [RESULT]
+│   └── logger.py                              # Structured logger ([PDF], [AGENT], [API], [RESULT])
 │
-└── tests/
-    ├── test_phase1.py                         # Phase 1 unit tests (PDF, page tracking, no-hallucination)
-    ├── test_phase2.py                         # Phase 2 unit tests (8 mandatory validation tests)
-    ├── test_phase3.py                         # Phase 3 unit tests (8 mandatory date validity tests)
-    └── test_end_to_end.py                     # Full multi-tool integration test on real documents
+├── tests/                                     # Comprehensive Test Suite (78 Tests)
+│   ├── conftest.py                            # Pytest fixtures and mock LLM clients
+│   ├── test_phase1.py                         # Phase 1 unit tests (PDF rendering, page tracking)
+│   ├── test_phase2.py                         # Phase 2 unit tests (8 document validation tests)
+│   ├── test_phase3.py                         # Phase 3 unit tests (8 date validity tests)
+│   ├── test_phase4.py                         # Phase 4 unit tests (15 dynamic detection tests)
+│   ├── test_phase5.py                         # Phase 5 unit tests (8 autonomous agent tests)
+│   ├── test_phase6_integration.py             # Phase 6 integration tests (ToolExecutor & Agent)
+│   ├── test_phase7_api.py                     # Phase 7 REST API tests (FastAPI TestClient)
+│   ├── test_phase7_database.py                # Phase 7 SQLite database & memory tests
+│   ├── test_phase7_frontend_integration.py    # Phase 7 frontend asset & workflow tests
+│   ├── test_phase7_integration.py             # Phase 7 end-to-end agent service integration
+│   ├── test_tool_registry.py                  # Tool discovery & catalog tests
+│   ├── test_tool_executor.py                  # Safe tool execution & retry tests
+│   ├── test_master_fixes.py                   # Concurrency locks, OCR, and real PDF tests
+│   └── test_end_to_end.py                     # Full multi-tool pipeline test on PDFs
+│
+└── [Sample & Diagnostic PDFs]                 # Test fixtures & one-click demo files
+    ├── sample_policy.pdf                      # Health floater policy certificate
+    ├── sample_claim.pdf                       # Hospital indoor admission & inpatient bill
+    ├── policy_A.pdf                           # Health demo policy
+    ├── claim_A.pdf                            # Health demo claim
+    ├── policy_B.pdf                           # Travel demo policy
+    └── claim_B.pdf                            # Travel demo claim
 ```
 
 ---
@@ -74,45 +136,101 @@ InsureMate/
 ## 3. Installation
 
 ### Prerequisites
-- Python 3.10+ (tested on Python 3.12)
-- Linux / macOS / Windows
-
-### Setup Environment
-```bash
-# Clone the repository and navigate into directory
-cd /path/to/InsureMate
-
-# Create and activate Python virtual environment
-python3 -m venv .venv
-source .venv/bin/activate
-
-# Install required dependencies
-pip install -r requirements.txt
-```
+- Python 3.10, 3.11, 3.12, or 3.13
+- Git
+- Windows, macOS, or Linux
 
 ---
 
-## 4. Environment Configuration & Qwen-VL Setup
+### Step-by-Step Setup
 
-Copy `.env.example` to `.env`:
+#### Step 1: Clone the Repository
+```bash
+git clone https://github.com/GandhiSmit06/InsureMate.git
+cd InsureMate
+```
+
+#### Step 2: Create & Activate Virtual Environment
+
+**On Windows (PowerShell):**
+```powershell
+python -m venv .venv
+# If PowerShell script execution is restricted, enable it for this session:
+Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope Process
+.\.venv\Scripts\Activate.ps1
+```
+
+**On Windows (Command Prompt - CMD):**
+```cmd
+python -m venv .venv
+.venv\Scripts\activate.bat
+```
+
+**On macOS / Linux (bash or zsh):**
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+```
+
+#### Step 3: Upgrade pip & Install Dependencies
+```bash
+python -m pip install --upgrade pip
+python -m pip install -r requirements.txt
+```
+
+> **Note on Dependencies:**
+> `requirements.txt` contains all core and phase dependencies:
+> - `fastapi`, `uvicorn`, `python-multipart` — Web Application & REST API
+> - `pydantic>=2.6.0` — Structured data schemas & validation
+> - `pypdfium2>=5.0.0`, `pillow>=10.0.0` — In-memory raster PDF rendering
+> - `winocr` — Windows native OCR fallback (automatically installed on Windows, skipped on Linux/macOS)
+> - `openai>=1.20.0`, `requests>=2.28.0`, `python-dotenv>=1.0.0` — LLM connectivity & configuration
+> - `pytest>=7.0.0`, `httpx>=0.24.0` — Test framework and FastAPI TestClient
+
+---
+
+## 4. Environment Configuration & Setup
+
+InsureMate includes a ready-to-use template file `.env.example`.
+
+Create your local `.env` configuration:
+
+**On Windows (PowerShell):**
+```powershell
+Copy-Item .env.example .env
+```
+
+**On Windows (Command Prompt):**
+```cmd
+copy .env.example .env
+```
+
+**On macOS / Linux:**
 ```bash
 cp .env.example .env
 ```
 
-Edit `.env` to configure your preferred Qwen-VL endpoint:
+### Config Options (`.env`):
 ```ini
-# Alibaba Cloud DashScope / Compatible Endpoint
+# 1. Qwen-VL Vision Extractor Configuration (Phase 1)
+# DashScope: https://dashscope.console.aliyun.com/
+# OpenRouter: https://openrouter.ai/keys
 QWEN_API_KEY=your_dashscope_api_key_here
 QWEN_BASE_URL=https://dashscope-intl.aliyuncs.com/compatible-mode/v1
 QWEN_MODEL_NAME=qwen-vl-max
 QWEN_MAX_TOKENS=2048
 QWEN_TEMPERATURE=0.1
+
+# 2. Local Ollama & Gemma 3 Configuration (Phase 4 Dynamic Detection)
+OLLAMA_BASE_URL=http://localhost:11434
+OLLAMA_MODEL=gemma3:latest
+OLLAMA_TIMEOUT=120
 ```
 
-> **Offline & Deterministic Mode:**
-> If `QWEN_API_KEY` is not provided or remains as placeholder, the system automatically runs in **Deterministic Grounded Mode**. This guarantees that all unit tests, automated CI/CD pipelines, and local test runs execute reliably without requiring external network connectivity or paid API credits.
-
----
+> **Zero-Setup Offline & Deterministic Mode:**
+> **No API keys or external services are strictly required!**
+> If `QWEN_API_KEY` is not provided (or left as placeholder `your_api_key_here`), and Ollama is not running, the system automatically runs in **Deterministic Offline Grounded Mode**.
+> All 78 unit, integration, API, and end-to-end tests run reliably offline with 100% pass rate.
 
 ## 5. Tool Usage & Execution Instructions
 
@@ -195,23 +313,47 @@ python main.py --end-to-end
 
 ## 6. How to Run Tests
 
-Run all unit tests and end-to-end tests with a single command:
+### Option A: Run Full Pytest Suite (Recommended & Cross-Platform)
+```bash
+# Universally reliable command on Windows (PowerShell/CMD) and macOS/Linux:
+python -m pytest
+
+# Run with concise progress:
+python -m pytest -q
+
+# Run with detailed verbose output:
+python -m pytest -v
+```
+
+### Option B: Run via Unified CLI Runner
 ```bash
 python main.py --test-all
 ```
 
-Or run individual test modules:
+### Option C: Run Phase-Specific Test Modules
 ```bash
-# Phase 1 tests (PDF in-memory rendering, page tracking, no-hallucination)
+# Phase 1: PDF rendering in RAM, 1-indexed page tracking & no hallucination
 python tests/test_phase1.py
 
-# Phase 2 tests (All 8 mandatory document validation scenarios)
+# Phase 2: All 8 mandatory document validation scenarios
 python tests/test_phase2.py
 
-# Phase 3 tests (All 8 mandatory date validity scenarios)
+# Phase 3: All 8 mandatory date validity scenarios
 python tests/test_phase3.py
 
-# End-to-end integration test
+# Phase 4: Dynamic missing document detection (15 tests)
+python tests/test_phase4.py
+
+# Phase 5: Autonomous InsureMate Agent Orchestrator (8 tests)
+python tests/test_phase5.py
+
+# Phase 6: Tool registry & executor integration tests
+python -m pytest tests/test_phase6_integration.py tests/test_tool_registry.py tests/test_tool_executor.py
+
+# Phase 7: REST API, SQLite database, and frontend integration tests
+python -m pytest tests/test_phase7_api.py tests/test_phase7_database.py tests/test_phase7_frontend_integration.py tests/test_phase7_integration.py
+
+# End-to-end integration test on documents
 python tests/test_end_to_end.py
 ```
 
@@ -446,18 +588,19 @@ The Phase 7 FastAPI application exposes the following endpoints:
 
 ### Option A: Launch Web Application (Phase 7 UI)
 ```bash
-# Launch via CLI shortcut
+# Launch via CLI shortcut:
 python main.py --app
-# Or:
+
+# Or launch specifying custom port/host:
 python main.py --serve --port 8000
 
-# Open browser at:
+# Open your browser at:
 # http://localhost:8000
 ```
 
 ### Option B: Run Autonomous Agent via CLI (Phase 5/6)
 ```bash
-# Run agent on repository sample documents:
+# Run agent on repository sample documents (offline deterministic mode):
 python main.py --agent --offline
 
 # Run agent with specific documents:
@@ -466,12 +609,77 @@ python main.py --agent --policy policy_A.pdf --claim claim_A.pdf --goal "Verify 
 
 ### Option C: Run Complete Test Suite
 ```bash
-# Run complete test suite across all 7 phases (73 tests):
-pytest
+# Run complete test suite across all 7 phases (78 tests):
+python -m pytest
+
+# Run via unified CLI runner:
+python main.py --test-all
 
 # Run Phase 7 specific tests:
-pytest tests/test_phase7_database.py tests/test_phase7_api.py tests/test_phase7_integration.py
+python -m pytest tests/test_phase7_database.py tests/test_phase7_api.py tests/test_phase7_integration.py
 ```
-*(All 73/73 tests pass in ~90 seconds with 100% pass rate).*
+*(All 78/78 tests pass with 100% pass rate).*
+
+---
+
+## 15. Troubleshooting & Cloning Guide (Quick Fixes)
+
+If you or a collaborator cloned the repository and encountered errors, check the solutions below:
+
+### 1. `ModuleNotFoundError: No module named 'httpx'`
+- **Reason:** FastAPI's `TestClient` (used in API and integration tests) requires `httpx`.
+- **Fix:** Update dependencies by running:
+  ```bash
+  python -m pip install -r requirements.txt
+  ```
+
+### 2. `ImportError: cannot import name 'field_validator' from 'pydantic'`
+- **Reason:** An older version of Pydantic (v1) was installed in your Python environment. InsureMate requires Pydantic v2.
+- **Fix:** Run:
+  ```bash
+  python -m pip install "pydantic>=2.6.0"
+  ```
+
+### 3. `pytest : The term 'pytest' is not recognized as the name of a cmdlet...` (Windows)
+- **Reason:** The virtual environment's `Scripts/` directory is not in your Windows system PATH in PowerShell.
+- **Fix:** Always invoke pytest through python module syntax:
+  ```bash
+  python -m pytest
+  ```
+  Or use the unified CLI runner:
+  ```bash
+  python main.py --test-all
+  ```
+
+### 4. `File ...\Activate.ps1 cannot be loaded because running scripts is disabled on this system` (PowerShell)
+- **Reason:** Windows PowerShell disables running unsigned script files by default.
+- **Fix:** Allow script execution for the current PowerShell terminal session:
+  ```powershell
+  Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope Process
+  .\.venv\Scripts\Activate.ps1
+  ```
+
+### 5. Missing Sample PDF Documents (`Target policy document does not exist` or `Diagnostic file ... must exist`)
+- **Reason:** Previous `.gitignore` ignored `*.pdf`, preventing sample test fixture PDFs from being pulled.
+- **Fix:** `.gitignore` has now been updated to whitelist and preserve essential test fixtures (`sample_policy.pdf`, `sample_claim.pdf`, `policy_A.pdf`, `claim_A.pdf`, `policy_B.pdf`, `claim_B.pdf`, and `4225IELVT38453879200000_policy_copy.pdf`). Pull the latest changes:
+  ```bash
+  git pull origin main
+  ```
+
+### 6. Scanned PDF Native OCR (Windows)
+- **Reason:** Scanned PDFs lacking digital text fall back to Windows native Media OCR via `winocr`.
+- **Fix:** `winocr>=0.0.14` is included in `requirements.txt` with the Windows environment marker `sys_platform == "win32"`. It installs automatically on Windows and is skipped on macOS/Linux.
+
+### 7. Port 8000 Already In Use
+- **Reason:** Another web service is running on port 8000.
+- **Fix:** Launch InsureMate on a different port:
+  ```bash
+  python main.py --serve --port 8080
+  ```
+
+### 8. Ollama or Qwen-VL API Key Not Configured
+- **Reason:** You don't have paid API keys or a local Ollama daemon running.
+- **Fix:** **Zero setup needed!** InsureMate automatically falls back to **Deterministic Grounded Mode**. All tests, demos, and claim preparation features function smoothly out-of-the-box without network connectivity or external LLM dependencies.
+
 
 
