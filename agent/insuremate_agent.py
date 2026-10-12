@@ -5,7 +5,8 @@ context tracking, and claim readiness package synthesis.
 """
 
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Union
+import time
+from typing import Any, Callable, Dict, List, Optional, Union
 
 from agent.decision import InsureMateDecisionEngine, AgentDecision
 from agent.planner import InsureMatePlanner, ClaimPlan
@@ -59,16 +60,45 @@ class InsureMateAgent:
             self.executor = executor or ToolExecutor()
 
         self.planner = planner or InsureMatePlanner(llm_client=self.llm_client)
-        self.decision_engine = decision_engine or InsureMateDecisionEngine(llm_client=self.llm_client)
+        self.decision_engine = decision_engine or InsureMateDecisionEngine(
+            llm_client=self.llm_client,
+            offline_mode=bool(offline_mode)
+        )
         self.max_iterations = max_iterations
 
+    @staticmethod
+    def get_tool_antigravity_metadata(tool_name: str) -> tuple:
+        """Returns Antigravity-style (toolAction, toolSummary) pair."""
+        metadata = {
+            "document_extraction": ("Extracting document entities", "Multimodal vision extraction"),
+            "document_extraction_tool": ("Extracting document entities", "Multimodal vision extraction"),
+            "qwen_vl_extraction_tool": ("Extracting document entities", "Multimodal vision extraction"),
+            "document_validation": ("Validating field completeness", "Document validation & integrity audit"),
+            "document_validation_tool": ("Validating field completeness", "Document validation & integrity audit"),
+            "validity_checker": ("Auditing policy coverage window", "Coverage period & date check"),
+            "validity_checker_tool": ("Auditing policy coverage window", "Coverage period & date check"),
+            "missing_document_detector": ("Auditing evidence requirements", "Missing document detection"),
+            "missing_document_tool": ("Auditing evidence requirements", "Missing document detection"),
+            "policy_clause_search": ("Searching policy clauses & limits", "Policy clause search"),
+            "policy_clause_search_tool": ("Searching policy clauses & limits", "Policy clause search"),
+            "cross_document_consistency_check": ("Auditing cross-document consistency", "Discrepancy & contradiction check"),
+            "cross_document_consistency_tool": ("Auditing cross-document consistency", "Discrepancy & contradiction check"),
+            "claim_preparation": ("Synthesizing claim readiness package", "Readiness verdict & checklist synthesis"),
+        }
+        clean_name = (tool_name or "").lower().replace("_tool", "")
+        for k, v in metadata.items():
+            if k.lower().replace("_tool", "") == clean_name:
+                return v
+        title = (tool_name or "Tool").replace("_", " ").title()
+        return (f"Executing {title}", f"{title} execution")
 
     def run(
         self,
         documents: Optional[Union[List[str], str]] = None,
         goal: Optional[str] = None,
         state: Optional[ClaimState] = None,
-        max_pages: Optional[int] = None
+        max_pages: Optional[int] = None,
+        on_event: Optional[Any] = None
     ) -> ClaimState:
         """
         Execute autonomous agentic workflow.
@@ -102,12 +132,26 @@ class InsureMateAgent:
         logger.info(f"[AGENT] Starting InsureMate Agent for Claim ID: {state.claim_id}")
 
         # 2. Planning Stage
+        def _emit(evt: Dict[str, Any]) -> None:
+            if on_event:
+                try:
+                    on_event(evt)
+                except Exception as ex:
+                    logger.warning(f"[AGENT EVENT ERROR] {ex}")
+
+        # 2. Planning Stage
         plan = self.planner.create_initial_plan(
             goal=state.goal,
             documents=state.documents,
             state=state
         )
         state.current_plan = plan.to_dict()
+        _emit({
+            "type": "plan",
+            "claim_id": state.claim_id,
+            "plan": state.current_plan,
+            "iteration": 0
+        })
 
         # 3. Autonomous Execution Loop
         while not state.is_finished() and state.iteration_count < state.max_iterations:
@@ -116,6 +160,12 @@ class InsureMateAgent:
             # Update plan based on current state observations
             plan = self.planner.update_plan(plan, state)
             state.current_plan = plan.to_dict()
+            _emit({
+                "type": "plan",
+                "claim_id": state.claim_id,
+                "plan": state.current_plan,
+                "iteration": state.iteration_count
+            })
 
             # Dynamic Decision-Making based on intermediate results and available tools
             decision = self.decision_engine.decide_next_action(state, tool_registry=self.tool_registry)
@@ -125,6 +175,16 @@ class InsureMateAgent:
                 f"[AGENT ITERATION {state.iteration_count}] "
                 f"Action={decision.action} | Reason='{decision.reason}'"
             )
+
+            _emit({
+                "type": "decision",
+                "claim_id": state.claim_id,
+                "action": decision.action,
+                "reason": decision.reason,
+                "thought": getattr(decision, "thought", "") or decision.reason,
+                "decision_type": getattr(decision, "decision_type", "TOOL_CALL"),
+                "iteration": state.iteration_count
+            })
 
             # Case A: Terminal - Complete
             if decision.action in ("complete", "finish"):
@@ -141,6 +201,14 @@ class InsureMateAgent:
                         "human_review_required": True,
                         "notice": "This analysis is an AI-assisted preparation assessment and does not constitute guaranteed insurer approval."
                     }
+                _emit({
+                    "type": "complete",
+                    "claim_id": state.claim_id,
+                    "status": state.final_status,
+                    "verdict": state.final_status,
+                    "report": state.final_report,
+                    "iteration": state.iteration_count
+                })
                 break
 
             # Case B: Terminal - Abort gracefully due to unreadable/missing input
@@ -155,6 +223,14 @@ class InsureMateAgent:
                     "action_items": ["Provide legible and complete claim documents."],
                     "human_review_required": True,
                 }
+                _emit({
+                    "type": "complete",
+                    "claim_id": state.claim_id,
+                    "status": state.final_status,
+                    "verdict": state.final_status,
+                    "report": state.final_report,
+                    "iteration": state.iteration_count
+                })
                 break
 
             # Case C: Terminal / Interaction - Request information from user
@@ -172,6 +248,14 @@ class InsureMateAgent:
                     "human_review_required": True,
                     "unresolved_questions": state.unresolved_questions,
                 }
+                _emit({
+                    "type": "complete",
+                    "claim_id": state.claim_id,
+                    "status": state.final_status,
+                    "verdict": state.final_status,
+                    "report": state.final_report,
+                    "iteration": state.iteration_count
+                })
                 break
 
             # Case D: Dynamic Tool Invocations
@@ -200,6 +284,19 @@ class InsureMateAgent:
                 state.mark_step_failed(tool_name, rejection_error)
                 continue
 
+            tool_action, tool_summary = self.get_tool_antigravity_metadata(tool_name)
+            t_start = time.time()
+            _emit({
+                "type": "tool_start",
+                "claim_id": state.claim_id,
+                "tool_name": tool_name,
+                "tool_action": tool_action,
+                "tool_summary": tool_summary,
+                "inputs": tool_args,
+                "iteration": state.iteration_count,
+                "timestamp": t_start
+            })
+
             tool_res = self.tool_registry.execute_tool(
                 tool_name=tool_name,
                 state=state,
@@ -223,6 +320,8 @@ class InsureMateAgent:
                     **tool_args
                 )
 
+            t_duration = round((time.time() - t_start) * 1000, 1)
+
             # Record tool result in state history
             state.record_tool_execution(
                 tool_name=tool_name,
@@ -231,6 +330,21 @@ class InsureMateAgent:
                 inputs_summary=str(tool_args) if tool_args else None,
                 error=tool_res.error
             )
+
+            _emit({
+                "type": "tool_finish",
+                "claim_id": state.claim_id,
+                "tool_name": tool_name,
+                "tool_action": tool_action,
+                "tool_summary": tool_summary,
+                "status": tool_res.status,
+                "summary": tool_res.summary,
+                "data": getattr(tool_res, "data", {}) or {},
+                "duration_ms": t_duration,
+                "error": tool_res.error,
+                "iteration": state.iteration_count,
+                "timestamp": time.time()
+            })
 
             # Record human-readable trace
             state.record_trace(
@@ -292,6 +406,14 @@ class InsureMateAgent:
                 "action_items": ["Review document formatting and retry with clearer instructions."],
                 "human_review_required": True,
             }
+            _emit({
+                "type": "complete",
+                "claim_id": state.claim_id,
+                "status": state.final_status,
+                "verdict": state.final_status,
+                "report": state.final_report,
+                "iteration": state.iteration_count
+            })
 
         logger.info(f"[AGENT] Workflow concluded. Final Status: {state.final_status}")
         return state

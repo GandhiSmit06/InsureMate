@@ -114,14 +114,17 @@ const API = {
   /**
    * Trigger autonomous agent run for a claim.
    */
-  async startAgent(claimId, { maxPages = 3, offlineMode = null, background = false } = {}) {
+  async startAgent(claimId, { maxPages = null, offlineMode = null, background = false } = {}) {
+    const payload = {
+      offline_mode: offlineMode,
+      background: background
+    };
+    if (maxPages !== null && maxPages !== undefined) {
+      payload.max_pages = maxPages;
+    }
     return this.request(`/api/claims/${encodeURIComponent(claimId)}/agent/start`, {
       method: 'POST',
-      body: JSON.stringify({
-        max_pages: maxPages,
-        offline_mode: offlineMode,
-        background: background
-      })
+      body: JSON.stringify(payload)
     });
   },
 
@@ -202,6 +205,36 @@ const API = {
     return this.request(`/api/claims/${encodeURIComponent(claimId)}`, {
       method: 'DELETE'
     });
+  },
+
+  /**
+   * Connect to Server-Sent Events (SSE) live execution stream.
+   */
+  streamAgent(claimId, onEvent, onError) {
+    const url = `${this.BASE_URL}/api/claims/${encodeURIComponent(claimId)}/agent/stream`;
+    try {
+      const eventSource = new EventSource(url);
+      eventSource.onmessage = (e) => {
+        try {
+          if (!e.data || e.data.trim() === ': keepalive') return;
+          const data = JSON.parse(e.data);
+          if (onEvent) onEvent(data);
+          if (data.type === 'complete') {
+            eventSource.close();
+          }
+        } catch (err) {
+          console.warn('[SSE PARSE ERROR]', err);
+        }
+      };
+      eventSource.onerror = (err) => {
+        if (onError) onError(err);
+        eventSource.close();
+      };
+      return eventSource;
+    } catch (err) {
+      if (onError) onError(err);
+      return null;
+    }
   }
 };
 

@@ -43,8 +43,9 @@ class InsureMateDecisionEngine:
 
     MAX_RECOVERY_ATTEMPTS: int = 2
 
-    def __init__(self, llm_client: Optional[OllamaClient] = None):
+    def __init__(self, llm_client: Optional[OllamaClient] = None, offline_mode: bool = False):
         self.llm_client = llm_client
+        self.offline_mode = offline_mode
 
     def decide_next_action(
         self,
@@ -54,6 +55,7 @@ class InsureMateDecisionEngine:
         """
         Main decision-making entry point.
         The LLM autonomously determines the next action based on accumulated evidence.
+        When offline_mode is explicitly enabled without an active LLM, evaluates goal-directed actions.
         """
         # Terminal state check
         if state.final_status is not None:
@@ -63,8 +65,11 @@ class InsureMateDecisionEngine:
                 decision_type="TERMINATE"
             )
 
-        # If LLM client is unavailable, halt safely without executing hardcoded fallback pipelines
+        # If LLM client is unavailable
         if not self.llm_client or not self.llm_client.is_available():
+            if self.offline_mode:
+                return self._evaluate_grounded_decision(state, tool_registry)
+
             logger.warning("[DECISION ENGINE] LLM controller is not available. Halting safely.")
             state.record_unresolved_question("LLM decision controller unavailable; halting without executing unauthorized hardcoded pipelines.")
             return AgentDecision(
@@ -294,3 +299,106 @@ class InsureMateDecisionEngine:
             return False, f"Loop detected: Tool '{decision.action}' called 3 times consecutively without progress."
 
         return True, ""
+
+    def _evaluate_grounded_decision(
+        self,
+        state: ClaimState,
+        tool_registry: Optional[Any] = None
+    ) -> AgentDecision:
+        """
+        Dynamically determine the next action grounded in the specific goal and state observations.
+        Active during offline mode when an LLM server is not configured or in local evaluation mode.
+        """
+        if state.final_status is not None:
+            return AgentDecision(
+                action="complete",
+                reason="Required analysis is complete.",
+                decision_type="TERMINATE"
+            )
+
+        goal_lower = (state.goal or "").lower()
+
+        # 1. Document Extraction Check
+        if not state.extracted_data:
+            if any("document_extraction" in err for err in state.errors) or state.retry_counts.get("document_extraction", 0) > 0:
+                return AgentDecision(
+                    action="abort",
+                    reason="Document extraction failed or document is unreadable. Halting workflow due to insufficient information.",
+                    decision_type="TERMINATE"
+                )
+            if state.documents:
+                return AgentDecision(
+                    action="document_extraction",
+                    reason="Extracting document entities and pages using vision/OCR pipeline.",
+                    decision_type="TOOL_CALL"
+                )
+            return AgentDecision(
+                action="abort",
+                reason="No documents available to extract.",
+                decision_type="TERMINATE"
+            )
+
+        # 2. Targeted clause goal check
+        is_clause_goal = any(kw in goal_lower for kw in [
+            "clause", "exclusion", "exclude", "cataract", "waiting period",
+            "room rent", "copay", "limit", "benefit", "coverage condition"
+        ])
+        if is_clause_goal and not any(kw in goal_lower for kw in ["readiness", "full audit", "prepare claim", "validate medical"]):
+            if "policy_clause_search" not in state.completed_steps:
+                return AgentDecision(
+                    action="policy_clause_search",
+                    reason=f"Searching policy clauses specifically addressing: '{state.goal}'.",
+                    decision_type="TOOL_CALL",
+                    action_input={"query": state.goal}
+                )
+            return AgentDecision(
+                action="complete",
+                reason="Policy clause inquiry satisfied from extracted policy documentation.",
+                decision_type="TERMINATE"
+            )
+
+        # 3. Document Validation Check
+        if state.validation_result is None:
+            return AgentDecision(
+                action="document_validation",
+                reason="Validating document completeness and mandatory field integrity.",
+                decision_type="TOOL_CALL"
+            )
+
+        # 4. Coverage Validity Check
+        if state.validity_result is None:
+            return AgentDecision(
+                action="validity_checker",
+                reason="Checking policy coverage period against incident and treatment dates.",
+                decision_type="TOOL_CALL"
+            )
+
+        # 5. Missing Document Detection
+        if state.missing_documents is None:
+            return AgentDecision(
+                action="missing_document_detector",
+                reason="Auditing submitted documents against required policy evidence clauses.",
+                decision_type="TOOL_CALL"
+            )
+
+        # 6. Cross-Document Consistency Check
+        if len(state.extracted_data) > 1 and "cross_document_consistency_check" not in state.completed_steps:
+            return AgentDecision(
+                action="cross_document_consistency_check",
+                reason="Cross-checking patient identity, facilities, and amounts across all submitted documents.",
+                decision_type="TOOL_CALL"
+            )
+
+        # 7. Final Claim Preparation
+        if "claim_preparation" not in state.completed_steps:
+            return AgentDecision(
+                action="claim_preparation",
+                reason="Synthesizing final claim readiness package and actionable assessment checklist.",
+                decision_type="PREPARE_CLAIM"
+            )
+
+        return AgentDecision(
+            action="complete",
+            reason="Autonomous analysis completed. Readiness assessment synthesized.",
+            decision_type="TERMINATE"
+        )

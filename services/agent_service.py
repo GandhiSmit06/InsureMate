@@ -39,6 +39,8 @@ class AgentService:
         self.upload_dir = Path(upload_dir) if upload_dir else UPLOADS_DIR
         self.upload_dir.mkdir(parents=True, exist_ok=True)
         self._running_claims: set = set()
+        self._claim_events: Dict[str, List[Dict[str, Any]]] = {}
+        self._live_running_tools: Dict[str, Optional[Dict[str, Any]]] = {}
         self._lock = threading.Lock()
 
         # Startup cleanup: reset any orphaned in_progress claims from previous server shutdown
@@ -54,6 +56,17 @@ class AgentService:
             conn.close()
         except Exception as e:
             logger.warning(f"[SERVICE] Startup claim status cleanup: {e}")
+
+    def get_claim_events(self, claim_id: str, after_index: int = 0) -> List[Dict[str, Any]]:
+        """Retrieve real-time event sequence for claim."""
+        with self._lock:
+            events = self._claim_events.get(claim_id, [])
+            return [e for e in events if e.get("index", 0) > after_index]
+
+    def get_live_running_tool(self, claim_id: str) -> Optional[Dict[str, Any]]:
+        """Retrieve currently executing tool for live feedback."""
+        with self._lock:
+            return self._live_running_tools.get(claim_id)
 
     def is_claim_running(self, claim_id: str) -> bool:
         """Check whether the agent is currently running for the claim."""
@@ -72,6 +85,7 @@ class AgentService:
         """Release execution lock for claim_id."""
         with self._lock:
             self._running_claims.discard(claim_id)
+            self._live_running_tools.pop(claim_id, None)
 
     def create_session(
         self,
@@ -236,27 +250,70 @@ class AgentService:
             documents=docs
         )
 
+        with self._lock:
+            self._claim_events[claim_id] = []
+            self._live_running_tools[claim_id] = None
+
+        recorded_tool_steps = set()
+
+        def _on_event(evt: Dict[str, Any]):
+            with self._lock:
+                events_list = self._claim_events.setdefault(claim_id, [])
+                evt["index"] = len(events_list) + 1
+                events_list.append(evt)
+
+                if evt.get("type") == "tool_start":
+                    self._live_running_tools[claim_id] = {
+                        "tool_name": evt.get("tool_name"),
+                        "tool_action": evt.get("tool_action"),
+                        "tool_summary": evt.get("tool_summary"),
+                        "inputs": evt.get("inputs"),
+                        "iteration": evt.get("iteration"),
+                        "start_timestamp": evt.get("timestamp")
+                    }
+                elif evt.get("type") == "tool_finish":
+                    self._live_running_tools[claim_id] = None
+                    step_idx = evt.get("iteration", len(recorded_tool_steps) + 1)
+                    recorded_tool_steps.add(step_idx)
+                    try:
+                        self.db.record_tool_execution(
+                            claim_id=claim_id,
+                            tool_name=evt.get("tool_name", "unknown_tool"),
+                            step_index=step_idx,
+                            success=(evt.get("status") in ("success", "PASS", "ok")),
+                            duration_ms=evt.get("duration_ms", 0.0),
+                            input_data=evt.get("inputs"),
+                            output_data=evt.get("summary"),
+                            error_data=evt.get("error")
+                        )
+                    except Exception as ex:
+                        logger.warning(f"[SERVICE] Immediate tool recording failed: {ex}")
+
         try:
             # Autonomous execution
             final_state = agent.run(
                 documents=docs,
                 goal=claim.get("goal"),
                 state=init_state,
-                max_pages=max_pages
+                max_pages=max_pages,
+                on_event=_on_event
             )
 
-            # Record all tool history into DB
-            for idx, entry in enumerate(final_state.tool_history):
-                self.db.record_tool_execution(
-                    claim_id=claim_id,
-                    tool_name=entry.get("tool_name", "unknown_tool"),
-                    step_index=idx + 1,
-                    success=(entry.get("status") in ("success", "PASS", "ok")),
-                    duration_ms=0.0,
-                    input_data=entry.get("inputs_summary"),
-                    output_data=entry.get("summary"),
-                    error_data=entry.get("error")
-                )
+            # Ensure all tool executions from final state are recorded if not already recorded
+            existing_db_count = len(self.db.get_tool_executions(claim_id))
+            if existing_db_count < len(final_state.tool_history):
+                for idx, entry in enumerate(final_state.tool_history):
+                    if (idx + 1) not in recorded_tool_steps:
+                        self.db.record_tool_execution(
+                            claim_id=claim_id,
+                            tool_name=entry.get("tool_name", "unknown_tool"),
+                            step_index=idx + 1,
+                            success=(entry.get("status") in ("success", "PASS", "ok")),
+                            duration_ms=0.0,
+                            input_data=entry.get("inputs_summary"),
+                            output_data=entry.get("summary"),
+                            error_data=entry.get("error")
+                        )
 
             # Record final state snapshot
             self.db.record_state_snapshot(

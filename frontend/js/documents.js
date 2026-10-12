@@ -58,7 +58,7 @@ const DocumentsView = {
     if (extractedPages.length > 0) {
       tbody.innerHTML = extractedPages.map((page, idx) => {
         const isPolicy = page.document_type === 'insurance_policy';
-        const docTitle = page.document_title || (isPolicy ? 'Insurance Policy Document' : 'Claim Supporting Evidence');
+        const docTitle = page.document_title || (isPolicy ? 'Insurance Policy Contract' : 'Hospital / Claim Document');
         const sourceFile = (isPolicy && claim.policy_filename) ? claim.policy_filename : (claim.claim_filenames?.[idx] || claim.policy_filename || `Document Page ${page.page_number}`);
         
         const refNo = page.policy_number || page.bill_number || '--';
@@ -76,7 +76,7 @@ const DocumentsView = {
         return `
           <tr>
             <td>
-              <div style="font-weight: 600; color: #FFFFFF; display: flex; align-items: center; gap: 8px;">
+              <div style="font-weight: 600; color: var(--text-heading); display: flex; align-items: center; gap: 8px;">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
                 <span>Page ${page.page_number}</span>
               </div>
@@ -91,7 +91,7 @@ const DocumentsView = {
               ${Utils.escapeHtml(refNo)}
             </td>
             <td>
-              <span style="font-weight: 500; color: #FFFFFF;">${Utils.escapeHtml(person)}</span>
+              <span style="font-weight: 500; color: var(--text-heading);">${Utils.escapeHtml(person)}</span>
             </td>
             <td style="font-size: 0.75rem; color: var(--text-muted); font-family: var(--font-mono);">
               ${Utils.escapeHtml(dateStr)}
@@ -132,7 +132,7 @@ const DocumentsView = {
     claimFiles.forEach((fname) => {
       docs.push({
         name: fname,
-        type: 'claim_evidence',
+        type: 'Hospital Claim Document',
         ref: 'Pending Extraction',
         person: 'Pending Extraction',
         dates: 'Pending Extraction',
@@ -148,7 +148,7 @@ const DocumentsView = {
               <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
             </div>
             <h4>No Documents Attached</h4>
-            <p>This claim has no policy or supporting files uploaded.</p>
+            <p>This claim has no insurance policy or hospital claim documents uploaded.</p>
           </td>
         </tr>
       `;
@@ -158,7 +158,7 @@ const DocumentsView = {
     tbody.innerHTML = docs.map((doc, idx) => `
       <tr>
         <td>
-          <div style="font-weight: 600; color: #FFFFFF;">${Utils.escapeHtml(doc.name)}</div>
+          <div style="font-weight: 600; color: var(--text-heading);">${Utils.escapeHtml(doc.name)}</div>
           <div style="font-size: 0.7rem; color: var(--text-muted);">Uploaded PDF File</div>
         </td>
         <td>
@@ -200,7 +200,7 @@ const DocumentsView = {
     if (bodyEl) {
       const clauses = page.policy_clauses || [];
       const clausesHtml = clauses.length > 0 ? clauses.map(c => `
-        <div style="background: #060B14; border: 1px solid var(--border-subtle); border-radius: var(--radius-sm); padding: 10px 14px; margin-bottom: 8px;">
+        <div style="background: var(--code-bg); border: 1px solid var(--border-subtle); border-radius: var(--radius-sm); padding: 10px 14px; margin-bottom: 8px;">
           <div style="font-weight: 600; color: var(--accent); font-size: 0.8rem; margin-bottom: 2px;">Clause: ${Utils.escapeHtml(c.clause_title || c.title || 'Policy Requirement')}</div>
           <div style="font-size: 0.74rem; color: var(--text-secondary); line-height: 1.45;">${Utils.escapeHtml(c.clause_text || c.text || c.description || JSON.stringify(c))}</div>
         </div>
@@ -208,13 +208,13 @@ const DocumentsView = {
 
       bodyEl.innerHTML = `
         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 16px;">
-          <div style="background: #09101E; border: 1px solid var(--border-subtle); border-radius: var(--radius-sm); padding: 12px;">
+          <div style="background: var(--bg-elevated); border: 1px solid var(--border-subtle); border-radius: var(--radius-sm); padding: 12px;">
             <div style="font-size: 0.68rem; text-transform: uppercase; color: var(--text-muted); font-weight: 700; margin-bottom: 6px;">Vision Classification</div>
-            <div style="font-size: 0.9rem; font-weight: 700; color: #FFFFFF;">${Utils.escapeHtml((page.document_type || 'Document').replace(/_/g, ' '))}</div>
+            <div style="font-size: 0.9rem; font-weight: 700; color: var(--text-heading);">${Utils.escapeHtml((page.document_type || 'Document').replace(/_/g, ' '))}</div>
             <div style="font-size: 0.75rem; color: var(--accent); margin-top: 2px;">Page Number: ${page.page_number}</div>
           </div>
 
-          <div style="background: #09101E; border: 1px solid var(--border-subtle); border-radius: var(--radius-sm); padding: 12px;">
+          <div style="background: var(--bg-elevated); border: 1px solid var(--border-subtle); border-radius: var(--radius-sm); padding: 12px;">
             <div style="font-size: 0.68rem; text-transform: uppercase; color: var(--text-muted); font-weight: 700; margin-bottom: 6px;">Entity Reference</div>
             <div style="font-size: 0.9rem; font-weight: 700; font-family: var(--font-mono); color: var(--accent);">${Utils.escapeHtml(page.policy_number || page.bill_number || '--')}</div>
             <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 2px;">Holder/Patient: ${Utils.escapeHtml(page.policy_holder_name || page.patient_name || '--')}</div>
@@ -223,8 +223,8 @@ const DocumentsView = {
 
         <div style="margin-bottom: 16px;">
           <div style="font-size: 0.72rem; text-transform: uppercase; color: var(--text-muted); font-weight: 700; margin-bottom: 6px;">Structured Field Entities</div>
-          <div style="background: #060B14; border: 1px solid var(--border-subtle); border-radius: var(--radius-sm); padding: 10px 14px; font-family: var(--font-mono); font-size: 0.74rem;">
-            <pre style="margin:0; color:#E2E8F0; white-space:pre-wrap; word-break:break-all; max-height:180px; overflow-y:auto;">${Utils.escapeHtml(JSON.stringify(page, null, 2))}</pre>
+          <div style="background: var(--code-bg); border: 1px solid var(--code-border); border-radius: var(--radius-sm); padding: 10px 14px; font-family: var(--font-mono); font-size: 0.74rem;">
+            <pre style="margin:0; color:var(--text-primary); white-space:pre-wrap; word-break:break-all; max-height:180px; overflow-y:auto;">${Utils.escapeHtml(JSON.stringify(page, null, 2))}</pre>
           </div>
         </div>
 

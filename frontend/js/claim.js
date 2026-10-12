@@ -154,11 +154,44 @@ This analysis is an AI-assisted preparation assessment and does not constitute g
 
   renderVerdictBanner(verdict, report, claim) {
     const banner = document.getElementById('results-verdict-banner');
-    const titleEl = document.getElementById('results-verdict-title');
-    const descEl = document.getElementById('results-verdict-desc');
-    const iconEl = document.getElementById('results-verdict-icon');
+    if (!banner) return;
+    let titleEl = document.getElementById('results-verdict-title');
+    let descEl = document.getElementById('results-verdict-desc');
+    let iconEl = document.getElementById('results-verdict-icon');
 
-    if (!banner || !titleEl || !descEl || !iconEl) return;
+    if (!titleEl || !descEl || !iconEl) {
+      banner.innerHTML = `
+        <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 16px;">
+          <div style="display: flex; align-items: center; gap: 16px;">
+            <div id="results-verdict-icon" style="font-size: 2rem; font-weight: 700; color: var(--emerald);">✓</div>
+            <div>
+              <div style="font-size: 0.68rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-muted);">
+                CLAIM READINESS ASSESSMENT
+              </div>
+              <h2 id="results-verdict-title" style="font-size: 1.35rem; font-weight: 800; color: var(--text-heading); margin: 2px 0 4px;">
+                CLAIM READY
+              </h2>
+              <p id="results-verdict-desc" style="font-size: 0.82rem; color: var(--text-muted); max-width: 680px;">
+                All required evidence has been submitted and verified.
+              </p>
+            </div>
+          </div>
+
+          <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+            <button class="btn btn-secondary btn-sm" id="btn-copy-claim-summary">Copy Report</button>
+            <button class="btn btn-secondary btn-sm" id="btn-copy-raw-json">Copy JSON</button>
+            <button class="btn btn-secondary btn-sm" id="btn-download-claim-report">Download Report</button>
+            <button class="btn btn-primary btn-sm" data-action="new-claim">+ New Claim</button>
+          </div>
+        </div>
+      `;
+      this.bindEvents();
+      titleEl = document.getElementById('results-verdict-title');
+      descEl = document.getElementById('results-verdict-desc');
+      iconEl = document.getElementById('results-verdict-icon');
+    }
+
+    if (!titleEl || !descEl || !iconEl) return;
 
     const s = String(verdict).toUpperCase();
     banner.className = 'card';
@@ -255,7 +288,7 @@ This analysis is an AI-assisted preparation assessment and does not constitute g
       return `
         <tr>
           <td style="font-family: var(--font-mono);">${idx + 1}</td>
-          <td style="font-weight: 600; color: #FFFFFF;">${Utils.escapeHtml(docName)}</td>
+          <td style="font-weight: 600; color: var(--text-heading);">${Utils.escapeHtml(docName)}</td>
           <td>${statusBadge}</td>
           <td style="font-size: 0.78rem; line-height: 1.45;">${Utils.escapeHtml(reasonText)}</td>
           <td style="font-family: var(--font-mono);">${pageInfo}</td>
@@ -295,9 +328,9 @@ This analysis is an AI-assisted preparation assessment and does not constitute g
       }
 
       container.innerHTML = checks.map(c => `
-        <div style="background: var(--bg-input); border: 1px solid var(--border-subtle); border-radius: var(--radius-sm); padding: 12px 16px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px;">
+        <div style="background: var(--bg-elevated); border: 1px solid var(--border-subtle); border-radius: var(--radius-sm); padding: 12px 16px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px;">
           <div>
-            <div style="font-weight: 600; color: #FFFFFF; font-size: 0.82rem;">${Utils.escapeHtml(c.document_type || 'Claim Document')} (Page ${c.page || 1})</div>
+            <div style="font-weight: 600; color: var(--text-heading); font-size: 0.82rem;">${Utils.escapeHtml(c.document_type || 'Claim Document')} (Page ${c.page || 1})</div>
             <div style="font-size: 0.75rem; color: var(--text-muted);">${Utils.escapeHtml(c.reason || 'Within policy coverage window.')}</div>
           </div>
           <div style="display: flex; align-items: center; gap: 10px;">
@@ -333,9 +366,9 @@ This analysis is an AI-assisted preparation assessment and does not constitute g
     }
 
     container.innerHTML = pages.map((p, idx) => `
-      <div style="background: var(--bg-input); border: 1px solid var(--border-subtle); border-radius: var(--radius-sm); padding: 14px 18px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px;">
+      <div style="background: var(--bg-elevated); border: 1px solid var(--border-subtle); border-radius: var(--radius-sm); padding: 14px 18px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px;">
         <div>
-          <div style="font-weight: 600; color: #FFFFFF; font-size: 0.84rem;">Page ${p.page || idx + 1}: ${Utils.escapeHtml(p.type || 'Document')}</div>
+          <div style="font-weight: 600; color: var(--text-heading); font-size: 0.84rem;">Page ${p.page || idx + 1}: ${Utils.escapeHtml(p.type || 'Document')}</div>
           <div style="font-size: 0.78rem; color: var(--text-muted);">${Utils.escapeHtml(p.details || 'Standard required fields present.')}</div>
         </div>
         <div>
@@ -370,7 +403,7 @@ This analysis is an AI-assisted preparation assessment and does not constitute g
           <span class="badge badge-ready">✓ Extracted</span>
         </div>
         <div style="display: flex; flex-direction: column; gap: 6px; font-size: 0.78rem; margin-bottom: 12px;">
-          ${page.insurer_name ? `<div><span style="color: var(--text-muted);">Insurer:</span> <strong style="color: #FFFFFF;">${Utils.escapeHtml(page.insurer_name)}</strong></div>` : ''}
+          ${page.insurer_name ? `<div><span style="color: var(--text-muted);">Insurer:</span> <strong style="color: var(--text-heading);">${Utils.escapeHtml(page.insurer_name)}</strong></div>` : ''}
           ${page.policy_number ? `<div><span style="color: var(--text-muted);">Policy #:</span> <strong style="font-family: var(--font-mono); color: var(--accent);">${Utils.escapeHtml(page.policy_number)}</strong></div>` : ''}
           ${page.policy_holder_name ? `<div><span style="color: var(--text-muted);">Policy Holder:</span> <strong>${Utils.escapeHtml(page.policy_holder_name)}</strong></div>` : ''}
           ${page.patient_name ? `<div><span style="color: var(--text-muted);">Patient:</span> <strong>${Utils.escapeHtml(page.patient_name)}</strong></div>` : ''}

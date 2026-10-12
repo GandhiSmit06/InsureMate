@@ -4,6 +4,8 @@ Serves the web UI and REST API for document upload, session creation,
 autonomous agent orchestration, claim memory persistence, and result visualization.
 """
 
+import asyncio
+import json
 import sys
 import threading
 import uuid
@@ -16,7 +18,7 @@ if str(ROOT_DIR) not in sys.path:
 
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile, status
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
@@ -69,11 +71,11 @@ class DemoRequest(BaseModel):
 
 
 class RunRequest(BaseModel):
-    max_pages: Optional[int] = 3
+    max_pages: Optional[int] = None
 
 
 class StartAgentRequest(BaseModel):
-    max_pages: Optional[int] = 3
+    max_pages: Optional[int] = None
     offline_mode: Optional[bool] = None
     background: bool = False
 
@@ -330,7 +332,7 @@ async def start_claim_agent(claim_id: str, request: StartAgentRequest = StartAge
 
 @app.get("/api/claims/{claim_id}/agent/status")
 async def get_claim_agent_status(claim_id: str):
-    """Retrieve active status, progress, current step, and verdict for polling."""
+    """Retrieve active status, progress, current step, live running tool, and verdict for polling."""
     data = agent_service.get_claim(claim_id)
     if not data:
         raise HTTPException(status_code=404, detail=f"Claim session '{claim_id}' not found.")
@@ -340,12 +342,14 @@ async def get_claim_agent_status(claim_id: str):
     latest_state = data.get("latest_state") or {}
     tool_execs = data.get("tool_executions", [])
     report = data.get("final_report")
+    live_tool = agent_service.get_live_running_tool(claim_id)
     return {
         "claim_id": claim_id,
         "status": "in_progress" if is_running else status_val,
         "is_running": is_running,
         "verdict": data.get("verdict"),
-        "current_step": latest_state.get("current_step"),
+        "current_step": latest_state.get("current_step") or (live_tool.get("tool_name") if live_tool else None),
+        "live_running_tool": live_tool,
         "completed_steps": latest_state.get("completed_steps", []),
         "iteration_count": latest_state.get("iteration_count", len(tool_execs)),
         "tool_count": len(tool_execs),
@@ -366,20 +370,56 @@ async def get_running_agent_claims():
 
 @app.get("/api/claims/{claim_id}/agent/activity")
 async def get_claim_agent_activity(claim_id: str):
-    """Retrieve complete chronological tool executions, execution trace, and decisions."""
+    """Retrieve complete chronological tool executions, execution trace, live running tool, and events."""
     data = agent_service.get_claim(claim_id)
     if not data:
         raise HTTPException(status_code=404, detail=f"Claim session '{claim_id}' not found.")
     latest_state = data.get("latest_state") or {}
+    live_tool = agent_service.get_live_running_tool(claim_id)
+    events = agent_service.get_claim_events(claim_id)
     return {
         "claim_id": claim_id,
         "status": data["claim"].get("status"),
         "verdict": data.get("verdict"),
+        "is_running": agent_service.is_claim_running(claim_id),
+        "live_running_tool": live_tool,
+        "events": events,
         "tool_executions": data.get("tool_executions", []),
         "execution_trace": latest_state.get("execution_trace", []),
         "current_plan": latest_state.get("current_plan"),
         "completed_steps": latest_state.get("completed_steps", [])
     }
+
+
+@app.get("/api/claims/{claim_id}/agent/stream")
+async def stream_claim_agent(claim_id: str):
+    """Server-Sent Events (SSE) live feed of agent tool execution and reasoning stream."""
+    claim = agent_service.db.get_claim(claim_id)
+    if not claim:
+        raise HTTPException(status_code=404, detail=f"Claim session '{claim_id}' not found.")
+
+    async def event_generator():
+        last_index = 0
+        idle_cycles = 0
+        while True:
+            events = agent_service.get_claim_events(claim_id, after_index=last_index)
+            if events:
+                idle_cycles = 0
+                for evt in events:
+                    last_index = max(last_index, evt.get("index", last_index))
+                    yield f"data: {json.dumps(evt)}\n\n"
+                    if evt.get("type") == "complete":
+                        return
+            else:
+                is_running = agent_service.is_claim_running(claim_id)
+                if not is_running:
+                    idle_cycles += 1
+                    if idle_cycles >= 6:
+                        break
+                yield ": keepalive\n\n"
+            await asyncio.sleep(0.4)
+
+    return StreamingResponse(event_generator(), media_type="text/event-stream")
 
 
 @app.get("/api/claims/{claim_id}/documents")

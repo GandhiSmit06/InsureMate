@@ -2,12 +2,15 @@
  * frontend/js/agent.js
  * Dynamic Agentic AI Operations Console for InsureMate.
  * Demonstrates autonomous LLM-driven tool selection, dynamic capability discovery,
- * observable decision rationale, and chronological tool execution trace.
+ * Antigravity-style tool action & summary traces, live streaming, and observable decision rationale.
  */
 
 const AgentView = {
   isPolling: false,
   pollInterval: null,
+  activeStream: null,
+  liveRunningTool: null,
+  liveTimerInterval: null,
   availableTools: [],
   toolSchemas: {},
 
@@ -72,6 +75,84 @@ const AgentView = {
   },
 
   /**
+   * Antigravity Action & Summary mapping for tools
+   */
+  getAntigravityMetadata(toolName) {
+    const raw = String(toolName || '').toLowerCase().replace(/_tool$/, '');
+    const metaMap = {
+      'document_extraction': {
+        toolAction: 'Extracting document entities',
+        toolSummary: 'Multimodal vision extraction',
+        friendlyName: 'Qwen-VL Vision Extractor'
+      },
+      'qwen_vl_extraction': {
+        toolAction: 'Extracting document entities',
+        toolSummary: 'Multimodal vision extraction',
+        friendlyName: 'Qwen-VL Vision Extractor'
+      },
+      'document_validation': {
+        toolAction: 'Validating field completeness',
+        toolSummary: 'Document validation & integrity audit',
+        friendlyName: 'Document Validation Engine'
+      },
+      'validity_checker': {
+        toolAction: 'Auditing policy coverage window',
+        toolSummary: 'Coverage period & date check',
+        friendlyName: 'Coverage Validity Checker'
+      },
+      'missing_document': {
+        toolAction: 'Auditing evidence requirements',
+        toolSummary: 'Missing document detection',
+        friendlyName: 'Missing Evidence Detector'
+      },
+      'missing_document_detector': {
+        toolAction: 'Auditing evidence requirements',
+        toolSummary: 'Missing document detection',
+        friendlyName: 'Missing Evidence Detector'
+      },
+      'policy_clause_search': {
+        toolAction: 'Searching policy clauses & limits',
+        toolSummary: 'Policy clause search',
+        friendlyName: 'Policy Clause Search'
+      },
+      'clause_search': {
+        toolAction: 'Searching policy clauses & limits',
+        toolSummary: 'Policy clause search',
+        friendlyName: 'Policy Clause Search'
+      },
+      'cross_document_consistency': {
+        toolAction: 'Auditing cross-document consistency',
+        toolSummary: 'Discrepancy & contradiction check',
+        friendlyName: 'Cross-Document Consistency Auditor'
+      },
+      'cross_document_consistency_check': {
+        toolAction: 'Auditing cross-document consistency',
+        toolSummary: 'Discrepancy & contradiction check',
+        friendlyName: 'Cross-Document Consistency Auditor'
+      },
+      'claim_preparation': {
+        toolAction: 'Synthesizing claim readiness package',
+        toolSummary: 'Readiness verdict & checklist synthesis',
+        friendlyName: 'Claim Synthesis Engine'
+      }
+    };
+
+    return metaMap[raw] || {
+      toolAction: `Executing ${raw.replace(/_/g, ' ')}`,
+      toolSummary: 'Agent capability execution',
+      friendlyName: raw.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())
+    };
+  },
+
+  formatDuration(durationMs) {
+    if (!durationMs && durationMs !== 0) return null;
+    if (durationMs < 1000) {
+      return `${Math.round(durationMs)}ms`;
+    }
+    return `${(durationMs / 1000).toFixed(2)}s`;
+  },
+
+  /**
    * Dynamically fetch tool catalog and schemas from /api/tools
    */
   async fetchAndRenderToolRegistry() {
@@ -129,7 +210,7 @@ const AgentView = {
     });
 
     const isRunning = bundle && (bundle.is_running || AppState.isClaimRunning(bundle.claim?.claim_id));
-    const currentStep = bundle?.latest_state?.current_step;
+    const currentStep = bundle?.latest_state?.current_step || this.liveRunningTool?.tool_name;
 
     grid.innerHTML = this.availableTools.map(tool => {
       const name = tool.name;
@@ -143,7 +224,8 @@ const AgentView = {
         statusBadge = `<span class="tool-status-badge completed">✓ Executed (${count}x)</span>`;
       }
 
-      const friendlyName = this.formatFriendlyToolName(name);
+      const meta = this.getAntigravityMetadata(name);
+      const friendlyName = meta.friendlyName;
       const desc = tool.description || 'Callable tool capability.';
 
       return `
@@ -210,7 +292,7 @@ const AgentView = {
           </div>
           <div>
             <div style="font-size: 0.72rem; text-transform: uppercase; color: var(--text-muted); font-weight: 700; margin-bottom: 8px;">Parameters</div>
-            <div style="background: #09101E; border: 1px solid var(--border-subtle); border-radius: var(--radius-sm); padding: 8px 14px;">
+            <div style="background: var(--bg-elevated); border: 1px solid var(--border-subtle); border-radius: var(--radius-sm); padding: 8px 14px;">
               ${propRows}
             </div>
           </div>
@@ -265,7 +347,7 @@ const AgentView = {
     // 4. Decision & Reasoning Workspace
     this.renderDecisionWorkspace(bundle);
 
-    // 5. Chronological Tool Activity Timeline
+    // 5. Chronological Antigravity Tool Activity Timeline
     this.renderTimeline(tools, latestState.execution_trace || []);
 
     // 6. View Results button visibility
@@ -306,7 +388,6 @@ const AgentView = {
 
   /**
    * Renders the dynamic sequence of tools actually selected and invoked by the LLM agent.
-   * Completely replaces the old hardcoded 8-step pipeline!
    */
   renderDynamicExecutionSequence(tools = [], latestState = {}, isRunning = false) {
     const track = document.getElementById('stepper-track');
@@ -342,7 +423,7 @@ const AgentView = {
     const cardsHtml = [];
     tools.forEach((tool, idx) => {
       const stepNum = `STEP 0${idx + 1}`;
-      const friendlyName = this.formatFriendlyToolName(tool.tool_name);
+      const meta = this.getAntigravityMetadata(tool.tool_name);
       const isFailed = tool.status === 'failed' || Boolean(tool.error);
       const statusClass = isFailed ? 'failed' : 'completed';
       const statusText = isFailed ? 'Failed' : 'Completed ✓';
@@ -355,9 +436,9 @@ const AgentView = {
           </div>
           <div class="step-card-name">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
-            <span>${Utils.escapeHtml(friendlyName)}</span>
+            <span>${Utils.escapeHtml(meta.friendlyName)}</span>
           </div>
-          <div class="step-card-summary">${Utils.escapeHtml(tool.summary || 'Executed capability.')}</div>
+          <div class="step-card-summary">${Utils.escapeHtml(tool.summary || meta.toolSummary)}</div>
           <div class="step-card-footer">
             <span>${Utils.escapeHtml(tool.tool_name)}</span>
             <span>Observed</span>
@@ -365,7 +446,6 @@ const AgentView = {
         </div>
       `);
 
-      // Add arrow if not last or if running next step
       if (idx < tools.length - 1 || isRunning) {
         cardsHtml.push(`
           <div class="step-arrow-connector">⟶</div>
@@ -373,8 +453,10 @@ const AgentView = {
       }
     });
 
-    // If currently running, add the active execution node
     if (isRunning) {
+      const runningToolName = this.liveRunningTool?.tool_name || latestState.current_step || 'Autonomous Planning';
+      const runningMeta = this.getAntigravityMetadata(runningToolName);
+
       cardsHtml.push(`
         <div class="dynamic-step-card running">
           <div class="step-card-top">
@@ -382,12 +464,12 @@ const AgentView = {
             <span class="tool-status-badge running"><span class="agent-pulse-dot" style="width:6px; height:6px;"></span> Active</span>
           </div>
           <div class="step-card-name">
-            <span>Evaluating Next Tool</span>
+            <span>${Utils.escapeHtml(runningMeta.friendlyName)}</span>
           </div>
-          <div class="step-card-summary">Inspecting previous observations to select next action...</div>
+          <div class="step-card-summary">${Utils.escapeHtml(runningMeta.toolAction)}...</div>
           <div class="step-card-footer">
             <span>Autonomous Engine</span>
-            <span>Processing</span>
+            <span>Running</span>
           </div>
         </div>
       `);
@@ -411,7 +493,11 @@ const AgentView = {
     // 1. Current Objective
     const objEl = document.getElementById('agent-current-objective');
     if (objEl) {
-      objEl.textContent = claim.goal || 'Determine claim readiness, validate medical bills, and detect any missing evidence.';
+      if (this.liveRunningTool) {
+        objEl.textContent = `Active Operation: ${this.liveRunningTool.toolAction || this.liveRunningTool.tool_name}`;
+      } else {
+        objEl.textContent = claim.goal || 'Determine claim readiness, validate medical bills, and detect any missing evidence.';
+      }
     }
 
     // 2. Latest Observed Result
@@ -419,7 +505,8 @@ const AgentView = {
     if (obsEl) {
       if (tools.length > 0) {
         const lastTool = tools[tools.length - 1];
-        obsEl.textContent = `${this.formatFriendlyToolName(lastTool.tool_name)}: ${lastTool.summary || 'Observation logged.'}`;
+        const lastMeta = this.getAntigravityMetadata(lastTool.tool_name);
+        obsEl.textContent = `${lastMeta.friendlyName}: ${lastTool.summary || 'Observation logged.'}`;
       } else if (isRunning) {
         obsEl.textContent = 'Agent formulating initial tool request...';
       } else {
@@ -434,8 +521,13 @@ const AgentView = {
         nextActionEl.textContent = 'Execution Complete — Final Readiness Package Synthesized';
         nextActionEl.style.color = 'var(--emerald)';
       } else if (isRunning) {
-        const currentStep = latestState.current_step;
-        nextActionEl.textContent = currentStep ? `Invoking ${this.formatFriendlyToolName(currentStep)}` : 'Evaluating Intermediate Observations';
+        const currentStep = this.liveRunningTool?.tool_name || latestState.current_step;
+        if (currentStep) {
+          const stepMeta = this.getAntigravityMetadata(currentStep);
+          nextActionEl.textContent = `${stepMeta.toolAction} (${stepMeta.friendlyName})`;
+        } else {
+          nextActionEl.textContent = 'Evaluating Intermediate Observations';
+        }
         nextActionEl.style.color = 'var(--accent)';
       } else {
         nextActionEl.textContent = 'Autonomous Planning (Ready on trigger)';
@@ -467,13 +559,14 @@ const AgentView = {
       const actionItems = [];
       if (tools.length > 0) {
         distinctToolNames.forEach(tName => {
-          actionItems.push(`Invoked and recorded observations for <strong>${this.formatFriendlyToolName(tName)}</strong>`);
+          const meta = this.getAntigravityMetadata(tName);
+          actionItems.push(`Completed: <strong>${meta.toolAction}</strong> <span style="color:var(--text-muted);">(${meta.toolSummary})</span>`);
         });
       }
 
       if (completedSteps.length > 0) {
         completedSteps.forEach(s => {
-          actionItems.push(`Completed lifecycle verification: <strong>${s.replace(/_/g, ' ')}</strong>`);
+          actionItems.push(`Lifecycle check: <strong>${s.replace(/_/g, ' ')}</strong>`);
         });
       }
 
@@ -495,65 +588,143 @@ const AgentView = {
   },
 
   /**
-   * Chronological Tool Execution Timeline
+   * Chronological Antigravity Tool Activity Timeline
    */
   renderTimeline(tools = [], trace = []) {
     const container = document.getElementById('agent-timeline-container');
     if (!container) return;
 
-    if (tools.length === 0) {
+    if (tools.length === 0 && !this.liveRunningTool) {
       container.innerHTML = `
         <div class="empty-state" style="padding: 24px 0;">
           <div class="empty-state-icon">
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
           </div>
           <h4>No Tool Executions Recorded</h4>
-          <p>When the agent runs, every tool invocation, duration, and output observation will be recorded here.</p>
+          <p>When the agent runs, every tool invocation, action, duration, and output observation will be displayed here live.</p>
         </div>
       `;
       return;
     }
 
-    container.innerHTML = tools.map((tool, idx) => {
+    const cardsHtml = tools.map((tool, idx) => {
       const isFailed = tool.status === 'failed' || Boolean(tool.error);
       const statusClass = isFailed ? 'failed' : 'completed';
-      const statusBadge = isFailed ? '<span class="badge badge-error">Failed</span>' : '<span class="badge badge-ready">Success</span>';
-      const friendlyName = this.formatFriendlyToolName(tool.tool_name);
+      const statusBadge = isFailed ? '<span class="badge badge-error">Failed</span>' : '<span class="badge badge-ready">Completed ✓</span>';
+      const meta = this.getAntigravityMetadata(tool.tool_name);
       const timeStr = tool.timestamp ? Utils.formatDate(tool.timestamp) : `Step ${idx + 1}`;
       const drawerId = `timeline-drawer-${idx}`;
+      const durationBadge = tool.duration_ms !== undefined && tool.duration_ms !== null
+        ? `<span class="ag-duration-badge" title="Execution Duration">⏱ ${this.formatDuration(tool.duration_ms)}</span>`
+        : '';
+
+      // Check if trace has thought for this tool
+      const relatedTrace = trace.find(t => t.action === tool.tool_name || (t.tool && t.tool.includes(tool.tool_name)));
+      const thoughtHtml = relatedTrace && relatedTrace.decision ? `
+        <div class="ag-thought-box">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2a7 7 0 0 0-7 7c0 2.38 1.19 4.47 3 5.74V17a2 2 0 0 0 2 2h4a2 2 0 0 0 2-2v-2.26c1.81-1.27 3-3.36 3-5.74a7 7 0 0 0-7-7z"/><line x1="9" y1="21" x2="15" y2="21"/></svg>
+          <div><strong>Agent Reasoning:</strong> ${Utils.escapeHtml(relatedTrace.decision)}</div>
+        </div>
+      ` : '';
 
       return `
         <div class="timeline-item ${statusClass}">
           <div class="timeline-marker"></div>
-          <div class="timeline-header">
-            <div class="timeline-tool-title">
-              <span style="font-family: var(--font-mono); font-size: 0.74rem; color: var(--text-muted);">#${idx + 1}</span>
-              <span>${Utils.escapeHtml(friendlyName)}</span>
+          
+          <div class="ag-tool-header">
+            <div class="ag-tool-identity">
+              <div class="ag-tool-action-line">
+                <span class="ag-step-tag">#0${idx + 1}</span>
+                <span class="ag-tool-action">${Utils.escapeHtml(meta.toolAction)}</span>
+              </div>
+              <div class="ag-tool-meta-line">
+                <span class="ag-tool-summary-pill">${Utils.escapeHtml(meta.toolSummary)}</span>
+                <span class="ag-system-tool-tag">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="7" width="20" height="14" rx="2" ry="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>
+                  ${Utils.escapeHtml(tool.tool_name)}
+                </span>
+                <span style="font-size:0.68rem; color:var(--text-subtle);">${Utils.escapeHtml(timeStr)}</span>
+              </div>
+            </div>
+
+            <div class="ag-tool-status-group">
+              ${durationBadge}
               ${statusBadge}
             </div>
-            <span class="timeline-time">${Utils.escapeHtml(timeStr)}</span>
           </div>
-          <div class="timeline-summary">${Utils.escapeHtml(tool.summary || 'Tool execution completed.')}</div>
+
+          ${thoughtHtml}
+
+          <div class="timeline-summary" style="margin: 6px 0 10px;">${Utils.escapeHtml(tool.summary || 'Tool execution completed.')}</div>
           
-          <button type="button" class="timeline-details-toggle" onclick="AgentView.toggleDrawer('${drawerId}', this)">
-            <span>Inspect Arguments & Observation</span> ▾
+          <button type="button" class="ag-drawer-toggle" onclick="AgentView.toggleDrawer('${drawerId}', this)">
+            <span>Inspect Arguments & Observation</span>
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
           </button>
 
           <div class="timeline-details-drawer" id="${drawerId}">
             <div class="timeline-drawer-grid">
               <div class="timeline-detail-col">
-                <div class="timeline-detail-title">Inputs Summary</div>
+                <div class="timeline-detail-title">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+                  Parameters Passed
+                </div>
                 <pre>${Utils.escapeHtml(tool.inputs_summary || 'Standard parameters passed from agent state.')}</pre>
               </div>
               <div class="timeline-detail-col">
-                <div class="timeline-detail-title">Observation Output</div>
+                <div class="timeline-detail-title">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
+                  Observation Output
+                </div>
                 <pre>${Utils.escapeHtml(tool.summary || 'Completed successfully.')}</pre>
               </div>
             </div>
           </div>
         </div>
       `;
-    }).join('');
+    });
+
+    // If there is currently a tool running via SSE
+    if (this.liveRunningTool) {
+      const liveMeta = this.getAntigravityMetadata(this.liveRunningTool.tool_name);
+      cardsHtml.push(`
+        <div class="timeline-item running" id="ag-live-tool-card">
+          <div class="timeline-marker"></div>
+          
+          <div class="ag-tool-header">
+            <div class="ag-tool-identity">
+              <div class="ag-tool-action-line">
+                <span class="ag-step-tag">#0${tools.length + 1}</span>
+                <span class="ag-tool-action">${Utils.escapeHtml(liveMeta.toolAction)}</span>
+              </div>
+              <div class="ag-tool-meta-line">
+                <span class="ag-tool-summary-pill">${Utils.escapeHtml(liveMeta.toolSummary)}</span>
+                <span class="ag-system-tool-tag">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="7" width="20" height="14" rx="2" ry="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>
+                  ${Utils.escapeHtml(this.liveRunningTool.tool_name)}
+                </span>
+              </div>
+            </div>
+
+            <div class="ag-tool-status-group">
+              <span class="ag-duration-badge">
+                <span class="ag-timer-live" id="ag-live-stopwatch">0.0s</span>
+              </span>
+              <span class="badge badge-processing">
+                <span class="pulse-dot-running"></span>
+                RUNNING
+              </span>
+            </div>
+          </div>
+
+          <div class="timeline-summary" style="margin: 6px 0 4px; color: var(--accent);">
+            Executing autonomous capability in real-time...
+          </div>
+        </div>
+      `);
+    }
+
+    container.innerHTML = cardsHtml.join('');
   },
 
   toggleDrawer(drawerId, btn) {
@@ -562,15 +733,17 @@ const AgentView = {
     const isOpen = drawer.classList.contains('open');
     if (isOpen) {
       drawer.classList.remove('open');
-      btn.innerHTML = `<span>Inspect Arguments & Observation</span> ▾`;
+      btn.classList.remove('open');
+      btn.innerHTML = `<span>Inspect Arguments & Observation</span> <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>`;
     } else {
       drawer.classList.add('open');
-      btn.innerHTML = `<span>Hide Arguments & Observation</span> ▴`;
+      btn.classList.add('open');
+      btn.innerHTML = `<span>Hide Arguments & Observation</span> <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>`;
     }
   },
 
   /**
-   * Start autonomous agent execution with background polling
+   * Start autonomous agent execution with SSE stream and polling fallback
    */
   async startExecution(claimId) {
     if (!claimId) return;
@@ -579,15 +752,111 @@ const AgentView = {
       Utils.showToast(`Launching InsureMate Agent for claim ${claimId}...`, 'info');
       AppState.setClaimRunning(claimId, true);
 
-      // Trigger via API
-      await API.startAgent(claimId, { background: true, maxPages: 3, offlineMode: true });
+      // Trigger backend agent execution
+      await API.startAgent(claimId, { background: true, offlineMode: true });
 
-      // Start polling
+      // Connect SSE stream for instant real-time Antigravity events
+      this.connectEventStream(claimId);
+
+      // Start background polling as resilient sync
       this.startPolling(claimId);
     } catch (err) {
       console.error('Agent execution failed:', err);
       AppState.setClaimRunning(claimId, false);
       Utils.showToast(`Failed to start agent: ${err.message}`, 'error');
+    }
+  },
+
+  /**
+   * Connect to server-sent events stream (/api/claims/{id}/agent/stream)
+   */
+  connectEventStream(claimId) {
+    if (this.activeStream) {
+      try { this.activeStream.close(); } catch (_) {}
+      this.activeStream = null;
+    }
+
+    this.activeStream = API.streamAgent(
+      claimId,
+      (data) => this.handleAgentEvent(claimId, data),
+      (err) => {
+        // SSE disconnected or closed - polling will continue smoothly
+        if (this.activeStream) {
+          try { this.activeStream.close(); } catch (_) {}
+          this.activeStream = null;
+        }
+      }
+    );
+  },
+
+  /**
+   * Handle real-time agent lifecycle and tool events
+   */
+  handleAgentEvent(claimId, eventData) {
+    if (!eventData || !eventData.event) return;
+
+    const eventType = eventData.event;
+    console.log(`[Agent Event: ${eventType}]`, eventData);
+
+    if (eventType === 'tool_start') {
+      const meta = this.getAntigravityMetadata(eventData.tool_name);
+      this.liveRunningTool = {
+        tool_name: eventData.tool_name,
+        toolAction: eventData.toolAction || meta.toolAction,
+        toolSummary: eventData.toolSummary || meta.toolSummary,
+        startTime: Date.now()
+      };
+
+      // Start live stopwatch interval
+      if (this.liveTimerInterval) clearInterval(this.liveTimerInterval);
+      this.liveTimerInterval = setInterval(() => {
+        const timerEl = document.getElementById('ag-live-stopwatch');
+        if (timerEl && this.liveRunningTool) {
+          const elapsedSec = ((Date.now() - this.liveRunningTool.startTime) / 1000).toFixed(1);
+          timerEl.textContent = `${elapsedSec}s`;
+        }
+      }, 100);
+
+      // Update current objective & next action
+      const objEl = document.getElementById('agent-current-objective');
+      if (objEl) objEl.textContent = `Invoking tool: ${meta.toolAction}`;
+
+      const nextActionEl = document.getElementById('agent-next-action');
+      if (nextActionEl) {
+        nextActionEl.textContent = `${meta.toolAction} (${meta.friendlyName})`;
+        nextActionEl.style.color = 'var(--accent)';
+      }
+
+      // Re-render bundle with live running card
+      const bundle = AppState.get().activeClaimBundle;
+      if (bundle) this.renderBundle(bundle);
+
+    } else if (eventType === 'tool_finish') {
+      // Clear live stopwatch
+      if (this.liveTimerInterval) {
+        clearInterval(this.liveTimerInterval);
+        this.liveTimerInterval = null;
+      }
+      this.liveRunningTool = null;
+
+      // Immediately refresh active claim bundle to fetch latest DB tool records
+      AppState.refreshActiveClaim();
+
+    } else if (eventType === 'decision') {
+      const reasonEl = document.getElementById('agent-decision-reason');
+      if (reasonEl && eventData.reason) {
+        reasonEl.textContent = eventData.reason;
+      }
+      const nextActionEl = document.getElementById('agent-next-action');
+      if (nextActionEl && eventData.next_action) {
+        const meta = this.getAntigravityMetadata(eventData.next_action);
+        nextActionEl.textContent = `${meta.toolAction} (${meta.friendlyName})`;
+      }
+
+    } else if (eventType === 'complete') {
+      this.stopExecution(claimId);
+      AppState.refreshActiveClaim();
+      Utils.showToast(`Agent analysis completed for claim ${claimId}`, 'success');
     }
   },
 
@@ -605,10 +874,22 @@ const AgentView = {
         const statusData = await API.getAgentStatus(claimId);
         const isRunning = statusData.is_running || String(statusData.status).toLowerCase() === 'in_progress';
 
+        // Check if server reported a live running tool
+        if (statusData.live_running_tool && !this.liveRunningTool) {
+          const live = statusData.live_running_tool;
+          const meta = this.getAntigravityMetadata(live.tool_name);
+          this.liveRunningTool = {
+            tool_name: live.tool_name,
+            toolAction: live.toolAction || meta.toolAction,
+            toolSummary: live.toolSummary || meta.toolSummary,
+            startTime: live.start_time ? new Date(live.start_time).getTime() : Date.now()
+          };
+        } else if (!statusData.live_running_tool && this.liveRunningTool && !this.activeStream) {
+          this.liveRunningTool = null;
+        }
+
         if (!isRunning || statusData.has_result) {
-          // Completed or stopped
-          this.stopPolling();
-          AppState.setClaimRunning(claimId, false);
+          this.stopExecution(claimId);
           await AppState.setActiveClaim(claimId);
           Utils.showToast(`Agent completed analysis for claim ${claimId}`, 'success');
           return;
@@ -619,7 +900,7 @@ const AgentView = {
       } catch (err) {
         console.warn('Agent status polling error:', err);
       }
-    }, 1500);
+    }, 1200);
   },
 
   stopPolling() {
@@ -630,8 +911,22 @@ const AgentView = {
     this.isPolling = false;
   },
 
-  resetAgentView() {
+  stopExecution(claimId) {
     this.stopPolling();
+    if (this.activeStream) {
+      try { this.activeStream.close(); } catch (_) {}
+      this.activeStream = null;
+    }
+    if (this.liveTimerInterval) {
+      clearInterval(this.liveTimerInterval);
+      this.liveTimerInterval = null;
+    }
+    this.liveRunningTool = null;
+    AppState.setClaimRunning(claimId, false);
+  },
+
+  resetAgentView() {
+    this.stopExecution();
     const track = document.getElementById('stepper-track');
     if (track) {
       track.innerHTML = `
@@ -647,20 +942,7 @@ const AgentView = {
   },
 
   formatFriendlyToolName(toolName) {
-    if (!toolName) return 'Agent Tool';
-    const names = {
-      'document_extraction_tool': 'Qwen-VL Vision Extractor',
-      'qwen_vl_extraction_tool': 'Qwen-VL Vision Extractor',
-      'document_validation_tool': 'Document Validation Engine',
-      'validity_checker_tool': 'Coverage Validity Checker',
-      'missing_document_tool': 'Missing Evidence Detector',
-      'policy_clause_search_tool': 'Policy Clause Search',
-      'clause_search_tool': 'Policy Clause Search',
-      'cross_document_consistency_tool': 'Cross-Document Consistency Auditor',
-      'consistency_tool': 'Cross-Document Consistency Auditor',
-      'claim_preparation': 'Claim Synthesis Engine'
-    };
-    return names[toolName] || toolName.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+    return this.getAntigravityMetadata(toolName).friendlyName;
   },
 
   getStatusBadgeClass(status) {

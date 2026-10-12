@@ -12,6 +12,7 @@ const App = {
   async init() {
     console.log('🚀 Initializing InsureMate Dynamic AI Platform Shell...');
 
+    this.initTheme();
     this.bindNavigation();
     this.bindMobileSidebar();
     this.bindActiveClaimClear();
@@ -88,6 +89,34 @@ const App = {
         AppState.setActiveClaim(null);
         Utils.showToast('Active claim deselected.', 'info', 1000);
       });
+    }
+  },
+
+  initTheme() {
+    const saved = localStorage.getItem('insuremate_theme');
+    const prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+    const initial = saved || (prefersDark ? 'dark' : 'dark');
+    this.setTheme(initial, false);
+
+    const toggleBtn = document.getElementById('btn-theme-toggle');
+    if (toggleBtn) {
+      toggleBtn.addEventListener('click', () => {
+        const current = document.documentElement.getAttribute('data-theme') || 'dark';
+        const next = current === 'dark' ? 'light' : 'dark';
+        this.setTheme(next, true);
+        Utils.showToast(`Theme switched to ${next === 'dark' ? 'Obsidian Dark' : 'Enterprise Light'}`, 'info', 1200);
+      });
+    }
+  },
+
+  setTheme(theme, save = true) {
+    document.documentElement.setAttribute('data-theme', theme);
+    if (save) {
+      localStorage.setItem('insuremate_theme', theme);
+    }
+    const label = document.getElementById('theme-mode-label');
+    if (label) {
+      label.textContent = theme === 'dark' ? 'Dark' : 'Light';
     }
   },
 
