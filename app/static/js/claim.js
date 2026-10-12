@@ -154,11 +154,44 @@ This analysis is an AI-assisted preparation assessment and does not constitute g
 
   renderVerdictBanner(verdict, report, claim) {
     const banner = document.getElementById('results-verdict-banner');
-    const titleEl = document.getElementById('results-verdict-title');
-    const descEl = document.getElementById('results-verdict-desc');
-    const iconEl = document.getElementById('results-verdict-icon');
+    if (!banner) return;
+    let titleEl = document.getElementById('results-verdict-title');
+    let descEl = document.getElementById('results-verdict-desc');
+    let iconEl = document.getElementById('results-verdict-icon');
 
-    if (!banner || !titleEl || !descEl || !iconEl) return;
+    if (!titleEl || !descEl || !iconEl) {
+      banner.innerHTML = `
+        <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 16px;">
+          <div style="display: flex; align-items: center; gap: 16px;">
+            <div id="results-verdict-icon" style="font-size: 2rem; font-weight: 700; color: var(--emerald);">✓</div>
+            <div>
+              <div style="font-size: 0.68rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-muted);">
+                CLAIM READINESS ASSESSMENT
+              </div>
+              <h2 id="results-verdict-title" style="font-size: 1.35rem; font-weight: 800; color: var(--text-heading); margin: 2px 0 4px;">
+                CLAIM READY
+              </h2>
+              <p id="results-verdict-desc" style="font-size: 0.82rem; color: var(--text-muted); max-width: 680px;">
+                All required evidence has been submitted and verified.
+              </p>
+            </div>
+          </div>
+
+          <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+            <button class="btn btn-secondary btn-sm" id="btn-copy-claim-summary">Copy Report</button>
+            <button class="btn btn-secondary btn-sm" id="btn-copy-raw-json">Copy JSON</button>
+            <button class="btn btn-secondary btn-sm" id="btn-download-claim-report">Download Report</button>
+            <button class="btn btn-primary btn-sm" data-action="new-claim">+ New Claim</button>
+          </div>
+        </div>
+      `;
+      this.bindEvents();
+      titleEl = document.getElementById('results-verdict-title');
+      descEl = document.getElementById('results-verdict-desc');
+      iconEl = document.getElementById('results-verdict-icon');
+    }
+
+    if (!titleEl || !descEl || !iconEl) return;
 
     const s = String(verdict).toUpperCase();
     banner.className = 'card';
@@ -201,12 +234,37 @@ This analysis is an AI-assisted preparation assessment and does not constitute g
     const validityStatusEl = document.getElementById('metric-results-validity');
 
     const extracted = latestState.extracted_data || [];
-    const missingDocs = latestState.missing_documents?.missing_documents || report.missing_documents || [];
     const validity = latestState.validity_result || report.validity_check || {};
+
+    // Accurately compute count of truly missing documents
+    let missingCount = 0;
+    if (typeof report.missing_count === 'number' && !isNaN(report.missing_count)) {
+      missingCount = report.missing_count;
+    } else if (latestState.missing_documents?.summary?.missing !== undefined) {
+      missingCount = latestState.missing_documents.summary.missing;
+    } else {
+      const allReqs = latestState.missing_documents?.missing_documents || latestState.missing_documents?.document_results || report.missing_documents || [];
+      missingCount = allReqs.filter(d => {
+        if (typeof d === 'string') return true;
+        if (d.missing === true) return true;
+        const s = String(d.status || '').toLowerCase();
+        return s === 'missing';
+      }).length;
+    }
 
     if (docsCountEl) docsCountEl.textContent = extracted.length || (bundle.claim?.policy_filename ? 2 : 1);
     if (validDocsEl) validDocsEl.textContent = Math.max(0, extracted.length - (latestState.validation_result?.invalid_count || 0));
-    if (missingDocsEl) missingDocsEl.textContent = missingDocs.length;
+    if (missingDocsEl) {
+      missingDocsEl.textContent = missingCount;
+      const subEl = missingDocsEl.parentElement?.querySelector('.kpi-subtext');
+      if (missingCount === 0) {
+        missingDocsEl.className = 'kpi-value text-emerald';
+        if (subEl) subEl.textContent = 'All requirements satisfied';
+      } else {
+        missingDocsEl.className = 'kpi-value text-amber';
+        if (subEl) subEl.textContent = `${missingCount} unfulfilled policy clause(s)`;
+      }
+    }
     if (validityStatusEl) {
       const isPass = validity.valid !== false;
       validityStatusEl.textContent = isPass ? 'PASS' : 'FAIL';
@@ -218,7 +276,7 @@ This analysis is an AI-assisted preparation assessment and does not constitute g
     const tbody = document.getElementById('missing-evidence-tbody');
     if (!tbody) return;
 
-    const items = missingData?.missing_documents || missingData?.items || [];
+    const items = missingData?.missing_documents || missingData?.document_results || missingData?.items || [];
 
     if (!items || items.length === 0) {
       tbody.innerHTML = `
@@ -233,12 +291,13 @@ This analysis is an AI-assisted preparation assessment and does not constitute g
 
     tbody.innerHTML = items.map((doc, idx) => {
       const statusRaw = String(doc.status || '').toLowerCase();
-      const isFound = statusRaw === 'found' || statusRaw === 'available' || statusRaw === 'received' || statusRaw === 'present';
+      const isMissing = doc.missing === true || statusRaw === 'missing';
+      const isReceived = doc.missing === false || statusRaw === 'received' || statusRaw === 'found' || statusRaw === 'available' || statusRaw === 'present' || (!isMissing && (doc.page_number != null || doc.matched_submitted_document != null));
       const isIncomplete = statusRaw === 'incomplete';
       const isReview = statusRaw === 'needs_review' || statusRaw === 'review';
       
       let statusBadge;
-      if (isFound) {
+      if (isReceived) {
         statusBadge = '<span class="badge badge-ready">✓ Received</span>';
       } else if (isIncomplete) {
         statusBadge = '<span class="badge badge-warning">⚠ Incomplete</span>';
@@ -249,13 +308,13 @@ This analysis is an AI-assisted preparation assessment and does not constitute g
       }
 
       const docName = doc.document_title || doc.required_document || doc.document_name || doc.title || doc.name || 'Required Evidence Document';
-      const reasonText = doc.reason || doc.matching_reason || (isFound ? 'Matching document identified in claim inventory.' : 'No matching claim documents were submitted to fulfill this requirement.');
-      const pageInfo = doc.source_page ? `Page ${doc.source_page}` : (doc.page_number ? `Page ${doc.page_number}` : '—');
+      const reasonText = doc.reason || doc.matching_reason || (isReceived ? 'Matching document identified in claim inventory.' : 'No matching claim documents were submitted to fulfill this requirement.');
+      const pageInfo = (doc.page_number != null && doc.page_number !== '') ? `Page ${doc.page_number}` : (doc.source_page ? `Page ${doc.source_page}` : '—');
 
       return `
         <tr>
           <td style="font-family: var(--font-mono);">${idx + 1}</td>
-          <td style="font-weight: 600; color: #FFFFFF;">${Utils.escapeHtml(docName)}</td>
+          <td style="font-weight: 600; color: var(--text-heading);">${Utils.escapeHtml(docName)}</td>
           <td>${statusBadge}</td>
           <td style="font-size: 0.78rem; line-height: 1.45;">${Utils.escapeHtml(reasonText)}</td>
           <td style="font-family: var(--font-mono);">${pageInfo}</td>
@@ -295,9 +354,9 @@ This analysis is an AI-assisted preparation assessment and does not constitute g
       }
 
       container.innerHTML = checks.map(c => `
-        <div style="background: var(--bg-input); border: 1px solid var(--border-subtle); border-radius: var(--radius-sm); padding: 12px 16px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px;">
+        <div style="background: var(--bg-elevated); border: 1px solid var(--border-subtle); border-radius: var(--radius-sm); padding: 12px 16px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px;">
           <div>
-            <div style="font-weight: 600; color: #FFFFFF; font-size: 0.82rem;">${Utils.escapeHtml(c.document_type || 'Claim Document')} (Page ${c.page || 1})</div>
+            <div style="font-weight: 600; color: var(--text-heading); font-size: 0.82rem;">${Utils.escapeHtml(c.document_type || 'Claim Document')} (Page ${c.page || 1})</div>
             <div style="font-size: 0.75rem; color: var(--text-muted);">${Utils.escapeHtml(c.reason || 'Within policy coverage window.')}</div>
           </div>
           <div style="display: flex; align-items: center; gap: 10px;">
@@ -333,9 +392,9 @@ This analysis is an AI-assisted preparation assessment and does not constitute g
     }
 
     container.innerHTML = pages.map((p, idx) => `
-      <div style="background: var(--bg-input); border: 1px solid var(--border-subtle); border-radius: var(--radius-sm); padding: 14px 18px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px;">
+      <div style="background: var(--bg-elevated); border: 1px solid var(--border-subtle); border-radius: var(--radius-sm); padding: 14px 18px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px;">
         <div>
-          <div style="font-weight: 600; color: #FFFFFF; font-size: 0.84rem;">Page ${p.page || idx + 1}: ${Utils.escapeHtml(p.type || 'Document')}</div>
+          <div style="font-weight: 600; color: var(--text-heading); font-size: 0.84rem;">Page ${p.page || idx + 1}: ${Utils.escapeHtml(p.type || 'Document')}</div>
           <div style="font-size: 0.78rem; color: var(--text-muted);">${Utils.escapeHtml(p.details || 'Standard required fields present.')}</div>
         </div>
         <div>
@@ -370,7 +429,7 @@ This analysis is an AI-assisted preparation assessment and does not constitute g
           <span class="badge badge-ready">✓ Extracted</span>
         </div>
         <div style="display: flex; flex-direction: column; gap: 6px; font-size: 0.78rem; margin-bottom: 12px;">
-          ${page.insurer_name ? `<div><span style="color: var(--text-muted);">Insurer:</span> <strong style="color: #FFFFFF;">${Utils.escapeHtml(page.insurer_name)}</strong></div>` : ''}
+          ${page.insurer_name ? `<div><span style="color: var(--text-muted);">Insurer:</span> <strong style="color: var(--text-heading);">${Utils.escapeHtml(page.insurer_name)}</strong></div>` : ''}
           ${page.policy_number ? `<div><span style="color: var(--text-muted);">Policy #:</span> <strong style="font-family: var(--font-mono); color: var(--accent);">${Utils.escapeHtml(page.policy_number)}</strong></div>` : ''}
           ${page.policy_holder_name ? `<div><span style="color: var(--text-muted);">Policy Holder:</span> <strong>${Utils.escapeHtml(page.policy_holder_name)}</strong></div>` : ''}
           ${page.patient_name ? `<div><span style="color: var(--text-muted);">Patient:</span> <strong>${Utils.escapeHtml(page.patient_name)}</strong></div>` : ''}

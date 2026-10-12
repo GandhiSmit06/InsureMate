@@ -253,11 +253,12 @@ const Dashboard = {
       const badgeClass = isRunning ? 'badge-processing' : this.getStatusBadgeClass(statusText);
       const icon = isRunning ? '●' : this.getStatusIcon(statusText);
 
-      const policyRef = claim.policy_filename || claim.session_name || '--';
+      const policyName = claim.policy_filename || null;
+      const hospitalDoc = (Array.isArray(cFiles) && cFiles.length > 0) ? cFiles[0] : (claim.claim_filename || null);
+      const sessionLabel = claim.session_name || '--';
       const claimType = claim.claim_type ? (claim.claim_type.charAt(0).toUpperCase() + claim.claim_type.slice(1)) : 'General';
       const dateStr = Utils.formatDate(claim.created_at);
 
-      const cFiles = claim.claim_filenames || [];
       const docCount = (claim.policy_filename ? 1 : 0) + (Array.isArray(cFiles) ? cFiles.length : (claim.claim_filename ? 1 : 0));
 
       const runBtnHtml = isRunning ? `
@@ -280,9 +281,14 @@ const Dashboard = {
             </a>
           </td>
           <td>
-            <span style="font-weight: 500; color: #FFFFFF;" title="${Utils.escapeHtml(policyRef)}">
-              ${Utils.escapeHtml(policyRef.length > 24 ? policyRef.substring(0, 24) + '...' : policyRef)}
-            </span>
+            <div style="font-weight: 500; color: var(--text-heading);" title="${Utils.escapeHtml(policyName || sessionLabel)}">
+              ${policyName ? Utils.escapeHtml(policyName.length > 22 ? policyName.substring(0, 22) + '...' : policyName) : Utils.escapeHtml(sessionLabel)}
+            </div>
+            ${hospitalDoc ? `
+              <div style="font-size: 0.7rem; color: var(--text-muted); font-family: var(--font-mono); margin-top: 2px;" title="${Utils.escapeHtml(hospitalDoc)}">
+                Hospital: ${Utils.escapeHtml(hospitalDoc.length > 18 ? hospitalDoc.substring(0, 18) + '...' : hospitalDoc)}
+              </div>
+            ` : ''}
           </td>
           <td>
             <span class="badge badge-neutral" style="font-size: 0.7rem;">${Utils.escapeHtml(claimType)}</span>

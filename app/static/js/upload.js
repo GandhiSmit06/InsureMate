@@ -30,7 +30,6 @@ const Upload = {
   },
 
   updateReviewCard() {
-    const claimNum = document.getElementById('input-claim-number')?.value?.trim();
     const claimType = document.getElementById('select-claim-type')?.value;
 
     const refEl = document.getElementById('review-claim-ref');
@@ -38,14 +37,34 @@ const Upload = {
     const policyEl = document.getElementById('review-policy-status');
     const countEl = document.getElementById('review-files-count');
 
-    if (refEl) refEl.textContent = claimNum || 'Auto-Generated';
-    if (typeEl) typeEl.textContent = claimType ? (claimType.charAt(0).toUpperCase() + claimType.slice(1)) : 'Health';
-    if (policyEl) policyEl.textContent = this.policyFile ? `${this.policyFile.name}` : 'None';
-    if (countEl) countEl.textContent = `${this.claimFiles.length} file(s)`;
+    // Dynamically derive claim reference from the uploaded Hospital Claim document
+    if (refEl) {
+      if (this.claimFiles && this.claimFiles.length > 0) {
+        if (this.claimFiles.length === 1) {
+          refEl.textContent = this.claimFiles[0].name;
+        } else {
+          refEl.textContent = `${this.claimFiles[0].name} (+${this.claimFiles.length - 1} more)`;
+        }
+      } else {
+        refEl.textContent = 'Awaiting Hospital Document';
+      }
+    }
+
+    if (typeEl) {
+      typeEl.textContent = claimType ? (claimType.charAt(0).toUpperCase() + claimType.slice(1)) : 'Health';
+    }
+
+    if (policyEl) {
+      policyEl.textContent = this.policyFile ? `${this.policyFile.name}` : 'Awaiting Policy Document';
+    }
+
+    if (countEl) {
+      countEl.textContent = this.claimFiles.length > 0 ? `${this.claimFiles.length} Hospital Document(s)` : '0 file(s)';
+    }
   },
 
   setupDropzones() {
-    // Policy Dropzone
+    // Insurance Policy Dropzone (Premium Contract)
     const policyZone = document.getElementById('policy-dropzone');
     const policyInput = document.getElementById('policy-file-input');
 
@@ -61,7 +80,7 @@ const Upload = {
       });
     }
 
-    // Supporting Evidence Dropzone
+    // Hospital / Claim Document(s) Dropzone
     const claimZone = document.getElementById('claim-dropzone');
     const claimInput = document.getElementById('claim-file-input');
 
@@ -78,7 +97,7 @@ const Upload = {
     }
 
     // Inputs change listener to track step progress & review card
-    const inputs = ['input-claim-number', 'select-claim-type', 'input-incident-date', 'input-incident-notes', 'input-claim-goal'];
+    const inputs = ['select-claim-type', 'input-incident-date', 'input-incident-notes', 'input-claim-goal'];
     inputs.forEach(id => {
       const el = document.getElementById(id);
       if (el) {
@@ -165,7 +184,7 @@ const Upload = {
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
           <div>
             <div class="file-chip-name" title="${Utils.escapeHtml(this.policyFile.name)}">${Utils.escapeHtml(this.policyFile.name)}</div>
-            <div class="file-chip-size">${Utils.formatFileSize(this.policyFile.size)} • Policy PDF</div>
+            <div class="file-chip-size">${Utils.formatFileSize(this.policyFile.size)} • Policy Premium Contract</div>
           </div>
         </div>
         <button type="button" class="file-chip-remove" title="Remove Policy Document" onclick="Upload.removePolicyFile()">&times;</button>
@@ -197,7 +216,7 @@ const Upload = {
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
           <div>
             <div class="file-chip-name" title="${Utils.escapeHtml(file.name)}">${Utils.escapeHtml(file.name)}</div>
-            <div class="file-chip-size">${Utils.formatFileSize(file.size)} • Evidence</div>
+            <div class="file-chip-size">${Utils.formatFileSize(file.size)} • Hospital Claim Document</div>
           </div>
         </div>
         <button type="button" class="file-chip-remove" title="Remove File" onclick="Upload.removeClaimFile(${idx})">&times;</button>
@@ -232,7 +251,7 @@ const Upload = {
       e.preventDefault();
 
       if (!this.policyFile && this.claimFiles.length === 0) {
-        Utils.showToast('Please upload at least an Insurance Policy or Supporting Evidence PDF.', 'warning');
+        Utils.showToast('Please upload at least your Insurance Policy Contract or Hospital Claim Document(s).', 'warning');
         return;
       }
 
@@ -257,7 +276,6 @@ const Upload = {
           formData.append('claim_file', this.claimFiles[0]);
         }
 
-        const claimNumber = document.getElementById('input-claim-number')?.value?.trim();
         const incidentDate = document.getElementById('input-incident-date')?.value?.trim();
         const incidentNotes = document.getElementById('input-incident-notes')?.value?.trim();
         const goalInput = document.getElementById('input-claim-goal');
@@ -265,10 +283,12 @@ const Upload = {
         const checkOffline = document.getElementById('check-offline-mode') || document.getElementById('toggle-offline-mode');
         const checkAutoRun = document.getElementById('check-auto-run') || document.getElementById('toggle-auto-run');
 
-        const sessionName = claimNumber
-          ? `Claim ${claimNumber}`
-          : (this.policyFile ? `Policy: ${this.policyFile.name.replace(/\.[^/.]+$/, '')}` : null);
-        if (sessionName) formData.append('session_name', sessionName);
+        // Dynamically derive session name from the uploaded hospital claim document
+        const primaryHospitalDoc = this.claimFiles.length > 0 ? this.claimFiles[0].name.replace(/\.[^/.]+$/, '') : null;
+        const sessionName = primaryHospitalDoc
+          ? `Hospital Claim: ${primaryHospitalDoc}`
+          : (this.policyFile ? `Policy: ${this.policyFile.name.replace(/\.[^/.]+$/, '')}` : 'Hospital Claim Session');
+        formData.append('session_name', sessionName);
 
         let finalGoal = goalInput ? goalInput.value.trim() : 'Determine claim readiness and identify missing evidence.';
         if (incidentDate) {

@@ -1,10 +1,17 @@
 /* frontend/css/responsive.css
-   Responsive design for Desktop, Laptop, Tablet, and Mobile displays
+   Responsive System for Desktop, Laptop, Tablet, and Mobile Displays
+   Ensures seamless adaptability, zero overflow, and fluid touch interactions
 */
+
+@media (max-width: 1200px) {
+  .kpi-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
 
 @media (max-width: 1024px) {
   :root {
-    --sidebar-w: 220px;
+    --sidebar-w: 230px;
   }
 
   .dropzones-container {
@@ -13,6 +20,16 @@
 
   .decision-grid {
     grid-template-columns: 1fr;
+  }
+
+  .dashboard-hero {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .hero-system-stats {
+    width: 100%;
+    justify-content: space-around;
   }
 }
 
@@ -38,25 +55,29 @@
     padding: 0 16px;
   }
 
+  .header-agentic-tag {
+    display: none;
+  }
+
+  .user-meta {
+    display: none;
+  }
+
   .page-container {
-    padding: 18px 16px;
+    padding: 16px 12px;
   }
 
   .kpi-grid {
     grid-template-columns: 1fr;
+    gap: 12px;
   }
 
-  .stepper-container {
-    padding: 16px 12px;
+  .form-grid {
+    grid-template-columns: 1fr;
   }
 
   .card {
     padding: 16px;
-  }
-
-  .dashboard-hero {
-    flex-direction: column;
-    align-items: flex-start;
   }
 
   .hero-actions {
@@ -70,10 +91,19 @@
   .table-controls {
     flex-direction: column;
     align-items: stretch;
+    width: 100%;
   }
 
   .search-box {
-    max-width: none;
+    width: 100%;
+  }
+
+  .filter-group {
+    width: 100%;
+  }
+
+  .filter-group select {
+    width: 100%;
   }
 
   .toast-container {
@@ -88,28 +118,56 @@
   }
 
   .app-footer {
-    padding: 16px;
+    padding: 14px 16px;
     flex-direction: column;
     text-align: center;
     gap: 8px;
+  }
+
+  .execution-banner {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .banner-actions {
+    width: 100%;
+    justify-content: flex-end;
+  }
+
+  .review-summary-card {
+    flex-direction: column;
+    align-items: flex-start;
   }
 }
 
 @media (max-width: 480px) {
   .page-title-group h2 {
-    font-size: 1.25rem;
+    font-size: 1.2rem;
   }
 
-  .form-actions {
+  .hero-text h3 {
+    font-size: 1.2rem;
+  }
+
+  .hero-system-stats {
     flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
   }
 
-  .form-actions .btn {
+  .system-stat-divider {
+    display: none;
+  }
+
+  .stepper-wizard {
+    padding: 10px 12px;
+  }
+
+  .demo-buttons-group {
     width: 100%;
   }
 
-  .demo-scenarios-bar {
-    flex-direction: column;
-    align-items: flex-start;
+  .demo-buttons-group .btn {
+    flex: 1;
   }
 }

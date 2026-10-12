@@ -417,6 +417,8 @@ class ClaimDatabase:
                 res["report"] = json.loads(res["report_json"])
             except Exception:
                 res["report"] = {}
+            if "missing_count" in res and isinstance(res["report"], dict):
+                res["report"]["missing_count"] = res["missing_count"]
             res["report_data"] = res["report"]
             return res
         finally:

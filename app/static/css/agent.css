@@ -1,30 +1,37 @@
 /* frontend/css/agent.css
-   Dynamic Agentic AI Operations Console
-   Replaces fixed linear pipeline with real LLM-driven tool execution sequence,
-   dynamic capability registry, and observable decision rationale.
+   Antigravity Autonomous Agent Operations Console & Observability
+   High-Precision AI Decision Workspace, Dynamic Stepper, & Chronological Trace
 */
 
-/* Active Execution Banner */
+/* ==========================================================================
+   1. ACTIVE EXECUTION BANNER
+   ========================================================================== */
+
 .execution-banner {
   display: flex;
   align-items: center;
   justify-content: space-between;
   background: var(--bg-card);
   border: 1px solid var(--border-card);
-  border-radius: var(--radius-md);
-  padding: 16px 20px;
+  border-radius: var(--radius-lg);
+  padding: 18px 24px;
   margin-bottom: 20px;
   flex-wrap: wrap;
-  gap: 14px;
-  box-shadow: var(--shadow-sm);
+  gap: 16px;
+  box-shadow: var(--shadow-card);
   position: relative;
   overflow: hidden;
+  transition: border-color var(--transition-fast);
+}
+
+.execution-banner:hover {
+  border-color: var(--border-hover);
 }
 
 .execution-banner::before {
   content: '';
   position: absolute;
-  top: 0; left: 0; width: 3px; height: 100%;
+  top: 0; left: 0; width: 4px; height: 100%;
   background: linear-gradient(180deg, var(--accent) 0%, var(--primary) 100%);
 }
 
@@ -35,8 +42,8 @@
 }
 
 .agent-icon-badge {
-  width: 38px;
-  height: 38px;
+  width: 42px;
+  height: 42px;
   border-radius: var(--radius-sm);
   background: var(--primary-light);
   border: 1px solid var(--primary-border);
@@ -45,31 +52,34 @@
   justify-content: center;
   color: var(--accent);
   flex-shrink: 0;
+  box-shadow: 0 0 16px rgba(37, 99, 235, 0.2);
 }
 
 .banner-title-group h3 {
-  font-size: 1.05rem;
-  font-weight: 700;
-  color: #FFFFFF;
+  font-family: var(--font-display);
+  font-size: 1.15rem;
+  font-weight: 800;
+  color: var(--text-heading);
+  letter-spacing: -0.01em;
   margin-bottom: 2px;
 }
 
 .banner-title-group p {
-  font-size: 0.78rem;
-  color: var(--text-muted);
+  font-size: 0.8rem;
+  color: var(--text-secondary);
 }
 
 .banner-meta {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 14px;
   font-size: 0.78rem;
   color: var(--text-muted);
   flex-wrap: wrap;
 }
 
 .banner-meta strong {
-  color: #FFFFFF;
+  color: var(--text-heading);
   font-family: var(--font-mono);
 }
 
@@ -79,7 +89,10 @@
   gap: 8px;
 }
 
-/* Dynamic Execution Flow / Sequence Container (#stepper-track) */
+/* ==========================================================================
+   2. DYNAMIC OBSERVED EXECUTION FLOW (#stepper-track)
+   ========================================================================== */
+
 .stepper-container {
   background: var(--bg-card);
   border: 1px solid var(--border-card);
@@ -95,110 +108,111 @@
   justify-content: space-between;
   margin-bottom: 14px;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: 10px;
 }
 
 .stepper-title {
-  font-size: 0.8rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.07em;
-  color: var(--accent);
   display: flex;
   align-items: center;
   gap: 8px;
+  font-family: var(--font-display);
+  font-size: 0.92rem;
+  font-weight: 700;
+  color: var(--text-heading);
+}
+
+.stepper-title svg {
+  color: var(--accent);
 }
 
 .stepper-track {
   display: flex;
-  align-items: stretch;
-  gap: 12px;
+  align-items: center;
+  gap: 10px;
   overflow-x: auto;
-  padding: 6px 2px 10px;
-  min-height: 80px;
-  position: relative;
+  padding: 8px 4px 12px;
 }
 
-.stepper-track::-webkit-scrollbar {
-  height: 6px;
-}
-.stepper-track::-webkit-scrollbar-thumb {
-  background: var(--border-hover);
-  border-radius: 3px;
-}
-
-/* Dynamic Step Card (Observed Execution Node) */
-.dynamic-step-card {
-  background: var(--bg-input);
+.stepper-empty-state {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 18px;
+  background: var(--bg-elevated);
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-sm);
+  color: var(--text-muted);
+  font-size: 0.8rem;
+  width: 100%;
+}
+
+.dynamic-step-card {
+  min-width: 220px;
+  max-width: 260px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-sm);
   padding: 12px 14px;
-  min-width: 190px;
-  max-width: 240px;
-  flex: 0 0 auto;
   display: flex;
   flex-direction: column;
-  justify-content: space-between;
+  gap: 6px;
+  flex-shrink: 0;
+  transition: all var(--transition-fast);
   position: relative;
-  transition: all var(--tr-fast);
 }
 
 .dynamic-step-card:hover {
+  transform: translateY(-2px);
   border-color: var(--border-hover);
-  transform: translateY(-1px);
-}
-
-.dynamic-step-card.running {
-  border-color: var(--primary);
-  background: rgba(37, 99, 235, 0.08);
-  box-shadow: 0 0 0 1px var(--primary-border);
-  animation: pulseNode 1.8s ease-in-out infinite;
 }
 
 .dynamic-step-card.completed {
   border-color: rgba(16, 185, 129, 0.35);
-  background: rgba(16, 185, 129, 0.04);
+}
+
+.dynamic-step-card.running {
+  border-color: var(--primary-border);
+  background: var(--bg-card-hover);
+  box-shadow: 0 0 16px rgba(37, 99, 235, 0.2);
 }
 
 .dynamic-step-card.failed {
-  border-color: rgba(239, 68, 68, 0.4);
-  background: rgba(239, 68, 68, 0.04);
-}
-
-@keyframes pulseNode {
-  0%, 100% { border-color: var(--primary); }
-  50% { border-color: var(--accent); box-shadow: 0 0 12px rgba(56, 189, 248, 0.25); }
+  border-color: var(--rose-border);
 }
 
 .step-card-top {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 6px;
+  gap: 8px;
 }
 
 .step-card-num {
-  font-size: 0.68rem;
   font-family: var(--font-mono);
+  font-size: 0.65rem;
   font-weight: 700;
   color: var(--text-muted);
+  letter-spacing: 0.05em;
 }
 
 .step-card-name {
-  font-size: 0.82rem;
-  font-weight: 600;
-  color: #FFFFFF;
-  margin-bottom: 4px;
   display: flex;
   align-items: center;
   gap: 6px;
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: var(--text-heading);
+}
+
+.step-card-name svg {
+  color: var(--emerald);
+  flex-shrink: 0;
 }
 
 .step-card-summary {
   font-size: 0.72rem;
-  color: var(--text-muted);
+  color: var(--text-secondary);
   line-height: 1.4;
-  margin-bottom: 8px;
   overflow: hidden;
   text-overflow: ellipsis;
   display: -webkit-box;
@@ -210,37 +224,24 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  font-size: 0.68rem;
-  color: var(--text-subtle);
-  border-top: 1px solid var(--border-subtle);
+  margin-top: 4px;
   padding-top: 6px;
-  margin-top: auto;
-}
-
-/* Arrow Connector between steps */
-.step-arrow-connector {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: var(--text-subtle);
-  font-size: 0.9rem;
-  flex: 0 0 auto;
-  user-select: none;
-}
-
-/* Stepper Empty State */
-.stepper-empty-state {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 100%;
-  padding: 18px 12px;
+  border-top: 1px solid var(--border-subtle);
+  font-size: 0.65rem;
   color: var(--text-muted);
-  font-size: 0.8rem;
-  gap: 10px;
+  font-family: var(--font-mono);
 }
 
-/* Dynamic Tool Registry Panel */
+.step-arrow-connector {
+  color: var(--border-hover);
+  font-size: 0.9rem;
+  flex-shrink: 0;
+}
+
+/* ==========================================================================
+   3. CAPABILITY CATALOG GRID
+   ========================================================================== */
+
 .agent-tools-panel {
   background: var(--bg-card);
   border: 1px solid var(--border-card);
@@ -255,44 +256,46 @@
   align-items: center;
   justify-content: space-between;
   margin-bottom: 14px;
-  flex-wrap: wrap;
-  gap: 8px;
 }
 
 .agent-tools-title {
-  font-size: 0.8rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.07em;
-  color: var(--accent);
   display: flex;
   align-items: center;
   gap: 8px;
+  font-family: var(--font-display);
+  font-size: 0.92rem;
+  font-weight: 700;
+  color: var(--text-heading);
+}
+
+.agent-tools-title svg {
+  color: var(--accent);
 }
 
 .agent-tools-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
   gap: 12px;
 }
 
 .tool-card {
-  background: var(--bg-input);
+  background: var(--bg-elevated);
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-sm);
   padding: 12px 14px;
   display: flex;
   flex-direction: column;
   justify-content: space-between;
-  min-height: 94px;
+  gap: 10px;
   cursor: pointer;
-  transition: all var(--tr-fast);
-  position: relative;
+  transition: all var(--transition-fast);
 }
 
 .tool-card:hover {
   border-color: var(--border-hover);
   background: var(--bg-card-hover);
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-sm);
 }
 
 .tool-card-top {
@@ -300,89 +303,83 @@
   align-items: flex-start;
   justify-content: space-between;
   gap: 8px;
-  margin-bottom: 6px;
 }
 
 .tool-card-name {
   font-size: 0.82rem;
-  font-weight: 600;
-  color: #FFFFFF;
-  line-height: 1.3;
+  font-weight: 700;
+  color: var(--text-heading);
+  line-height: 1.25;
 }
 
 .tool-card-system-name {
   font-family: var(--font-mono);
   font-size: 0.65rem;
-  color: var(--text-subtle);
+  color: var(--accent);
   margin-top: 1px;
 }
 
 .tool-card-desc {
   font-size: 0.72rem;
-  color: var(--text-muted);
+  color: var(--text-secondary);
   line-height: 1.4;
-  margin-bottom: 8px;
+  margin-top: 4px;
 }
 
 .tool-card-bottom {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-top: auto;
+  font-size: 0.68rem;
+  color: var(--text-muted);
   border-top: 1px solid var(--border-subtle);
   padding-top: 6px;
-  font-size: 0.68rem;
-  color: var(--text-subtle);
 }
 
 .tool-inspect-hint {
   color: var(--accent);
-  font-size: 0.68rem;
-  opacity: 0;
-  transition: opacity var(--tr-fast);
+  font-weight: 600;
 }
 
-.tool-card:hover .tool-inspect-hint {
-  opacity: 1;
-}
-
-/* Tool execution status badges */
 .tool-status-badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  font-size: 0.68rem;
+  font-size: 0.65rem;
   font-weight: 600;
   padding: 2px 7px;
-  border-radius: 4px;
-  font-family: var(--font-mono);
+  border-radius: var(--radius-full);
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  white-space: nowrap;
 }
 
 .tool-status-badge.available {
-  background: rgba(148, 163, 184, 0.1);
+  background: var(--bg-card);
   color: var(--text-muted);
-  border: 1px solid rgba(148, 163, 184, 0.2);
-}
-
-.tool-status-badge.running {
-  background: var(--primary-light);
-  color: #93C5FD;
-  border: 1px solid var(--primary-border);
+  border: 1px solid var(--border-subtle);
 }
 
 .tool-status-badge.completed {
   background: var(--emerald-light);
-  color: #6EE7B7;
+  color: var(--badge-ready-text);
   border: 1px solid var(--emerald-border);
+}
+
+.tool-status-badge.running {
+  background: var(--primary-light);
+  color: var(--badge-running-text);
+  border: 1px solid var(--primary-border);
 }
 
 .tool-status-badge.failed {
   background: var(--rose-light);
-  color: #FCA5A5;
+  color: var(--badge-error-text);
   border: 1px solid var(--rose-border);
 }
 
-/* Agent Decision & Reasoning Panel */
+/* ==========================================================================
+   4. DYNAMIC DECISION & REASONING WORKSPACE
+   ========================================================================== */
+
 .decision-card {
   background: var(--bg-card);
   border: 1px solid var(--border-card);
@@ -395,65 +392,59 @@
 .decision-grid {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
-  gap: 14px;
+  gap: 12px;
 }
 
 .decision-block {
-  background-color: var(--bg-input);
+  background: var(--bg-elevated);
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-sm);
-  padding: 14px 16px;
+  padding: 12px 16px;
   display: flex;
   flex-direction: column;
+  gap: 6px;
 }
 
 .decision-block-title {
   font-size: 0.68rem;
   font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: 0.07em;
-  color: var(--accent);
-  margin-bottom: 8px;
-  display: flex;
-  align-items: center;
-  gap: 6px;
+  letter-spacing: 0.08em;
+  color: var(--text-muted);
 }
 
 .decision-block-content {
   font-size: 0.82rem;
-  color: var(--text-secondary);
-  line-height: 1.5;
-  flex: 1;
+  color: var(--text-heading);
+  line-height: 1.45;
 }
 
 .action-checklist {
   list-style: none;
   display: flex;
   flex-direction: column;
-  gap: 7px;
+  gap: 6px;
 }
 
 .action-checklist li {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   gap: 8px;
   font-size: 0.78rem;
-  color: var(--text-secondary);
+  color: var(--text-primary);
 }
 
 .action-checklist li svg {
   color: var(--emerald);
   flex-shrink: 0;
-  margin-top: 2px;
 }
 
-/* Chronological Tool Activity Timeline */
+/* ==========================================================================
+   5. CHRONOLOGICAL TOOL EXECUTION TRACE TIMELINE
+   ========================================================================== */
+
 .timeline-card {
-  background: var(--bg-card);
-  border: 1px solid var(--border-card);
-  border-radius: var(--radius-md);
-  padding: 20px;
-  box-shadow: var(--shadow-sm);
+  margin-bottom: 20px;
 }
 
 .timeline-header-main {
@@ -469,104 +460,160 @@
   display: flex;
   flex-direction: column;
   gap: 12px;
-  position: relative;
-  padding-left: 24px;
-}
-
-.timeline-container::before {
-  content: '';
-  position: absolute;
-  top: 10px;
-  bottom: 10px;
-  left: 8px;
-  width: 2px;
-  background-color: var(--border-subtle);
 }
 
 .timeline-item {
-  position: relative;
-  background: var(--bg-input);
+  background: var(--bg-elevated);
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-sm);
-  padding: 14px 16px;
-  box-shadow: var(--shadow-sm);
-  transition: all var(--tr-fast);
+  padding: 14px 18px;
+  position: relative;
+  transition: all var(--transition-fast);
 }
 
 .timeline-item:hover {
   border-color: var(--border-hover);
 }
 
-.timeline-marker {
-  position: absolute;
-  left: -20px;
-  top: 18px;
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
-  background-color: var(--primary);
-  border: 2px solid var(--bg-body);
-  transition: all var(--tr-fast);
+.timeline-item.completed {
+  border-left: 3px solid var(--emerald);
 }
 
-.timeline-item.completed .timeline-marker {
-  background-color: var(--emerald);
-  box-shadow: 0 0 8px rgba(16, 185, 129, 0.4);
+.timeline-item.failed {
+  border-left: 3px solid var(--rose);
 }
 
-.timeline-item.failed .timeline-marker {
-  background-color: var(--rose);
-  box-shadow: 0 0 8px rgba(239, 68, 68, 0.4);
+.timeline-item.running {
+  border-left: 3px solid var(--accent);
+  background: var(--bg-card-hover);
 }
 
-.timeline-header {
+.ag-tool-header {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
-  margin-bottom: 6px;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: 10px;
+  margin-bottom: 6px;
 }
 
-.timeline-tool-title {
-  font-size: 0.84rem;
-  font-weight: 600;
-  color: #FFFFFF;
+.ag-tool-identity {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.ag-tool-action-line {
   display: flex;
   align-items: center;
   gap: 8px;
 }
 
-.timeline-time {
-  font-size: 0.68rem;
-  color: var(--text-subtle);
+.ag-step-tag {
   font-family: var(--font-mono);
+  font-size: 0.68rem;
+  font-weight: 700;
+  color: var(--text-muted);
+}
+
+.ag-tool-action {
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: var(--text-heading);
+}
+
+.ag-tool-meta-line {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.72rem;
+  flex-wrap: wrap;
+}
+
+.ag-tool-summary-pill {
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.ag-system-tool-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-xs);
+  padding: 2px 6px;
+  font-family: var(--font-mono);
+  font-size: 0.65rem;
+  color: var(--text-secondary);
+}
+
+.ag-tool-status-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.ag-duration-badge {
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  color: var(--text-muted);
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-xs);
+  padding: 2px 7px;
+}
+
+.ag-thought-box {
+  background: rgba(56, 189, 248, 0.08);
+  border: 1px solid rgba(56, 189, 248, 0.2);
+  border-radius: var(--radius-xs);
+  padding: 8px 12px;
+  margin: 8px 0;
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  font-size: 0.76rem;
+  color: var(--text-primary);
+  line-height: 1.45;
+}
+
+.ag-thought-box svg {
+  color: var(--accent);
+  margin-top: 2px;
+  flex-shrink: 0;
 }
 
 .timeline-summary {
   font-size: 0.78rem;
   color: var(--text-secondary);
-  line-height: 1.5;
-  margin-bottom: 8px;
+  line-height: 1.45;
 }
 
-/* Expandable Drawer for Tool Inputs & Outputs */
-.timeline-details-toggle {
-  background: none;
+.ag-drawer-toggle {
+  background: transparent;
   border: none;
   color: var(--accent);
   font-size: 0.72rem;
-  cursor: pointer;
-  padding: 0;
+  font-weight: 600;
   display: inline-flex;
   align-items: center;
-  gap: 4px;
-  font-weight: 500;
-  transition: color var(--tr-fast);
+  gap: 6px;
+  cursor: pointer;
+  padding: 4px 0;
+  transition: color var(--transition-fast);
 }
 
-.timeline-details-toggle:hover {
-  color: #FFFFFF;
+.ag-drawer-toggle:hover {
+  color: var(--primary-hover);
+}
+
+.ag-drawer-toggle svg {
+  transition: transform var(--transition-fast);
+}
+
+.ag-drawer-toggle.open svg {
+  transform: rotate(180deg);
 }
 
 .timeline-details-drawer {
@@ -574,77 +621,125 @@
   margin-top: 10px;
   padding-top: 10px;
   border-top: 1px solid var(--border-subtle);
-  font-family: var(--font-mono);
-  font-size: 0.72rem;
 }
 
 .timeline-details-drawer.open {
   display: block;
+  animation: fadeIn 0.18s ease-in-out;
 }
 
 .timeline-drawer-grid {
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 10px;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
 }
 
 .timeline-detail-col {
-  background: #060B14;
-  border: 1px solid var(--border-subtle);
-  border-radius: 4px;
-  padding: 10px;
-  overflow-x: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
 }
 
 .timeline-detail-title {
-  font-size: 0.65rem;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.68rem;
+  font-weight: 700;
   text-transform: uppercase;
   color: var(--text-muted);
-  font-weight: 700;
-  margin-bottom: 6px;
-  font-family: var(--font-sans);
 }
 
 .timeline-detail-col pre {
-  margin: 0;
-  color: #E2E8F0;
+  background: var(--code-bg);
+  border: 1px solid var(--code-border);
+  border-radius: var(--radius-xs);
+  padding: 10px;
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  color: var(--text-primary);
   white-space: pre-wrap;
-  word-break: break-all;
+  word-break: break-word;
   max-height: 200px;
   overflow-y: auto;
 }
 
-/* Tool Schema Modal Styles */
+/* Tool Schema Modal Inner Rows */
 .schema-prop-row {
-  display: flex;
-  flex-direction: column;
   padding: 8px 0;
   border-bottom: 1px solid var(--border-subtle);
 }
 .schema-prop-row:last-child {
   border-bottom: none;
 }
+
 .schema-prop-header {
   display: flex;
   align-items: center;
   gap: 8px;
   margin-bottom: 2px;
 }
+
 .schema-prop-name {
   font-family: var(--font-mono);
-  font-weight: 600;
+  font-weight: 700;
+  font-size: 0.78rem;
   color: var(--accent);
-  font-size: 0.8rem;
 }
+
 .schema-prop-type {
   font-family: var(--font-mono);
   font-size: 0.68rem;
   color: var(--text-muted);
-  background: var(--bg-card);
-  padding: 1px 6px;
-  border-radius: 3px;
 }
+
 .schema-prop-desc {
-  font-size: 0.75rem;
+  font-size: 0.72rem;
   color: var(--text-secondary);
+  line-height: 1.4;
+}
+
+/* ==========================================================================
+   6. RESULTS TABS & DEEP DIVE PANES
+   ========================================================================== */
+
+.results-tab-nav {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  border-bottom: 1px solid var(--border-subtle);
+  padding-bottom: 12px;
+  margin-bottom: 16px;
+  overflow-x: auto;
+}
+
+.results-tab-btn {
+  background: transparent;
+  border: 1px solid transparent;
+  padding: 6px 14px;
+  border-radius: var(--radius-full);
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  transition: all var(--transition-fast);
+  white-space: nowrap;
+}
+
+.results-tab-btn:hover {
+  color: var(--text-heading);
+  background: var(--bg-elevated);
+}
+
+.results-tab-btn.active {
+  background: var(--primary-light);
+  border-color: var(--primary-border);
+  color: var(--text-heading);
+}
+
+.results-tab-pane {
+  display: none;
+}
+
+.results-tab-pane.active {
+  display: block;
 }
