@@ -127,3 +127,63 @@ def test_agent_orchestration_and_sub_endpoints_workflow(client: TestClient):
         # Step 10: Clean up
         del_res = client.delete(f"/api/claims/{claim_id}")
         assert del_res.status_code == 200
+
+
+def test_frontend_html_structure_and_modals(client: TestClient):
+    """Verify newly designed HTML contains dynamic agent workspace elements, modals, and actions."""
+    res = client.get("/")
+    assert res.status_code == 200
+    html = res.text
+
+    # Dynamic Agent Console Elements
+    assert 'id="agent-tools-grid"' in html
+    assert 'id="agent-current-objective"' in html
+    assert 'id="agent-latest-observation"' in html
+    assert 'id="agent-next-action"' in html
+    assert 'id="agent-decision-reason"' in html
+    assert 'id="agent-completed-actions"' in html
+    assert 'id="agent-timeline-container"' in html
+    assert 'id="btn-agent-start-run"' in html
+
+    # Modals
+    assert 'id="doc-detail-modal"' in html
+    assert 'id="tool-schema-modal"' in html
+    assert 'id="delete-confirm-modal"' in html
+
+    # Demo Buttons & Export Actions
+    assert 'id="btn-dash-demo-health"' in html
+    assert 'id="btn-dash-demo-travel"' in html
+    assert 'id="btn-copy-claim-summary"' in html
+    assert 'id="btn-copy-raw-json"' in html
+    assert 'id="btn-download-claim-report"' in html
+
+
+def test_tools_catalog_and_schemas_endpoint(client: TestClient):
+    """Verify /api/tools provides dynamic discovery of capabilities and parameter schemas."""
+    res = client.get("/api/tools")
+    assert res.status_code == 200
+    data = res.json()
+    assert "tools" in data
+    assert "schemas" in data
+    tool_names = [t["name"] for t in data["tools"]]
+    assert len(tool_names) >= 4
+    assert "document_extraction_tool" in tool_names
+    assert "document_validation_tool" in tool_names
+    assert "validity_checker_tool" in tool_names
+    assert "missing_document_tool" in tool_names
+
+
+def test_claims_list_and_health_endpoint(client: TestClient):
+    """Verify /api/health and /api/claims endpoints."""
+    health_res = client.get("/api/health")
+    assert health_res.status_code == 200
+    health_data = health_res.json()
+    assert health_data["status"] == "ok"
+    assert health_data["available_tools_count"] >= 4
+
+    claims_res = client.get("/api/claims")
+    assert claims_res.status_code == 200
+    claims_data = claims_res.json()
+    assert "claims" in claims_data
+    assert "total" in claims_data
+

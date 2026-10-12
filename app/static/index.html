@@ -32,7 +32,7 @@
     <aside class="app-sidebar">
       <div class="sidebar-header">
         <div class="logo-badge">
-          <!-- Shield / Diamond concept -->
+          <!-- Shield Concept -->
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
             <path d="M12 2L3 7v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V7l-9-5z"/>
             <polyline points="9 12 11 14 15 10"/>
@@ -89,8 +89,8 @@
             <span class="agent-panel-state" id="sidebar-agent-state">Ready</span>
           </div>
           <div class="agent-status-details">
-            <span id="sidebar-tools-count">4 tools available</span>
-            <span id="sidebar-agent-mode">Autonomous</span>
+            <span id="sidebar-tools-count">Loading tools...</span>
+            <span id="sidebar-agent-mode">Dynamic LLM</span>
           </div>
         </div>
       </div>
@@ -110,15 +110,16 @@
           </div>
 
           <div class="active-claim-pill" id="header-active-claim-pill" style="display: none;">
-            <span>Claim:</span>
+            <span>Active Claim:</span>
             <strong id="header-active-claim-label">--</strong>
+            <button id="btn-clear-active-claim" title="Clear active claim selection" style="background:none; border:none; color:var(--text-muted); cursor:pointer; font-size:0.8rem; margin-left:4px;">✕</button>
           </div>
         </div>
 
         <div class="header-right">
           <div class="header-badge-status" id="header-system-status-pill">
-            <span style="font-size: 0.55rem;">●</span>
-            <span id="header-system-status-text">Agent Ready</span>
+            <span style="font-size: 0.55rem; color: var(--emerald);">●</span>
+            <span id="header-system-status-text">Backend Connected</span>
           </div>
 
           <span class="header-agentic-tag">Autonomous Agent Workflow</span>
@@ -143,17 +144,17 @@
           <!-- Operations Hero Section -->
           <div class="dashboard-hero">
             <div class="hero-text">
-              <div class="hero-subtitle-tag">Autonomous Claims Intelligence</div>
-              <h3>Insurance Claim Operations</h3>
-              <p>Review documents, orchestrate multi-tool agent analysis, and evaluate claim readiness from one unified workspace.</p>
+              <div class="hero-subtitle-tag">Autonomous Claim Intelligence</div>
+              <h3>Insurance Claim Operations Console</h3>
+              <p>Orchestrate multimodal vision extraction, deterministic clause verification, and dynamic missing evidence audits across health and travel claims.</p>
               <div class="hero-actions">
                 <button class="btn btn-primary" id="btn-hero-new-claim" data-action="new-claim">
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
                   <span>+ New Claim</span>
                 </button>
                 <button class="btn btn-secondary" id="btn-hero-view-claims">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
-                  <span>View Claims</span>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+                  <span>Claims Archive</span>
                 </button>
               </div>
             </div>
@@ -161,50 +162,50 @@
             <!-- Compact Live System Stats Box -->
             <div class="hero-system-stats">
               <div class="system-stat-col">
-                <span class="system-stat-label">Agent Status</span>
+                <span class="system-stat-label">Agent Engine</span>
                 <span class="system-stat-val text-emerald">
                   <span style="font-size: 0.55rem;">●</span> OPERATIONAL
                 </span>
               </div>
               <div class="system-stat-divider"></div>
               <div class="system-stat-col">
-                <span class="system-stat-label">Tools</span>
-                <span class="system-stat-val" id="hero-stat-tools">04</span>
+                <span class="system-stat-label">Tools Online</span>
+                <span class="system-stat-val" id="hero-stat-tools">--</span>
               </div>
               <div class="system-stat-divider"></div>
               <div class="system-stat-col">
-                <span class="system-stat-label">Claims Processed</span>
+                <span class="system-stat-label">Total Claims</span>
                 <span class="system-stat-val" id="hero-stat-claims">0</span>
               </div>
             </div>
           </div>
 
-          <!-- Demo Scenarios Section Bar -->
+          <!-- Demo Scenarios Bar -->
           <div class="demo-scenarios-bar">
             <div class="demo-bar-label">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"/></svg>
-              <span>Demo Scenarios:</span>
-              <span style="font-size: 0.72rem; color: var(--text-muted); font-weight: normal;">(Preconfigured evaluation cases)</span>
+              <span>1-Click Evaluation Scenarios:</span>
+              <span style="font-size: 0.72rem; color: var(--text-muted); font-weight: normal;">(Preloaded test documents & automated agent run)</span>
             </div>
             <div class="demo-buttons-group">
               <button class="btn btn-secondary btn-sm" id="btn-dash-demo-health">
                 <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
-                <span>Health Claim (Policy A)</span>
+                <span>Health Claim Demo (Policy A)</span>
               </button>
               <button class="btn btn-secondary btn-sm" id="btn-dash-demo-travel">
                 <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
-                <span>Travel Claim (Policy B)</span>
+                <span>Travel Claim Demo (Policy B)</span>
               </button>
             </div>
           </div>
 
-          <!-- KPI Summary Cards (4 Compact Metric Cards) -->
+          <!-- KPI Summary Cards -->
           <div class="kpi-grid">
             <div class="kpi-card kpi-blue">
               <div class="kpi-content">
                 <div class="kpi-title">Claims Processed</div>
                 <div class="kpi-value" id="kpi-total-claims">0</div>
-                <div class="kpi-subtext">Persisted in database</div>
+                <div class="kpi-subtext">Persisted in SQLite database</div>
               </div>
               <div class="kpi-icon-badge">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
@@ -215,7 +216,7 @@
               <div class="kpi-content">
                 <div class="kpi-title">Documents Analyzed</div>
                 <div class="kpi-value" id="kpi-total-docs">0</div>
-                <div class="kpi-subtext">Qwen-VL vision parsed</div>
+                <div class="kpi-subtext">Qwen-VL vision & OCR parsed</div>
               </div>
               <div class="kpi-icon-badge">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="9" y1="21" x2="9" y2="9"/></svg>
@@ -226,7 +227,7 @@
               <div class="kpi-content">
                 <div class="kpi-title">Missing Evidence</div>
                 <div class="kpi-value text-amber" id="kpi-missing-docs">0</div>
-                <div class="kpi-subtext">Required policy clauses</div>
+                <div class="kpi-subtext">Unfulfilled policy clauses</div>
               </div>
               <div class="kpi-icon-badge">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
@@ -237,7 +238,7 @@
               <div class="kpi-content">
                 <div class="kpi-title">Ready for Review</div>
                 <div class="kpi-value text-emerald" id="kpi-ready-claims">0</div>
-                <div class="kpi-subtext">Validated & compliant</div>
+                <div class="kpi-subtext">Validated & compliant submissions</div>
               </div>
               <div class="kpi-icon-badge">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
@@ -250,7 +251,7 @@
             <div class="card-header">
               <h3 class="card-title">
                 <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
-                <span>Recent Claims</span>
+                <span>Recent Claim Sessions</span>
               </h3>
               <div class="table-controls">
                 <div class="search-box">
@@ -261,7 +262,7 @@
                   <select class="select-input" id="dash-claims-filter">
                     <option value="ALL">All Statuses</option>
                     <option value="RUNNING">Agent Running</option>
-                    <option value="READY">Ready</option>
+                    <option value="READY">Claim Ready</option>
                     <option value="MISSING">Action Required</option>
                     <option value="PENDING">Pending</option>
                     <option value="FAILED">Failed</option>
@@ -275,7 +276,7 @@
                 <thead>
                   <tr>
                     <th>Claim ID</th>
-                    <th>Policy Number</th>
+                    <th>Policy Reference</th>
                     <th>Claim Type</th>
                     <th>Date Created</th>
                     <th>Documents</th>
@@ -284,7 +285,7 @@
                   </tr>
                 </thead>
                 <tbody id="dash-claims-tbody">
-                  <!-- Injected via dashboard.js -->
+                  <!-- Populated dynamically via dashboard.js -->
                 </tbody>
               </table>
             </div>
@@ -292,13 +293,13 @@
         </section>
 
         <!-- ================================================================ -->
-        <!-- VIEW 2: NEW CLAIM (PREMIUM HORIZONTAL WORKFLOW) -->
+        <!-- VIEW 2: NEW CLAIM (WORKFLOW REGISTRATION) -->
         <!-- ================================================================ -->
         <section class="view-section" id="view-new-claim">
           <div class="page-header">
             <div class="page-title-group">
-              <h2>New Insurance Claim</h2>
-              <p>Register a claim session, upload policy and supporting evidence, and initiate autonomous agent assessment.</p>
+              <h2>New Insurance Claim Registration</h2>
+              <p>Upload policy documents and hospital/evidence files to initiate autonomous agent analysis.</p>
             </div>
           </div>
 
@@ -316,7 +317,7 @@
             <span class="wizard-step-arrow">⟶</span>
             <div class="wizard-step" id="wiz-step-3">
               <div class="wizard-step-num">03</div>
-              <span>Review & Settings</span>
+              <span>Review & Execution</span>
             </div>
             <span class="wizard-step-arrow">⟶</span>
             <div class="wizard-step" id="wiz-step-4">
@@ -327,7 +328,7 @@
 
           <div class="card">
             <form id="claim-create-form">
-              <!-- Step 1: Claim Information (Two-Column Layout) -->
+              <!-- Step 1: Claim Information -->
               <h4 style="font-size: 0.82rem; font-weight: 700; color: var(--accent); margin-bottom: 14px; text-transform: uppercase; letter-spacing: 0.07em;">
                 Step 1: Incident & Claim Details
               </h4>
@@ -343,7 +344,7 @@
                 <div class="form-group">
                   <label class="form-label" for="input-incident-date">Incident / Admission Date</label>
                   <input type="date" id="input-incident-date" class="form-input">
-                  <span class="form-hint">Date of occurrence or admission for policy coverage verification.</span>
+                  <span class="form-hint">Date of occurrence or hospital admission for policy coverage verification.</span>
                 </div>
 
                 <div class="form-group">
@@ -354,7 +355,7 @@
                     <option value="auto">Auto / Motor Vehicle</option>
                     <option value="general">General Insurance</option>
                   </select>
-                  <span class="form-hint">Governs document requirement checklist.</span>
+                  <span class="form-hint">Directs document requirement rules and clause auditor.</span>
                 </div>
 
                 <div class="form-group">
@@ -366,7 +367,7 @@
                 <div class="form-group">
                   <label class="form-label" for="input-incident-notes">Hospital / Incident Location (Optional)</label>
                   <input type="text" id="input-incident-notes" class="form-input" placeholder="e.g. City Hospital, ER Admission">
-                  <span class="form-hint">Extra event details not found in the original policy.</span>
+                  <span class="form-hint">Supplemental context for the agent's observation log.</span>
                 </div>
 
                 <div class="form-group full-width">
@@ -374,11 +375,11 @@
                   <input type="text" id="input-claim-goal" class="form-input"
                     value="Determine claim readiness, validate medical bills, and detect any missing evidence."
                     placeholder="Enter claim objective...">
-                  <span class="form-hint">Directs the autonomous agent's multi-step planning and tool invocations.</span>
+                  <span class="form-hint">Directs the autonomous agent's strategic planning and dynamic tool calls.</span>
                 </div>
               </div>
 
-              <!-- Step 2: Documents Upload (Two Distinct Dropzones) -->
+              <!-- Step 2: Documents Upload -->
               <h4 style="font-size: 0.82rem; font-weight: 700; color: var(--accent); margin: 22px 0 14px; text-transform: uppercase; letter-spacing: 0.07em;">
                 Step 2: Upload Documents
               </h4>
@@ -387,8 +388,8 @@
                 <!-- Dropzone 1: Policy Document -->
                 <div class="dropzone-wrapper">
                   <label class="form-label">
-                    <span>Insurance Policy</span>
-                    <span style="font-size: 0.68rem; color: var(--accent);">Required PDF</span>
+                    <span>Insurance Policy Document</span>
+                    <span style="font-size: 0.68rem; color: var(--accent);">PDF Format</span>
                   </label>
                   <div class="dropzone-box" id="policy-dropzone">
                     <input type="file" id="policy-file-input" accept=".pdf">
@@ -396,7 +397,7 @@
                       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
                     </div>
                     <div class="dropzone-title">Upload Policy Document</div>
-                    <div class="dropzone-hint">Drag & drop policy PDF, or browse</div>
+                    <div class="dropzone-hint">Drag & drop policy PDF, or click to browse</div>
                   </div>
                   <div class="file-list" id="policy-files-list"></div>
                 </div>
@@ -413,15 +414,15 @@
                       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
                     </div>
                     <div class="dropzone-title">Upload Supporting Files</div>
-                    <div class="dropzone-hint">Multiple PDF evidence documents supported</div>
+                    <div class="dropzone-hint">Multiple PDF documents supported</div>
                   </div>
                   <div class="file-list" id="claim-files-list"></div>
                 </div>
               </div>
 
-              <!-- Step 3: Review Summary & Secondary Advanced Settings -->
+              <!-- Step 3: Review Summary & Execution Settings -->
               <h4 style="font-size: 0.82rem; font-weight: 700; color: var(--accent); margin: 22px 0 14px; text-transform: uppercase; letter-spacing: 0.07em;">
-                Step 3: Review & Preparation
+                Step 3: Review & Execution Settings
               </h4>
 
               <div class="review-summary-card">
@@ -446,35 +447,40 @@
                 <span class="badge badge-processing">Ready to Orchestrate</span>
               </div>
 
-              <!-- Collapsible Advanced Configuration -->
-              <div class="advanced-settings-box">
-                <button type="button" class="advanced-settings-toggle" onclick="document.getElementById('advanced-settings-panel').classList.toggle('hidden');">
-                  <span>Advanced Configuration</span>
-                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
-                </button>
-                <div class="advanced-settings-content" id="advanced-settings-panel">
-                  <label class="toggle-switch">
-                    <input type="checkbox" id="toggle-offline-mode" class="toggle-input" checked>
-                    <span class="toggle-slider"></span>
-                    <span class="toggle-label-text">Offline Grounded Mode (Fast Deterministic Extraction)</span>
+              <!-- Execution Options -->
+              <div class="advanced-settings-box" style="margin-top: 14px;">
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px;">
+                  <label class="setting-toggle-item">
+                    <input type="checkbox" id="check-offline-mode" checked>
+                    <div>
+                      <span class="setting-title">Offline Mode</span>
+                      <span class="setting-desc">Use local OCR & deterministic rule engine</span>
+                    </div>
                   </label>
 
-                  <label class="toggle-switch">
-                    <input type="checkbox" id="toggle-auto-run" class="toggle-input" checked>
-                    <span class="toggle-slider"></span>
-                    <span class="toggle-label-text">Auto-run Agent upon submission</span>
+                  <label class="setting-toggle-item">
+                    <input type="checkbox" id="check-auto-run" checked>
+                    <div>
+                      <span class="setting-title">Auto-Run Agent</span>
+                      <span class="setting-desc">Execute autonomous analysis upon creation</span>
+                    </div>
                   </label>
+
+                  <div class="form-group" style="margin: 0;">
+                    <label class="form-label" for="input-max-pages" style="font-size: 0.72rem;">Max Pages per PDF</label>
+                    <input type="number" id="input-max-pages" class="form-input" value="3" min="1" max="10" style="padding: 4px 8px;">
+                  </div>
                 </div>
               </div>
 
-              <!-- Form Actions Bar -->
-              <div class="form-actions">
+              <!-- Form Actions -->
+              <div class="form-actions-bar" style="margin-top: 20px; display: flex; justify-content: flex-end; gap: 10px;">
                 <button type="button" class="btn btn-secondary" id="btn-reset-form">
-                  Clear Form
+                  <span>Reset Form</span>
                 </button>
-                <button type="submit" class="btn btn-primary btn-lg" id="btn-submit-claim">
-                  <span>Start Claim Analysis</span>
-                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+                <button type="submit" class="btn btn-primary" id="btn-submit-claim">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+                  <span>Submit & Launch Agent</span>
                 </button>
               </div>
             </form>
@@ -482,34 +488,46 @@
         </section>
 
         <!-- ================================================================ -->
-        <!-- VIEW 3: CLAIMS ARCHIVE / HISTORY -->
+        <!-- VIEW 3: CLAIMS ARCHIVE -->
         <!-- ================================================================ -->
         <section class="view-section" id="view-claims">
           <div class="page-header">
             <div class="page-title-group">
-              <h2>Claims Archive</h2>
-              <p>Historical audit trail of all insurance claim sessions and autonomous analysis packages.</p>
+              <h2>Historical Claims Archive</h2>
+              <p>Browse, inspect, and evaluate stored claims and execution histories.</p>
             </div>
-            <button class="btn btn-primary btn-sm" data-action="new-claim">
-              + New Claim
-            </button>
+            <div style="display: flex; gap: 8px;">
+              <button class="btn btn-secondary btn-sm" id="btn-refresh-claims">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+                <span>Refresh</span>
+              </button>
+              <button class="btn btn-primary btn-sm" data-action="new-claim">
+                <span>+ New Claim</span>
+              </button>
+            </div>
           </div>
 
           <div class="card">
-            <div class="table-controls">
-              <div class="search-box">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-                <input type="text" id="claims-page-search" placeholder="Search claims by ID, Policy, or Type...">
-              </div>
-              <div class="filter-group">
-                <select class="select-input" id="claims-page-filter">
-                  <option value="ALL">All Statuses</option>
-                  <option value="RUNNING">Agent Running</option>
-                  <option value="READY">Ready</option>
-                  <option value="MISSING">Action Required</option>
-                  <option value="PENDING">Pending</option>
-                  <option value="FAILED">Failed</option>
-                </select>
+            <div class="card-header">
+              <h3 class="card-title">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                <span>All Claim Sessions</span>
+              </h3>
+              <div class="table-controls">
+                <div class="search-box">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                  <input type="text" id="claims-page-search" placeholder="Filter by Claim ID or Type...">
+                </div>
+                <div class="filter-group">
+                  <select class="select-input" id="claims-page-filter">
+                    <option value="ALL">All Statuses</option>
+                    <option value="RUNNING">Agent Running</option>
+                    <option value="READY">Ready</option>
+                    <option value="MISSING">Action Required</option>
+                    <option value="PENDING">Pending</option>
+                    <option value="FAILED">Failed</option>
+                  </select>
+                </div>
               </div>
             </div>
 
@@ -518,16 +536,16 @@
                 <thead>
                   <tr>
                     <th>Claim ID</th>
-                    <th>Policy Number</th>
+                    <th>Policy Reference</th>
                     <th>Claim Type</th>
-                    <th>Created</th>
+                    <th>Created At</th>
                     <th>Documents</th>
                     <th>Status</th>
-                    <th>Action</th>
+                    <th>Actions</th>
                   </tr>
                 </thead>
                 <tbody id="all-claims-tbody">
-                  <!-- Injected via dashboard.js -->
+                  <!-- Populated dynamically via dashboard.js -->
                 </tbody>
               </table>
             </div>
@@ -535,39 +553,36 @@
         </section>
 
         <!-- ================================================================ -->
-        <!-- VIEW 4: ACTIVE CLAIM DOCUMENTS -->
+        <!-- VIEW 4: DOCUMENTS INSPECTOR -->
         <!-- ================================================================ -->
         <section class="view-section" id="view-documents">
           <div class="page-header">
             <div class="page-title-group">
-              <h2>Claim Documents</h2>
-              <p>Inspect extracted document metadata, field completeness, and validity statuses.</p>
+              <h2>Extracted Document Intelligence</h2>
+              <p>Page-by-page vision classification, extracted entity fields, and policy clauses.</p>
+            </div>
+            <div class="header-right-meta" id="docs-active-claim-pill">
+              <!-- Active claim indicator -->
             </div>
           </div>
 
           <div class="card">
-            <div class="card-header">
-              <h3 class="card-title">
-                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
-                <span>Submitted Documents</span>
-              </h3>
-            </div>
             <div class="table-responsive">
               <table class="data-table">
                 <thead>
                   <tr>
-                    <th>Document</th>
-                    <th>Type</th>
-                    <th>Pages</th>
-                    <th>Extraction</th>
+                    <th>Page / Source</th>
+                    <th>Document Classification</th>
+                    <th>Policy / Ref No.</th>
+                    <th>Holder / Patient</th>
+                    <th>Dates</th>
+                    <th>Amount</th>
                     <th>Validation</th>
-                    <th>Validity</th>
-                    <th>Status</th>
-                    <th>Action</th>
+                    <th>Details</th>
                   </tr>
                 </thead>
                 <tbody id="docs-table-tbody">
-                  <!-- Injected via documents.js -->
+                  <!-- Populated dynamically via documents.js -->
                 </tbody>
               </table>
             </div>
@@ -575,7 +590,7 @@
         </section>
 
         <!-- ================================================================ -->
-        <!-- VIEW 5: AGENT ACTIVITY (AI OPERATIONS CONSOLE) -->
+        <!-- VIEW 5: AGENT ACTIVITY (DYNAMIC AGENTIC AI WORKSPACE) -->
         <!-- ================================================================ -->
         <section class="view-section" id="view-agent">
           <!-- Active Execution Banner -->
@@ -584,88 +599,77 @@
               <div class="agent-icon-badge">
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
               </div>
-              <div>
-                <h3 style="font-size: 1.05rem; font-weight: 700; color: #FFFFFF;">InsureMate Agent Workflow</h3>
-                <p style="font-size: 0.78rem; color: var(--text-muted);" id="agent-goal-display">Decomposing claim objective into autonomous tool invocations...</p>
+              <div class="banner-title-group">
+                <h3>Autonomous Agent Operations Console</h3>
+                <p id="agent-goal-display">Decomposing claim objective into autonomous tool invocations...</p>
               </div>
             </div>
             <div class="banner-meta">
               <span>Claim ID: <strong id="agent-claim-id-display">--</strong></span>
-              <span>Iteration: <strong id="agent-iteration-count">0</strong></span>
+              <span>Iterations: <strong id="agent-iteration-count">0</strong></span>
               <span class="badge badge-processing" id="agent-status-pill">INITIALIZED</span>
             </div>
-          </div>
-
-          <!-- 8-Stage Pipeline Stepper -->
-          <div class="stepper-container">
-            <div class="stepper-track" id="stepper-track">
-              <!-- Injected via agent.js -->
+            <div class="banner-actions">
+              <button class="btn btn-secondary btn-sm" id="btn-agent-refresh" title="Reload status from backend">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+                <span>Refresh</span>
+              </button>
+              <button class="btn btn-primary btn-sm" id="btn-agent-start-run">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+                <span>Run Agent</span>
+              </button>
+              <button class="btn btn-secondary btn-sm" id="btn-agent-view-results" style="display: none;">
+                <span>View Results</span>
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
+              </button>
             </div>
           </div>
 
-          <!-- Agent Tools Orchestration Status Panel -->
+          <!-- Dynamic Observed Execution Sequence (#stepper-track) -->
+          <div class="stepper-container">
+            <div class="stepper-header">
+              <div class="stepper-title">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+                <span>Observed Execution Sequence (LLM Tool Invocations)</span>
+              </div>
+              <span style="font-size: 0.72rem; color: var(--text-muted);">
+                Real tool decisions selected dynamically based on intermediate observations
+              </span>
+            </div>
+
+            <!-- Dynamic Execution Nodes Injected Here -->
+            <div class="stepper-track" id="stepper-track">
+              <!-- Dynamically populated via agent.js -->
+            </div>
+          </div>
+
+          <!-- Dynamic Tool Capability Registry Panel -->
           <div class="agent-tools-panel">
             <div class="agent-tools-header">
               <div class="agent-tools-title">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="7" width="20" height="14" rx="2" ry="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>
-                <span>Orchestrated Tools</span>
+                <span>Agent Capability Catalog (Discovered via /api/tools)</span>
               </div>
-              <span style="font-size: 0.72rem; color: var(--text-subtle);">4 Available</span>
+              <span class="badge badge-neutral" id="agent-tools-count-badge">Discovering tools...</span>
             </div>
-            <div class="agent-tools-grid">
-              <div class="tool-card" id="tool-card-extraction">
-                <div class="tool-card-info">
-                  <span class="tool-card-name">Qwen-VL Vision Extraction</span>
-                  <span class="tool-card-desc">Multimodal PDF parser</span>
-                </div>
-                <span class="badge badge-ready">Online</span>
-              </div>
 
-              <div class="tool-card" id="tool-card-validation">
-                <div class="tool-card-info">
-                  <span class="tool-card-name">Document Validation</span>
-                  <span class="tool-card-desc">Completeness & structure check</span>
-                </div>
-                <span class="badge badge-ready">Online</span>
-              </div>
-
-              <div class="tool-card" id="tool-card-validity">
-                <div class="tool-card-info">
-                  <span class="tool-card-name">Coverage Validity Checker</span>
-                  <span class="tool-card-desc">Policy window audit</span>
-                </div>
-                <span class="badge badge-ready">Online</span>
-              </div>
-
-              <div class="tool-card" id="tool-card-missing">
-                <div class="tool-card-info">
-                  <span class="tool-card-name">Missing Document Detector</span>
-                  <span class="tool-card-desc">Clause evidence verification</span>
-                </div>
-                <span class="badge badge-ready">Online</span>
-              </div>
+            <!-- Dynamically populated tool cards from backend registry -->
+            <div class="agent-tools-grid" id="agent-tools-grid">
+              <!-- Populated dynamically via agent.js -->
             </div>
           </div>
 
-          <!-- Agent Decision Panel (2x2 Grid) -->
+          <!-- Dynamic Decision & Reasoning Workspace (2x2 Grid) -->
           <div class="decision-card">
             <div class="card-header" style="margin-bottom: 14px;">
               <h3 class="card-title">
                 <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg>
-                <span>Agent Decision & Reasoning</span>
+                <span>Dynamic Agent Decision & Observation Workspace</span>
               </h3>
-              <div style="display: flex; gap: 8px;">
-                <button class="btn btn-secondary btn-sm" id="btn-agent-start-run">
-                  Re-run Agent
-                </button>
-                <button class="btn btn-primary btn-sm" id="btn-agent-view-results" style="display: none;">
-                  <span>View Claim Result</span>
-                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
-                </button>
-              </div>
             </div>
 
             <div class="decision-grid">
+              <!-- Block 1: Current Objective -->
               <div class="decision-block">
                 <div class="decision-block-title">Current Objective</div>
                 <div class="decision-block-content" id="agent-current-objective">
@@ -673,39 +677,53 @@
                 </div>
               </div>
 
+              <!-- Block 2: Latest Observation -->
               <div class="decision-block">
-                <div class="decision-block-title">Next Scheduled Action</div>
+                <div class="decision-block-title">Latest Observed Result</div>
+                <div class="decision-block-content" id="agent-latest-observation">
+                  Waiting for initial tool observation.
+                </div>
+              </div>
+
+              <!-- Block 3: Next Selected Action -->
+              <div class="decision-block">
+                <div class="decision-block-title">Next Selected Action</div>
                 <div class="decision-block-content" style="font-weight: 600; color: var(--accent);" id="agent-next-action">
                   Autonomous Planning
                 </div>
               </div>
 
-              <div class="decision-block">
-                <div class="decision-block-title">Completed Actions</div>
-                <ul class="action-checklist" id="agent-completed-actions">
-                  <li>No actions completed yet.</li>
-                </ul>
-              </div>
-
+              <!-- Block 4: Operational Reasoning -->
               <div class="decision-block">
                 <div class="decision-block-title">Operational Decision / Reasoning</div>
                 <div class="decision-block-content" id="agent-decision-reason" style="font-size: 0.8rem; color: var(--text-secondary);">
-                  Awaiting agent trigger to begin multi-step execution.
+                  Awaiting agent trigger to begin autonomous multi-step execution.
                 </div>
+              </div>
+
+              <!-- Block 5: Completed Actions Checklist -->
+              <div class="decision-block" style="grid-column: 1 / -1;">
+                <div class="decision-block-title">Verified Completed Actions</div>
+                <ul class="action-checklist" id="agent-completed-actions">
+                  <li>No actions completed yet.</li>
+                </ul>
               </div>
             </div>
           </div>
 
           <!-- Chronological Tool Execution Activity Timeline -->
-          <div class="card">
-            <div class="card-header">
+          <div class="card timeline-card">
+            <div class="timeline-header-main">
               <h3 class="card-title">
                 <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-                <span>Tool Execution Activity</span>
+                <span>Chronological Tool Execution Trace</span>
               </h3>
+              <span style="font-size: 0.72rem; color: var(--text-muted);">
+                Granular record of all tool calls, inputs, durations, and output observations
+              </span>
             </div>
             <div class="timeline-container" id="agent-timeline-container">
-              <!-- Injected via agent.js -->
+              <!-- Populated dynamically via agent.js -->
             </div>
           </div>
         </section>
@@ -721,7 +739,7 @@
                 <div id="results-verdict-icon" style="font-size: 2.2rem; font-weight: 700; color: var(--emerald);">✓</div>
                 <div>
                   <div style="font-size: 0.68rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-muted);">
-                    CLAIM ASSESSMENT
+                    CLAIM READINESS ASSESSMENT
                   </div>
                   <h2 id="results-verdict-title" style="font-size: 1.35rem; font-weight: 700; color: #FFFFFF; margin: 2px 0 4px;">
                     CLAIM READY
@@ -732,9 +750,10 @@
                 </div>
               </div>
 
-              <div style="display: flex; gap: 8px;">
+              <div style="display: flex; gap: 8px; flex-wrap: wrap;">
                 <button class="btn btn-secondary btn-sm" id="btn-copy-claim-summary">Copy Report</button>
                 <button class="btn btn-secondary btn-sm" id="btn-copy-raw-json">Copy JSON</button>
+                <button class="btn btn-secondary btn-sm" id="btn-download-claim-report">Download Report</button>
                 <button class="btn btn-primary btn-sm" data-action="new-claim">+ New Claim</button>
               </div>
             </div>
@@ -768,7 +787,7 @@
               <div class="kpi-content">
                 <div class="kpi-title">Missing Evidence</div>
                 <div class="kpi-value text-amber" id="metric-results-missing">0</div>
-                <div class="kpi-subtext">Required policy clauses</div>
+                <div class="kpi-subtext">Unfulfilled policy clauses</div>
               </div>
               <div class="kpi-icon-badge">
                 <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
@@ -779,7 +798,7 @@
               <div class="kpi-content">
                 <div class="kpi-title">Validity Status</div>
                 <div class="kpi-value" id="metric-results-validity">PASS</div>
-                <div class="kpi-subtext">Policy period check</div>
+                <div class="kpi-subtext">Coverage window audit</div>
               </div>
               <div class="kpi-icon-badge">
                 <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
@@ -790,24 +809,12 @@
           <!-- Tabbed Deep-Dive Results -->
           <div class="card">
             <div class="results-tab-nav">
-              <button class="results-tab-btn active" data-tab="tab-overview">
-                Overview
-              </button>
-              <button class="results-tab-btn" data-tab="tab-missing-evidence">
-                Missing Evidence
-              </button>
-              <button class="results-tab-btn" data-tab="tab-validity-math">
-                Validity & Dates
-              </button>
-              <button class="results-tab-btn" data-tab="tab-doc-validation">
-                Document Validation
-              </button>
-              <button class="results-tab-btn" data-tab="tab-extracted-entities">
-                Extracted Information
-              </button>
-              <button class="results-tab-btn" data-tab="tab-raw-state">
-                Technical Details
-              </button>
+              <button class="results-tab-btn active" data-tab="tab-overview">Overview</button>
+              <button class="results-tab-btn" data-tab="tab-missing-evidence">Missing Evidence</button>
+              <button class="results-tab-btn" data-tab="tab-validity-math">Validity & Dates</button>
+              <button class="results-tab-btn" data-tab="tab-doc-validation">Document Validation</button>
+              <button class="results-tab-btn" data-tab="tab-extracted-entities">Extracted Information</button>
+              <button class="results-tab-btn" data-tab="tab-raw-state">Technical Details</button>
             </div>
 
             <!-- Tab 1: Overview Summary -->
@@ -817,6 +824,13 @@
                 <p id="results-overview-summary-text" style="font-size: 0.82rem; color: var(--text-secondary); line-height: 1.5;">
                   Select a claim or execute the InsureMate Agent to view the comprehensive synthesis.
                 </p>
+              </div>
+
+              <div style="background: #09101E; border: 1px solid var(--border-subtle); border-radius: var(--radius-sm); padding: 18px;">
+                <h4 style="font-size: 0.88rem; font-weight: 600; color: #FFFFFF; margin-bottom: 8px;">Action Items & Recommendations</h4>
+                <ul id="results-action-items-list" class="action-checklist">
+                  <li style="color: var(--text-muted);">No action items recorded.</li>
+                </ul>
               </div>
             </div>
 
@@ -834,7 +848,7 @@
                     </tr>
                   </thead>
                   <tbody id="missing-evidence-tbody">
-                    <!-- Injected via claim.js -->
+                    <!-- Populated dynamically via claim.js -->
                   </tbody>
                 </table>
               </div>
@@ -842,80 +856,69 @@
 
             <!-- Tab 3: Validity & Dates -->
             <div class="results-tab-pane" id="tab-validity-math">
-              <div style="background: #09101E; padding: 14px 18px; border-radius: var(--radius-sm); border: 1px solid var(--border-subtle); margin-bottom: 14px; display: flex; align-items: center; justify-content: space-between;">
+              <div style="background: #09101E; padding: 16px 18px; border-radius: var(--radius-sm); border: 1px solid var(--border-subtle); margin-bottom: 16px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px;">
                 <div>
                   <div style="font-size: 0.68rem; text-transform: uppercase; color: var(--text-muted); font-weight: 600;">Active Policy Period</div>
                   <div style="font-size: 0.95rem; font-weight: 700; color: var(--accent); font-family: var(--font-mono);" id="validity-policy-dates">
                     -- ⟶ --
                   </div>
                 </div>
-                <span class="badge badge-success">Coverage Verified</span>
+                <div>
+                  <span class="badge badge-ready" id="validity-math-status">VALID</span>
+                </div>
               </div>
 
-              <div class="table-responsive">
-                <table class="data-table">
-                  <thead>
-                    <tr>
-                      <th>Document Type</th>
-                      <th>Page #</th>
-                      <th>Document Date</th>
-                      <th>Normalized Date</th>
-                      <th>Coverage Check</th>
-                      <th>Reason</th>
-                    </tr>
-                  </thead>
-                  <tbody id="validity-checks-tbody">
-                    <!-- Injected via claim.js -->
-                  </tbody>
-                </table>
+              <div id="validity-checks-list" style="display: flex; flex-direction: column; gap: 10px;">
+                <!-- Populated dynamically via claim.js -->
               </div>
             </div>
 
             <!-- Tab 4: Document Validation -->
             <div class="results-tab-pane" id="tab-doc-validation">
-              <div id="validation-results-container">
-                <!-- Injected via claim.js -->
+              <div id="doc-validation-list" style="display: flex; flex-direction: column; gap: 10px;">
+                <!-- Populated dynamically via claim.js -->
               </div>
             </div>
 
-            <!-- Tab 5: Extracted Information -->
+            <!-- Tab 5: Extracted Entities -->
             <div class="results-tab-pane" id="tab-extracted-entities">
-              <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 14px;" id="results-extracted-grid">
-                <!-- Injected via claim.js -->
+              <div id="extracted-entities-container" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 14px;">
+                <!-- Populated dynamically via claim.js -->
               </div>
             </div>
 
-            <!-- Tab 6: Technical Details (ClaimState JSON) -->
+            <!-- Tab 6: Technical Details (Raw JSON) -->
             <div class="results-tab-pane" id="tab-raw-state">
-              <div style="margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center;">
-                <span style="font-size: 0.78rem; color: var(--text-muted);">Internal Agent ClaimState memory envelope:</span>
-                <button class="btn btn-secondary btn-sm" onclick="Utils.copyToClipboard(document.getElementById('claim-raw-json-code').textContent)">Copy JSON</button>
+              <div style="background: #060B14; border: 1px solid var(--border-subtle); border-radius: var(--radius-sm); padding: 14px; overflow-x: auto;">
+                <pre id="claim-raw-json-code" style="margin: 0; font-family: var(--font-mono); font-size: 0.72rem; color: #E2E8F0; max-height: 500px; overflow-y: auto;">
+// Raw claim session state will appear here
+                </pre>
               </div>
-              <pre style="background: #09101E; padding: 14px; border-radius: var(--radius-sm); border: 1px solid var(--border-subtle); font-family: var(--font-mono); font-size: 0.76rem; overflow-x: auto; color: var(--text-secondary); max-height: 440px;"><code id="claim-raw-json-code">{}</code></pre>
             </div>
           </div>
         </section>
 
       </main>
 
-      <!-- App Footer -->
+      <!-- Global App Footer -->
       <footer class="app-footer">
-        <div>InsureMate — Autonomous Insurance Claim Analysis & Preparation System</div>
-        <div>FastAPI • SQLite Memory • Qwen-VL Vision • Gemma 3 (Ollama)</div>
+        <div>InsureMate — Agentic AI Insurance Claim Preparation System</div>
+        <div>FastAPI REST API & Autonomous Agent Orchestrator</div>
       </footer>
     </div>
   </div>
 
-  <!-- Document Detail Modal -->
+  <!-- ==================================================================== -->
+  <!-- MODAL 1: DOCUMENT DETAIL INSPECTOR -->
+  <!-- ==================================================================== -->
   <div class="modal-overlay" id="doc-detail-modal">
     <div class="modal-card">
       <div class="modal-header">
-        <h3 id="modal-doc-title">Document Details</h3>
-        <button class="btn-icon" id="btn-close-doc-modal" title="Close">&times;</button>
+        <h3 id="doc-modal-title">Document Inspection</h3>
+        <button class="btn btn-icon btn-sm" id="btn-close-doc-modal" aria-label="Close modal">✕</button>
       </div>
-      <div class="modal-body">
-        <div id="modal-doc-meta"></div>
-        <div id="modal-doc-fields"></div>
+      <div class="modal-body" id="doc-modal-body">
+        <!-- Injected via documents.js -->
       </div>
       <div class="modal-footer">
         <button class="btn btn-secondary btn-sm" onclick="Utils.closeModal('doc-detail-modal')">Close</button>
@@ -923,10 +926,50 @@
     </div>
   </div>
 
-  <!-- Non-blocking Toast Container -->
+  <!-- ==================================================================== -->
+  <!-- MODAL 2: TOOL SCHEMA INSPECTOR -->
+  <!-- ==================================================================== -->
+  <div class="modal-overlay" id="tool-schema-modal">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3 id="tool-schema-modal-title">Tool Schema & Parameters</h3>
+        <button class="btn btn-icon btn-sm" id="btn-close-schema-modal" aria-label="Close modal">✕</button>
+      </div>
+      <div class="modal-body" id="tool-schema-modal-body">
+        <!-- Injected via agent.js -->
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary btn-sm" onclick="Utils.closeModal('tool-schema-modal')">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================================================================== -->
+  <!-- MODAL 3: DELETE CLAIM CONFIRMATION -->
+  <!-- ==================================================================== -->
+  <div class="modal-overlay" id="delete-confirm-modal">
+    <div class="modal-card" style="max-width: 440px;">
+      <div class="modal-header">
+        <h3>Delete Claim Session</h3>
+        <button class="btn btn-icon btn-sm" id="btn-close-delete-modal" aria-label="Close modal">✕</button>
+      </div>
+      <div class="modal-body">
+        <p style="color: var(--text-secondary); font-size: 0.84rem; line-height: 1.5;">
+          Are you sure you want to delete claim <strong id="delete-claim-id-label" style="color: #FFFFFF;">--</strong>?
+          This action will permanently remove the claim record and uploaded documents.
+        </p>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary btn-sm" id="btn-cancel-delete">Cancel</button>
+        <button class="btn btn-danger btn-sm" id="btn-confirm-delete">Delete Permanently</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast Notification Container -->
   <div class="toast-container" id="toast-container"></div>
 
-  <!-- JavaScript Modules with Relative Paths -->
+  <!-- Application Logic Modules -->
   <script src="js/utils.js"></script>
   <script src="js/api.js"></script>
   <script src="js/state.js"></script>

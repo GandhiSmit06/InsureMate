@@ -1,8 +1,8 @@
 /**
  * frontend/js/app.js
  * Master Application Shell Orchestrator.
- * Handles SPA view switching, active claim synchronization, health check verification,
- * and mobile navigation drawers.
+ * Handles SPA view switching, hash routing, active claim synchronization,
+ * health check verification, and mobile navigation drawers.
  */
 
 const App = {
@@ -10,15 +10,16 @@ const App = {
   currentView: 'dashboard',
 
   async init() {
-    console.log('🚀 Initializing InsureMate Application Shell...');
+    console.log('🚀 Initializing InsureMate Dynamic AI Platform Shell...');
 
     this.bindNavigation();
     this.bindMobileSidebar();
+    this.bindActiveClaimClear();
 
     // Initialize Sub-Modules
     if (window.Dashboard) await window.Dashboard.init();
     if (window.Upload) window.Upload.init();
-    if (window.AgentView) window.AgentView.init();
+    if (window.AgentView) await window.AgentView.init();
     if (window.DocumentsView) window.DocumentsView.init();
     if (window.ClaimView) window.ClaimView.init();
 
@@ -30,8 +31,21 @@ const App = {
       this.updateActiveClaimHeader(claimId);
     });
 
-    // Default to dashboard
-    this.navigateTo('dashboard');
+    // Hash-based initial route or default to dashboard
+    const initialHash = window.location.hash.replace(/^#\/?/, '');
+    if (this.views.includes(initialHash)) {
+      this.navigateTo(initialHash, false);
+    } else {
+      this.navigateTo('dashboard', false);
+    }
+
+    // Handle browser back/forward
+    window.addEventListener('popstate', () => {
+      const hash = window.location.hash.replace(/^#\/?/, '');
+      if (this.views.includes(hash) && hash !== this.currentView) {
+        this.navigateTo(hash, false);
+      }
+    });
   },
 
   bindNavigation() {
@@ -67,11 +81,25 @@ const App = {
     }
   },
 
-  navigateTo(viewName) {
+  bindActiveClaimClear() {
+    const clearBtn = document.getElementById('btn-clear-active-claim');
+    if (clearBtn) {
+      clearBtn.addEventListener('click', () => {
+        AppState.setActiveClaim(null);
+        Utils.showToast('Active claim deselected.', 'info', 1000);
+      });
+    }
+  },
+
+  navigateTo(viewName, updateHistory = true) {
     if (!this.views.includes(viewName)) return;
 
     this.currentView = viewName;
     AppState.set({ currentView: viewName });
+
+    if (updateHistory) {
+      window.history.pushState(null, '', `#/${viewName}`);
+    }
 
     // Update Sidebar active link
     document.querySelectorAll('.nav-link[data-view]').forEach(link => {
@@ -108,6 +136,13 @@ const App = {
       titleEl.textContent = titles[viewName] || 'Operations';
     }
 
+    // Refresh view data when navigating to specific screens
+    if (viewName === 'agent' && window.AgentView) {
+      window.AgentView.fetchAndRenderToolRegistry();
+    } else if (viewName === 'claims' && window.Dashboard) {
+      window.Dashboard.refresh();
+    }
+
     window.scrollTo({ top: 0, behavior: 'smooth' });
   },
 
@@ -133,10 +168,20 @@ const App = {
       const statusPill = document.getElementById('header-system-status-pill');
 
       if (statusText) {
-        statusText.textContent = `${health.available_tools_count || 4} Tools Online`;
+        statusText.textContent = `${health.available_tools_count || 6} Tools Online`;
       }
       if (statusPill) {
         statusPill.style.display = 'inline-flex';
+      }
+
+      const sidebarToolsCount = document.getElementById('sidebar-tools-count');
+      if (sidebarToolsCount) {
+        sidebarToolsCount.textContent = `${health.available_tools_count || 6} tools available`;
+      }
+
+      const heroStatTools = document.getElementById('hero-stat-tools');
+      if (heroStatTools) {
+        heroStatTools.textContent = String(health.available_tools_count || 6).padStart(2, '0');
       }
     } catch (err) {
       console.warn('Backend health check returned warning:', err);

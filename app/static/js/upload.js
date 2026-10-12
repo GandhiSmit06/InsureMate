@@ -1,8 +1,8 @@
 /**
  * frontend/js/upload.js
- * Claim Creation & File Upload Workflow.
- * Step progress tracker, drag-and-drop validation, multi-file support,
- * offline mode toggle, and agent execution trigger.
+ * Claim Creation & File Upload Controller.
+ * Manages dual dropzones (Policy PDF + Supporting Evidence PDFs),
+ * dynamic review card updates, offline mode toggles, and seamless submission.
  */
 
 const Upload = {
@@ -13,6 +13,7 @@ const Upload = {
     this.setupDropzones();
     this.bindFormEvents();
     this.updateWizardSteps(1);
+    this.updateReviewCard();
   },
 
   updateWizardSteps(activeStepNum) {
@@ -39,7 +40,7 @@ const Upload = {
 
     if (refEl) refEl.textContent = claimNum || 'Auto-Generated';
     if (typeEl) typeEl.textContent = claimType ? (claimType.charAt(0).toUpperCase() + claimType.slice(1)) : 'Health';
-    if (policyEl) policyEl.textContent = this.policyFile ? `${this.policyFile.name} (Auto-OCR)` : 'None';
+    if (policyEl) policyEl.textContent = this.policyFile ? `${this.policyFile.name}` : 'None';
     if (countEl) countEl.textContent = `${this.claimFiles.length} file(s)`;
   },
 
@@ -60,7 +61,7 @@ const Upload = {
       });
     }
 
-    // Supporting Documents Dropzone (Multiple Files)
+    // Supporting Evidence Dropzone
     const claimZone = document.getElementById('claim-dropzone');
     const claimInput = document.getElementById('claim-file-input');
 
@@ -76,7 +77,7 @@ const Upload = {
       });
     }
 
-    // Form inputs change listener to track step progress & update review card
+    // Inputs change listener to track step progress & review card
     const inputs = ['input-claim-number', 'select-claim-type', 'input-incident-date', 'input-incident-notes', 'input-claim-goal'];
     inputs.forEach(id => {
       const el = document.getElementById(id);
@@ -138,37 +139,36 @@ const Upload = {
 
   validateFile(file) {
     if (!file.name.toLowerCase().endsWith('.pdf')) {
-      Utils.showToast(`Unsupported format: "${file.name}". Only PDF files (.pdf) are supported.`, 'error');
+      Utils.showToast(`File "${file.name}" rejected: Only PDF files are supported.`, 'error');
       return false;
     }
-    if (file.size > 50 * 1024 * 1024) {
-      Utils.showToast(`File "${file.name}" exceeds 50 MB limit.`, 'error');
+    const maxBytes = 25 * 1024 * 1024; // 25 MB
+    if (file.size > maxBytes) {
+      Utils.showToast(`File "${file.name}" exceeds 25 MB limit.`, 'error');
       return false;
     }
     return true;
   },
 
   renderPolicyPreview() {
-    const container = document.getElementById('policy-files-list');
-    if (!container) return;
+    const list = document.getElementById('policy-files-list');
+    if (!list) return;
 
     if (!this.policyFile) {
-      container.innerHTML = '';
+      list.innerHTML = '';
       return;
     }
 
-    container.innerHTML = `
+    list.innerHTML = `
       <div class="file-chip">
         <div class="file-chip-info">
-          <span class="file-chip-icon">
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
-          </span>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
           <div>
             <div class="file-chip-name" title="${Utils.escapeHtml(this.policyFile.name)}">${Utils.escapeHtml(this.policyFile.name)}</div>
-            <div class="file-chip-size">${Utils.formatFileSize(this.policyFile.size)} • PDF • Ready</div>
+            <div class="file-chip-size">${Utils.formatFileSize(this.policyFile.size)} • Policy PDF</div>
           </div>
         </div>
-        <button type="button" class="file-chip-remove" title="Remove File" onclick="Upload.removePolicyFile()">&times;</button>
+        <button type="button" class="file-chip-remove" title="Remove Policy Document" onclick="Upload.removePolicyFile()">&times;</button>
       </div>
     `;
   },
@@ -179,27 +179,25 @@ const Upload = {
     if (input) input.value = '';
     this.renderPolicyPreview();
     this.updateReviewCard();
-    if (this.claimFiles.length === 0) this.updateWizardSteps(1);
+    if (!this.policyFile && this.claimFiles.length === 0) this.updateWizardSteps(1);
   },
 
   renderClaimFilesPreview() {
-    const container = document.getElementById('claim-files-list');
-    if (!container) return;
+    const list = document.getElementById('claim-files-list');
+    if (!list) return;
 
     if (this.claimFiles.length === 0) {
-      container.innerHTML = '';
+      list.innerHTML = '';
       return;
     }
 
-    container.innerHTML = this.claimFiles.map((file, idx) => `
+    list.innerHTML = this.claimFiles.map((file, idx) => `
       <div class="file-chip">
         <div class="file-chip-info">
-          <span class="file-chip-icon">
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
-          </span>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
           <div>
             <div class="file-chip-name" title="${Utils.escapeHtml(file.name)}">${Utils.escapeHtml(file.name)}</div>
-            <div class="file-chip-size">${Utils.formatFileSize(file.size)} • PDF • Ready</div>
+            <div class="file-chip-size">${Utils.formatFileSize(file.size)} • Evidence</div>
           </div>
         </div>
         <button type="button" class="file-chip-remove" title="Remove File" onclick="Upload.removeClaimFile(${idx})">&times;</button>
@@ -234,19 +232,19 @@ const Upload = {
       e.preventDefault();
 
       if (!this.policyFile && this.claimFiles.length === 0) {
-        Utils.showToast('Please upload at least a Policy or Supporting Document.', 'warning');
+        Utils.showToast('Please upload at least an Insurance Policy or Supporting Evidence PDF.', 'warning');
         return;
       }
 
       const submitBtn = document.getElementById('btn-submit-claim');
-      const originalBtnText = submitBtn ? submitBtn.innerHTML : 'Start Claim Analysis';
+      const originalBtnText = submitBtn ? submitBtn.innerHTML : 'Submit & Launch Agent';
 
       try {
         if (submitBtn) {
           submitBtn.disabled = true;
           submitBtn.innerHTML = `
-            <span class="spinner" style="width: 14px; height: 14px; border: 2px solid #fff; border-top-color: transparent; border-radius: 50%; display: inline-block; animation: spin 1s linear infinite;"></span>
-            Creating Claim...
+            <span class="spinner-sm" style="width: 14px; height: 14px; border: 2px solid #fff; border-top-color: transparent; border-radius: 50%; display: inline-block; animation: spin 1s linear infinite;"></span>
+            Registering Claim Session...
           `;
         }
 
@@ -264,8 +262,8 @@ const Upload = {
         const incidentNotes = document.getElementById('input-incident-notes')?.value?.trim();
         const goalInput = document.getElementById('input-claim-goal');
         const claimTypeSelect = document.getElementById('select-claim-type');
-        const toggleOffline = document.getElementById('toggle-offline-mode');
-        const toggleAutoRun = document.getElementById('toggle-auto-run');
+        const checkOffline = document.getElementById('check-offline-mode') || document.getElementById('toggle-offline-mode');
+        const checkAutoRun = document.getElementById('check-auto-run') || document.getElementById('toggle-auto-run');
 
         const sessionName = claimNumber
           ? `Claim ${claimNumber}`
@@ -274,15 +272,15 @@ const Upload = {
 
         let finalGoal = goalInput ? goalInput.value.trim() : 'Determine claim readiness and identify missing evidence.';
         if (incidentDate) {
-          finalGoal += ` Incident / admission date: ${incidentDate}.`;
+          finalGoal += ` Incident date: ${incidentDate}.`;
         }
         if (incidentNotes) {
-          finalGoal += ` Note: ${incidentNotes}.`;
+          finalGoal += ` Location/Notes: ${incidentNotes}.`;
         }
 
         formData.append('goal', finalGoal);
         formData.append('claim_type', claimTypeSelect ? claimTypeSelect.value : 'general');
-        formData.append('offline_mode', toggleOffline ? toggleOffline.checked : true);
+        formData.append('offline_mode', checkOffline ? checkOffline.checked : true);
         formData.append('auto_run', false);
 
         this.updateWizardSteps(4);
@@ -290,7 +288,7 @@ const Upload = {
         const res = await API.uploadClaim(formData);
         const claimId = res.claim_id;
 
-        Utils.showToast(`Claim session ${claimId} registered.`, 'success');
+        Utils.showToast(`Claim session ${claimId} registered successfully!`, 'success');
 
         this.resetForm();
         Dashboard.refresh();
@@ -298,7 +296,7 @@ const Upload = {
         await AppState.setActiveClaim(claimId);
         window.App.navigateTo('agent');
 
-        const autoRunChecked = toggleAutoRun ? toggleAutoRun.checked : true;
+        const autoRunChecked = checkAutoRun ? checkAutoRun.checked : true;
         if (autoRunChecked) {
           window.AgentView.startExecution(claimId);
         }

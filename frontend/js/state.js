@@ -101,6 +101,17 @@ const AppState = {
     }
   },
 
+  /**
+   * Refresh current active claim bundle from server.
+   */
+  async refreshActiveClaim() {
+    const claimId = this.data.activeClaimId;
+    if (claimId) {
+      return this.setActiveClaim(claimId);
+    }
+    return null;
+  },
+
   runningClaimIds: new Set(),
 
   /**

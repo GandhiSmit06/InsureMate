@@ -145,6 +145,29 @@ const Utils = {
     } finally {
       textArea.remove();
     }
+  },
+
+  /**
+   * Download text/json content as a local file.
+   */
+  downloadFile(filename, content, mimeType = 'text/plain') {
+    try {
+      const blob = new Blob([content], { type: mimeType });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      this.showToast(`Downloaded ${filename}`, 'success');
+      return true;
+    } catch (e) {
+      console.error('Download failed:', e);
+      this.showToast('Failed to download file', 'error');
+      return false;
+    }
   }
 };
 

@@ -622,6 +622,25 @@ svg {
   border: 1px solid var(--border-subtle);
 }
 
+.badge-neutral {
+  background-color: rgba(148, 163, 184, 0.12);
+  color: #CBD5E1;
+  border: 1px solid rgba(148, 163, 184, 0.25);
+}
+
+.claim-id-link {
+  font-family: var(--font-mono);
+  font-weight: 700;
+  color: var(--accent);
+  text-decoration: none;
+  transition: color var(--tr-fast);
+}
+
+.claim-id-link:hover {
+  color: #FFFFFF;
+  text-decoration: underline;
+}
+
 /* Buttons */
 .btn {
   display: inline-flex;

@@ -1,7 +1,8 @@
 /**
  * frontend/js/claim.js
- * Final Claim Readiness Assessment & Deep-Dive Evidence Analysis.
- * Renders verdict banner, missing evidence table, validity checks, and document validation results.
+ * Claim Results & Final Readiness Assessment Controller.
+ * Renders verdict banner, metrics row, action items, missing evidence table,
+ * validity window verification, document validation results, and export actions.
  */
 
 const ClaimView = {
@@ -35,9 +36,14 @@ const ClaimView = {
     if (btnCopySummary) {
       btnCopySummary.addEventListener('click', () => {
         const bundle = AppState.get().activeClaimBundle;
-        if (!bundle) return;
+        if (!bundle) {
+          Utils.showToast('No active claim report to copy.', 'warning');
+          return;
+        }
         const summary = bundle.final_report?.decision_summary || 'Claim assessment report.';
-        Utils.copyToClipboard(`InsureMate Claim Report [${bundle.claim?.claim_id}]\nVerdict: ${bundle.verdict}\n\nSummary:\n${summary}`);
+        const claimId = bundle.claim?.claim_id || 'UNKNOWN';
+        const verdict = bundle.verdict || bundle.claim?.status || 'UNKNOWN';
+        Utils.copyToClipboard(`InsureMate Claim Report [${claimId}]\nVerdict: ${verdict}\n\nSummary:\n${summary}`);
       });
     }
 
@@ -46,8 +52,42 @@ const ClaimView = {
     if (btnCopyJson) {
       btnCopyJson.addEventListener('click', () => {
         const bundle = AppState.get().activeClaimBundle;
-        if (!bundle) return;
+        if (!bundle) {
+          Utils.showToast('No active claim data to copy.', 'warning');
+          return;
+        }
         Utils.copyToClipboard(JSON.stringify(bundle, null, 2));
+      });
+    }
+
+    // Download Report Action
+    const btnDownloadReport = document.getElementById('btn-download-claim-report');
+    if (btnDownloadReport) {
+      btnDownloadReport.addEventListener('click', () => {
+        const bundle = AppState.get().activeClaimBundle;
+        if (!bundle) {
+          Utils.showToast('No active claim report to download.', 'warning');
+          return;
+        }
+        const claimId = bundle.claim?.claim_id || 'claim_report';
+        const report = bundle.final_report;
+        const textContent = `=======================================================
+INSUREMATE CLAIM ASSESSMENT REPORT
+Claim ID: ${claimId}
+Verdict: ${bundle.verdict || 'ASSESSED'}
+Generated: ${new Date().toISOString()}
+=======================================================
+
+EXECUTIVE SUMMARY:
+${report?.decision_summary || 'Assessment completed.'}
+
+ACTION ITEMS:
+${(report?.action_items || []).map((item, idx) => `${idx + 1}. ${item}`).join('\n') || 'None'}
+
+DISCLAIMER:
+This analysis is an AI-assisted preparation assessment and does not constitute guaranteed insurer approval.
+`;
+        Utils.downloadFile(`${claimId}_Assessment_Report.txt`, textContent, 'text/plain');
       });
     }
   },
@@ -68,7 +108,7 @@ const ClaimView = {
     // 2. Metrics Grid
     this.renderMetrics(bundle);
 
-    // 3. Overview Executive Summary
+    // 3. Overview Executive Summary & Action Items
     const overviewEl = document.getElementById('results-overview-summary-text');
     if (overviewEl) {
       overviewEl.textContent = report?.decision_summary || (
@@ -78,13 +118,28 @@ const ClaimView = {
       );
     }
 
-    // 4. Missing Evidence Table (Section 16)
+    const actionItemsEl = document.getElementById('results-action-items-list');
+    if (actionItemsEl) {
+      const items = report?.action_items || [];
+      if (items.length === 0) {
+        actionItemsEl.innerHTML = `<li style="color: var(--text-muted);">No action items recorded. All criteria verified.</li>`;
+      } else {
+        actionItemsEl.innerHTML = items.map(item => `
+          <li>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+            <span>${Utils.escapeHtml(item)}</span>
+          </li>
+        `).join('');
+      }
+    }
+
+    // 4. Missing Evidence Table
     this.renderMissingTable(latestState.missing_documents || report?.missing_documents_analysis);
 
-    // 5. Validity Analysis (Section 17)
+    // 5. Validity Analysis
     this.renderValiditySection(latestState.validity_result || report?.validity_check);
 
-    // 6. Validation Analysis (Section 18)
+    // 6. Validation Analysis
     this.renderValidationSection(latestState.validation_result);
 
     // 7. Extracted Entities Grid
@@ -111,28 +166,24 @@ const ClaimView = {
 
     if (s.includes('READY') || s.includes('CLAIM_READY')) {
       banner.style.borderLeft = '3px solid var(--emerald)';
-      banner.style.borderColor = 'var(--emerald-border)';
       iconEl.textContent = '✓';
-      iconEl.style.color = '#34D399';
+      iconEl.style.color = 'var(--emerald)';
       titleEl.textContent = 'CLAIM READY FOR SUBMISSION';
       descEl.textContent = report?.decision_summary || 'All required evidence has been submitted and verified. The claim satisfies coverage validity and required evidence policies.';
     } else if (s.includes('MISSING')) {
       banner.style.borderLeft = '3px solid var(--amber)';
-      banner.style.borderColor = 'var(--amber-border)';
       iconEl.textContent = '⚠';
-      iconEl.style.color = '#FBBF24';
+      iconEl.style.color = 'var(--amber)';
       titleEl.textContent = 'ACTION REQUIRED: MISSING EVIDENCE DETECTED';
       descEl.textContent = report?.decision_summary || 'The submitted documents do not contain all mandatory evidence required by the insurance policy clauses.';
     } else if (s.includes('INVALID') || s.includes('FAILED')) {
       banner.style.borderLeft = '3px solid var(--rose)';
-      banner.style.borderColor = 'var(--rose-border)';
       iconEl.textContent = '✕';
-      iconEl.style.color = '#F87171';
+      iconEl.style.color = 'var(--rose)';
       titleEl.textContent = s.includes('DATES') ? 'INVALID CLAIM DATES (OUTSIDE POLICY PERIOD)' : 'ACTION REQUIRED: INVALID DOCUMENTS';
       descEl.textContent = report?.decision_summary || 'Document validation or policy coverage verification failed.';
     } else {
       banner.style.borderLeft = '3px solid var(--accent)';
-      banner.style.borderColor = 'var(--primary-border)';
       iconEl.textContent = '●';
       iconEl.style.color = 'var(--accent)';
       titleEl.textContent = 'ASSESSMENT PENDING / IN PROGRESS';
@@ -172,7 +223,7 @@ const ClaimView = {
     if (!items || items.length === 0) {
       tbody.innerHTML = `
         <tr>
-          <td colspan="5" style="text-align: center; padding: 24px; color: var(--emerald-primary);">
+          <td colspan="5" style="text-align: center; padding: 24px; color: var(--emerald);">
             ✓ All required evidence documents are present and verified. Zero missing documents detected.
           </td>
         </tr>
@@ -188,11 +239,11 @@ const ClaimView = {
       
       let statusBadge;
       if (isFound) {
-        statusBadge = '<span class="badge badge-success">✓ Received</span>';
+        statusBadge = '<span class="badge badge-ready">✓ Received</span>';
       } else if (isIncomplete) {
         statusBadge = '<span class="badge badge-warning">⚠ Incomplete</span>';
       } else if (isReview) {
-        statusBadge = '<span class="badge badge-info">ℹ Needs Review</span>';
+        statusBadge = '<span class="badge badge-neutral">ℹ Needs Review</span>';
       } else {
         statusBadge = '<span class="badge badge-warning">⚠ Missing</span>';
       }
@@ -204,9 +255,9 @@ const ClaimView = {
       return `
         <tr>
           <td style="font-family: var(--font-mono);">${idx + 1}</td>
-          <td style="font-weight: 600; color: var(--text-primary);">${Utils.escapeHtml(docName)}</td>
+          <td style="font-weight: 600; color: #FFFFFF;">${Utils.escapeHtml(docName)}</td>
           <td>${statusBadge}</td>
-          <td>${Utils.escapeHtml(reasonText)}</td>
+          <td style="font-size: 0.78rem; line-height: 1.45;">${Utils.escapeHtml(reasonText)}</td>
           <td style="font-family: var(--font-mono);">${pageInfo}</td>
         </tr>
       `;
@@ -215,7 +266,8 @@ const ClaimView = {
 
   renderValiditySection(validityData) {
     const policyDatesEl = document.getElementById('validity-policy-dates');
-    const tbody = document.getElementById('validity-checks-tbody');
+    const statusPill = document.getElementById('validity-math-status');
+    const container = document.getElementById('validity-checks-list');
 
     if (policyDatesEl) {
       if (validityData?.policy_period) {
@@ -225,38 +277,40 @@ const ClaimView = {
       }
     }
 
-    if (tbody) {
+    if (statusPill) {
+      const isValid = validityData?.valid !== false;
+      statusPill.textContent = isValid ? 'VALID' : 'INVALID DATES';
+      statusPill.className = `badge ${isValid ? 'badge-ready' : 'badge-error'}`;
+    }
+
+    if (container) {
       const checks = validityData?.checks || validityData?.date_checks || [];
       if (checks.length === 0) {
-        tbody.innerHTML = `
-          <tr>
-            <td colspan="6" style="text-align: center; padding: 20px; color: var(--text-secondary);">
-              ✓ Document dates evaluated within active policy coverage dates.
-            </td>
-          </tr>
+        container.innerHTML = `
+          <div style="background: rgba(16, 185, 129, 0.08); border: 1px solid rgba(16, 185, 129, 0.25); border-radius: var(--radius-sm); padding: 14px 18px; color: var(--emerald); font-size: 0.82rem;">
+            ✓ All document invoice and incident dates have been verified within the active policy coverage window.
+          </div>
         `;
         return;
       }
 
-      tbody.innerHTML = checks.map(c => `
-        <tr>
-          <td style="font-weight: 600;">${Utils.escapeHtml(c.document_type || 'Claim Document')}</td>
-          <td style="font-family: var(--font-mono);">Page ${c.page || 1}</td>
-          <td style="font-family: var(--font-mono);">${Utils.escapeHtml(c.raw_date || '--')}</td>
-          <td style="font-family: var(--font-mono);">${Utils.escapeHtml(c.normalized_date || '--')}</td>
-          <td>
-            <span class="badge ${c.valid !== false ? 'badge-success' : 'badge-error'}">
-              ${c.valid !== false ? '✓ PASS' : '✕ FAIL'}
-            </span>
-          </td>
-          <td>${Utils.escapeHtml(c.reason || 'Within policy validity period.')}</td>
-        </tr>
+      container.innerHTML = checks.map(c => `
+        <div style="background: var(--bg-input); border: 1px solid var(--border-subtle); border-radius: var(--radius-sm); padding: 12px 16px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px;">
+          <div>
+            <div style="font-weight: 600; color: #FFFFFF; font-size: 0.82rem;">${Utils.escapeHtml(c.document_type || 'Claim Document')} (Page ${c.page || 1})</div>
+            <div style="font-size: 0.75rem; color: var(--text-muted);">${Utils.escapeHtml(c.reason || 'Within policy coverage window.')}</div>
+          </div>
+          <div style="display: flex; align-items: center; gap: 10px;">
+            <span style="font-family: var(--font-mono); font-size: 0.75rem; color: var(--accent);">${Utils.escapeHtml(c.normalized_date || c.raw_date || '--')}</span>
+            <span class="badge ${c.valid !== false ? 'badge-ready' : 'badge-error'}">${c.valid !== false ? '✓ Valid' : '✕ Out of Range'}</span>
+          </div>
+        </div>
       `).join('');
     }
   },
 
   renderValidationSection(validationData) {
-    const container = document.getElementById('validation-results-container');
+    const container = document.getElementById('doc-validation-list');
     if (!container) return;
 
     if (!validationData) {
@@ -271,22 +325,22 @@ const ClaimView = {
     const pages = validationData.pages || validationData.page_results || [];
     if (pages.length === 0) {
       container.innerHTML = `
-        <div style="background: rgba(16, 185, 129, 0.1); border: 1px solid rgba(16, 185, 129, 0.2); padding: 18px; border-radius: var(--border-radius-sm); color: var(--emerald-primary);">
-          ✓ All submitted documents passed completeness and structure validation.
+        <div style="background: rgba(16, 185, 129, 0.08); border: 1px solid rgba(16, 185, 129, 0.25); border-radius: var(--radius-sm); padding: 14px 18px; color: var(--emerald); font-size: 0.82rem;">
+          ✓ All submitted documents passed structure and completeness validation.
         </div>
       `;
       return;
     }
 
     container.innerHTML = pages.map((p, idx) => `
-      <div style="background: var(--bg-elevated); border: 1px solid var(--border-subtle); border-radius: var(--border-radius-sm); padding: 14px 18px; margin-bottom: 12px; display: flex; align-items: center; justify-content: space-between;">
+      <div style="background: var(--bg-input); border: 1px solid var(--border-subtle); border-radius: var(--radius-sm); padding: 14px 18px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px;">
         <div>
-          <div style="font-weight: 600; color: var(--text-primary);">Page ${p.page || idx + 1}: ${Utils.escapeHtml(p.type || 'Document')}</div>
-          <div style="font-size: 0.78rem; color: var(--text-muted);">${Utils.escapeHtml(p.details || 'Standard fields present.')}</div>
+          <div style="font-weight: 600; color: #FFFFFF; font-size: 0.84rem;">Page ${p.page || idx + 1}: ${Utils.escapeHtml(p.type || 'Document')}</div>
+          <div style="font-size: 0.78rem; color: var(--text-muted);">${Utils.escapeHtml(p.details || 'Standard required fields present.')}</div>
         </div>
         <div>
-          <span class="badge ${p.is_valid !== false ? 'badge-success' : 'badge-warning'}">
-            ${p.is_valid !== false ? '✓ Valid' : '⚠ Review Required'}
+          <span class="badge ${p.is_valid !== false ? 'badge-ready' : 'badge-warning'}">
+            ${p.is_valid !== false ? '✓ Valid' : '⚠ Action Required'}
           </span>
         </div>
       </div>
@@ -294,7 +348,7 @@ const ClaimView = {
   },
 
   renderExtractedGrid(extractedPages) {
-    const container = document.getElementById('results-extracted-grid');
+    const container = document.getElementById('extracted-entities-container');
     if (!container) return;
 
     if (extractedPages.length === 0) {
@@ -308,33 +362,24 @@ const ClaimView = {
 
     container.innerHTML = extractedPages.map((page, idx) => `
       <div class="card" style="margin-bottom: 0;">
-        <div class="card-header" style="margin-bottom: 12px;">
-          <div style="font-weight: 600; font-size: 0.88rem; color: var(--accent); display: flex; align-items: center; gap: 7px;">
+        <div class="card-header" style="margin-bottom: 10px;">
+          <div style="font-weight: 600; font-size: 0.84rem; color: var(--accent); display: flex; align-items: center; gap: 7px;">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
             <span>Page ${page.page_number} (${Utils.escapeHtml((page.document_type || 'Document').replace(/_/g, ' '))})</span>
           </div>
-          <span class="badge badge-success">✓ Extracted</span>
+          <span class="badge badge-ready">✓ Extracted</span>
         </div>
-        <div style="display: flex; flex-direction: column; gap: 6px; font-size: 0.8rem; margin-bottom: 12px;">
-          ${page.insurer_name ? `<div><span style="color: var(--text-muted);">Insurer:</span> <strong style="color: var(--primary);">${Utils.escapeHtml(page.insurer_name)}</strong></div>` : ''}
-          ${page.document_title ? `<div><span style="color: var(--text-muted);">Title:</span> <strong>${Utils.escapeHtml(page.document_title)}</strong></div>` : ''}
+        <div style="display: flex; flex-direction: column; gap: 6px; font-size: 0.78rem; margin-bottom: 12px;">
+          ${page.insurer_name ? `<div><span style="color: var(--text-muted);">Insurer:</span> <strong style="color: #FFFFFF;">${Utils.escapeHtml(page.insurer_name)}</strong></div>` : ''}
           ${page.policy_number ? `<div><span style="color: var(--text-muted);">Policy #:</span> <strong style="font-family: var(--font-mono); color: var(--accent);">${Utils.escapeHtml(page.policy_number)}</strong></div>` : ''}
           ${page.policy_holder_name ? `<div><span style="color: var(--text-muted);">Policy Holder:</span> <strong>${Utils.escapeHtml(page.policy_holder_name)}</strong></div>` : ''}
-          ${page.insured_names && page.insured_names.length > 0 ? `<div><span style="color: var(--text-muted);">Insured:</span> <strong>${Utils.escapeHtml(page.insured_names.join(', '))}</strong></div>` : ''}
-          ${page.policy_start_date && page.policy_end_date ? `<div><span style="color: var(--text-muted);">Coverage Window:</span> <strong>${Utils.escapeHtml(page.policy_start_date)} ⟶ ${Utils.escapeHtml(page.policy_end_date)}</strong></div>` : ''}
-          ${page.sum_insured ? `<div><span style="color: var(--text-muted);">Sum Insured:</span> <strong style="color: var(--emerald);">₹${Utils.escapeHtml(String(page.sum_insured))}</strong></div>` : ''}
-          ${page.bill_number ? `<div><span style="color: var(--text-muted);">Bill #:</span> <strong style="font-family: var(--font-mono);">${Utils.escapeHtml(page.bill_number)}</strong></div>` : ''}
           ${page.patient_name ? `<div><span style="color: var(--text-muted);">Patient:</span> <strong>${Utils.escapeHtml(page.patient_name)}</strong></div>` : ''}
-          ${page.hospital_name ? `<div><span style="color: var(--text-muted);">Hospital:</span> <strong>${Utils.escapeHtml(page.hospital_name)}</strong></div>` : ''}
+          ${page.bill_number ? `<div><span style="color: var(--text-muted);">Bill #:</span> <strong style="font-family: var(--font-mono);">${Utils.escapeHtml(page.bill_number)}</strong></div>` : ''}
           ${page.bill_amount ? `<div><span style="color: var(--text-muted);">Bill Amount:</span> <strong style="color: var(--emerald);">₹${Utils.escapeHtml(String(page.bill_amount))}</strong></div>` : ''}
-          ${page.total_amount ? `<div><span style="color: var(--text-muted);">Amount:</span> <strong style="color: var(--emerald);">${Utils.formatCurrency(page.total_amount)}</strong></div>` : ''}
-          ${page.admission_date ? `<div><span style="color: var(--text-muted);">Admission:</span> <strong>${Utils.escapeHtml(page.admission_date)}</strong></div>` : ''}
-          ${page.discharge_date ? `<div><span style="color: var(--text-muted);">Discharge:</span> <strong>${Utils.escapeHtml(page.discharge_date)}</strong></div>` : ''}
-          ${page.diagnoses && page.diagnoses.length > 0 ? `<div><span style="color: var(--text-muted);">Diagnosis:</span> <strong>${Utils.escapeHtml(page.diagnoses.join(', '))}</strong></div>` : ''}
-          ${page.policy_clauses && page.policy_clauses.length > 0 ? `<div style="color: var(--accent); margin-top: 4px;">📋 ${page.policy_clauses.length} mandatory clause(s) detected</div>` : ''}
+          ${page.policy_start_date && page.policy_end_date ? `<div><span style="color: var(--text-muted);">Period:</span> <strong>${Utils.escapeHtml(page.policy_start_date)} ⟶ ${Utils.escapeHtml(page.policy_end_date)}</strong></div>` : ''}
         </div>
         <button class="btn btn-secondary btn-sm" style="width: 100%; justify-content: center;" onclick="DocumentsView.openDetailModal(${idx})">
-          Inspect Full OCR & Clauses
+          Inspect Page Details ↗
         </button>
       </div>
     `).join('');

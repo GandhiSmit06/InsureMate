@@ -1,17 +1,21 @@
 /**
  * frontend/js/dashboard.js
- * Dashboard logic: KPI metrics calculations, claims table rendering,
- * search/filter controls, and demo launchers.
+ * Operations Dashboard & Claims Archive Controller.
+ * Computes real KPI metrics from backend claims records, handles 1-click demos,
+ * provides live table search/filtering, and manages claim deletions via confirmation modal.
  */
 
 const Dashboard = {
+  pendingDeleteClaimId: null,
+  pollTimer: null,
+
   async init() {
     this.bindEvents();
     await this.refresh();
   },
 
   bindEvents() {
-    // Quick Demo Buttons
+    // 1-Click Demo Scenarios
     const btnDemoHealth = document.getElementById('btn-dash-demo-health');
     if (btnDemoHealth) {
       btnDemoHealth.addEventListener('click', () => this.launchDemo('health'));
@@ -22,7 +26,7 @@ const Dashboard = {
       btnDemoTravel.addEventListener('click', () => this.launchDemo('travel'));
     }
 
-    // Hero Section Buttons
+    // Hero Quick Action Buttons
     const btnHeroNew = document.getElementById('btn-hero-new-claim');
     if (btnHeroNew) {
       btnHeroNew.addEventListener('click', () => window.App.navigateTo('new-claim'));
@@ -33,26 +37,55 @@ const Dashboard = {
       btnHeroClaims.addEventListener('click', () => window.App.navigateTo('claims'));
     }
 
-    // Dashboard Search & Filter
-    const searchInput = document.getElementById('dash-claims-search');
-    if (searchInput) {
-      searchInput.addEventListener('input', (e) => this.filterClaims(e.target.value, 'dash'));
+    // Refresh Archive Button
+    const btnRefreshClaims = document.getElementById('btn-refresh-claims');
+    if (btnRefreshClaims) {
+      btnRefreshClaims.addEventListener('click', async () => {
+        Utils.showToast('Refreshing claims archive...', 'info', 1000);
+        await this.refresh(true);
+      });
     }
 
-    const filterSelect = document.getElementById('dash-claims-filter');
-    if (filterSelect) {
-      filterSelect.addEventListener('change', () => this.filterClaims(null, 'dash'));
+    // Dashboard Search & Filters
+    const dashSearch = document.getElementById('dash-claims-search');
+    if (dashSearch) {
+      dashSearch.addEventListener('input', (e) => this.filterClaims(e.target.value, 'dash'));
     }
 
-    // Claims Page Search & Filter
-    const claimsSearchInput = document.getElementById('claims-page-search');
-    if (claimsSearchInput) {
-      claimsSearchInput.addEventListener('input', (e) => this.filterClaims(e.target.value, 'claims'));
+    const dashFilter = document.getElementById('dash-claims-filter');
+    if (dashFilter) {
+      dashFilter.addEventListener('change', () => this.filterClaims(null, 'dash'));
     }
 
-    const claimsFilterSelect = document.getElementById('claims-page-filter');
-    if (claimsFilterSelect) {
-      claimsFilterSelect.addEventListener('change', () => this.filterClaims(null, 'claims'));
+    // Claims Archive Page Search & Filters
+    const claimsSearch = document.getElementById('claims-page-search');
+    if (claimsSearch) {
+      claimsSearch.addEventListener('input', (e) => this.filterClaims(e.target.value, 'claims'));
+    }
+
+    const claimsFilter = document.getElementById('claims-page-filter');
+    if (claimsFilter) {
+      claimsFilter.addEventListener('change', () => this.filterClaims(null, 'claims'));
+    }
+
+    // Delete Confirmation Modal Events
+    const btnCancelDelete = document.getElementById('btn-cancel-delete');
+    if (btnCancelDelete) {
+      btnCancelDelete.addEventListener('click', () => Utils.closeModal('delete-confirm-modal'));
+    }
+
+    const btnCloseDelete = document.getElementById('btn-close-delete-modal');
+    if (btnCloseDelete) {
+      btnCloseDelete.addEventListener('click', () => Utils.closeModal('delete-confirm-modal'));
+    }
+
+    const btnConfirmDelete = document.getElementById('btn-confirm-delete');
+    if (btnConfirmDelete) {
+      btnConfirmDelete.addEventListener('click', async () => {
+        if (this.pendingDeleteClaimId) {
+          await this.executeDelete(this.pendingDeleteClaimId);
+        }
+      });
     }
 
     // Subscribe to state claim list changes
@@ -62,8 +95,6 @@ const Dashboard = {
       this.renderClaimsTable(list, 'all-claims-tbody');
     });
   },
-
-  pollTimer: null,
 
   startPolling() {
     if (this.pollTimer) return;
@@ -108,7 +139,6 @@ const Dashboard = {
 
       AppState.set({ claimsList: claims });
 
-      // Directly render to ensure table and KPIs populate immediately
       this.renderKPIs(claims);
       this.renderClaimsTable(claims, 'dash-claims-tbody');
       this.renderClaimsTable(claims, 'all-claims-tbody');
@@ -118,186 +148,167 @@ const Dashboard = {
       }
     } catch (err) {
       if (showError) {
-        console.error('Failed to load claims history:', err);
-        Utils.showToast('Could not fetch claims history', 'error');
+        Utils.showToast(`Failed to load claims: ${err.message}`, 'error');
       }
+      console.warn('Claims fetch failed:', err);
     }
   },
 
   renderKPIs(claims = []) {
-    const totalClaimsEl = document.getElementById('kpi-total-claims');
-    const totalDocsEl = document.getElementById('kpi-total-docs');
-    const missingDocsEl = document.getElementById('kpi-missing-docs');
-    const readyClaimsEl = document.getElementById('kpi-ready-claims');
+    const totalClaims = claims.length;
 
-    let totalDocsCount = 0;
-    let missingDocsCount = 0;
-    let readyClaimsCount = 0;
-
+    // Approximate total documents analyzed
+    let totalDocs = 0;
     claims.forEach(c => {
-      let cFiles = [];
-      if (Array.isArray(c.claim_filenames)) {
-        cFiles = c.claim_filenames;
-      } else if (typeof c.claim_filenames === 'string') {
-        try { cFiles = JSON.parse(c.claim_filenames); } catch { cFiles = c.claim_filename ? [c.claim_filename] : []; }
-      } else if (c.claim_filename) {
-        cFiles = [c.claim_filename];
-      }
-      const hasPolicy = !!c.policy_filename;
-      totalDocsCount += (hasPolicy ? 1 : 0) + (Array.isArray(cFiles) ? cFiles.length : (cFiles ? 1 : 0));
-
-      if (c.missing_count) {
-        missingDocsCount += Number(c.missing_count);
-      }
-
-      const st = String(c.verdict || c.status || '').toUpperCase();
-      if (st.includes('READY') || st.includes('CLAIM_READY')) {
-        readyClaimsCount += 1;
-      }
+      const cFiles = c.claim_filenames || [];
+      totalDocs += (c.policy_filename ? 1 : 0) + (Array.isArray(cFiles) ? cFiles.length : (c.claim_filename ? 1 : 0));
     });
 
-    if (totalClaimsEl) totalClaimsEl.textContent = claims.length;
-    if (totalDocsEl) totalDocsEl.textContent = totalDocsCount;
-    if (missingDocsEl) missingDocsEl.textContent = missingDocsCount;
-    if (readyClaimsEl) readyClaimsEl.textContent = readyClaimsCount;
+    // Count missing evidence findings
+    const missingDocs = claims.filter(c => {
+      const s = String(c.status || '').toLowerCase();
+      return s.includes('missing') || s.includes('action_required');
+    }).length;
 
-    const heroClaimsEl = document.getElementById('hero-stat-claims');
-    if (heroClaimsEl) heroClaimsEl.textContent = String(claims.length).padStart(2, '0');
+    // Count ready for review
+    const readyClaims = claims.filter(c => {
+      const s = String(c.status || '').toLowerCase();
+      return s.includes('ready');
+    }).length;
+
+    // Update DOM
+    const kpiTotal = document.getElementById('kpi-total-claims');
+    const kpiDocs = document.getElementById('kpi-total-docs');
+    const kpiMissing = document.getElementById('kpi-missing-docs');
+    const kpiReady = document.getElementById('kpi-ready-claims');
+    const heroStatClaims = document.getElementById('hero-stat-claims');
+    const heroStatTools = document.getElementById('hero-stat-tools');
+
+    if (kpiTotal) kpiTotal.textContent = totalClaims;
+    if (kpiDocs) kpiDocs.textContent = totalDocs;
+    if (kpiMissing) kpiMissing.textContent = missingDocs;
+    if (kpiReady) kpiReady.textContent = readyClaims;
+    if (heroStatClaims) heroStatClaims.textContent = totalClaims;
+
+    const availableTools = AppState.get().availableTools || [];
+    if (heroStatTools) heroStatTools.textContent = availableTools.length > 0 ? String(availableTools.length).padStart(2, '0') : '06';
   },
 
-  filterClaims(queryVal, source = 'dash') {
-    const searchId = source === 'dash' ? 'dash-claims-search' : 'claims-page-search';
-    const filterId = source === 'dash' ? 'dash-claims-filter' : 'claims-page-filter';
-    const tbodyId = source === 'dash' ? 'dash-claims-tbody' : 'all-claims-tbody';
+  filterClaims(query = null, context = 'dash') {
+    const list = AppState.get().claimsList || [];
+    const searchId = context === 'dash' ? 'dash-claims-search' : 'claims-page-search';
+    const filterId = context === 'dash' ? 'dash-claims-filter' : 'claims-page-filter';
+    const tbodyId = context === 'dash' ? 'dash-claims-tbody' : 'all-claims-tbody';
 
-    const searchVal = (queryVal !== null && queryVal !== undefined ? queryVal : document.getElementById(searchId)?.value || '').toLowerCase().trim();
-    const filterVal = (document.getElementById(filterId)?.value || 'ALL').toUpperCase();
-    const allClaims = AppState.get().claimsList || [];
+    const searchVal = query !== null ? query.toLowerCase() : (document.getElementById(searchId)?.value.toLowerCase() || '');
+    const filterVal = document.getElementById(filterId)?.value || 'ALL';
 
-    const filtered = allClaims.filter(c => {
-      const matchSearch = !searchVal || 
-        c.claim_id.toLowerCase().includes(searchVal) ||
-        (c.session_name && c.session_name.toLowerCase().includes(searchVal)) ||
-        (c.claim_type && c.claim_type.toLowerCase().includes(searchVal)) ||
-        (c.policy_filename && c.policy_filename.toLowerCase().includes(searchVal));
+    const filtered = list.filter(c => {
+      const matchSearch = !searchVal ||
+        String(c.claim_id || '').toLowerCase().includes(searchVal) ||
+        String(c.claim_type || '').toLowerCase().includes(searchVal) ||
+        String(c.session_name || '').toLowerCase().includes(searchVal) ||
+        String(c.policy_filename || '').toLowerCase().includes(searchVal);
 
-      let matchFilter = true;
-      const isRunning = c.is_running || String(c.status).toLowerCase() === 'in_progress' || AppState.isClaimRunning(c.claim_id);
-      if (filterVal !== 'ALL') {
-        const st = String(c.verdict || c.status || '').toUpperCase();
-        if (filterVal === 'READY') matchFilter = st.includes('READY') && !isRunning;
-        else if (filterVal === 'MISSING') matchFilter = st.includes('MISSING') && !isRunning;
-        else if (filterVal === 'PENDING') matchFilter = st.includes('PENDING') && !isRunning;
-        else if (filterVal === 'RUNNING') matchFilter = isRunning;
-        else if (filterVal === 'FAILED') matchFilter = st.includes('FAILED');
-      }
+      if (!matchSearch) return false;
 
-      return matchSearch && matchFilter;
+      const s = String(c.status || '').toUpperCase();
+      if (filterVal === 'ALL') return true;
+      if (filterVal === 'RUNNING') return c.is_running || s.includes('PROGRESS') || s.includes('RUNNING') || AppState.isClaimRunning(c.claim_id);
+      if (filterVal === 'READY') return s.includes('READY');
+      if (filterVal === 'MISSING') return s.includes('MISSING') || s.includes('ACTION_REQUIRED');
+      if (filterVal === 'PENDING') return s === 'PENDING';
+      if (filterVal === 'FAILED') return s.includes('FAILED') || s.includes('INVALID');
+      return true;
     });
 
     this.renderClaimsTable(filtered, tbodyId);
   },
 
-  renderClaimsTable(claims = [], tbodyId = 'dash-claims-tbody') {
+  renderClaimsTable(claims = [], tbodyId) {
     const tbody = document.getElementById(tbodyId);
     if (!tbody) return;
 
     if (!claims || claims.length === 0) {
       tbody.innerHTML = `
         <tr>
-          <td colspan="7" class="empty-state" style="padding: 32px 16px;">
+          <td colspan="7" class="empty-state">
             <div class="empty-state-icon">
-              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="10"/><line x1="8" y1="12" x2="16" y2="12"/></svg>
             </div>
             <h4>No Claims Found</h4>
-            <p>No insurance claim records match your current criteria.</p>
+            <p>No insurance claims match your search filter.</p>
           </td>
         </tr>
       `;
       return;
     }
 
-    tbody.innerHTML = claims.map(c => {
-      const isRunning = c.is_running || 
-                        String(c.status).toLowerCase() === 'in_progress' || 
-                        String(c.status).toLowerCase() === 'running' ||
-                        (typeof AppState.isClaimRunning === 'function' && AppState.isClaimRunning(c.claim_id));
+    const displayList = tbodyId === 'dash-claims-tbody' ? claims.slice(0, 8) : claims;
 
-      const verdict = c.verdict || c.status || 'pending';
-      const badgeClass = isRunning ? 'badge-processing' : this.getStatusBadgeClass(verdict);
-      let cFiles = [];
-      if (Array.isArray(c.claim_filenames)) {
-        cFiles = c.claim_filenames;
-      } else if (typeof c.claim_filenames === 'string') {
-        try { cFiles = JSON.parse(c.claim_filenames); } catch { cFiles = c.claim_filename ? [c.claim_filename] : []; }
-      } else if (c.claim_filename) {
-        cFiles = [c.claim_filename];
-      }
-      const docsCount = (c.policy_filename ? 1 : 0) + (Array.isArray(cFiles) ? cFiles.length : (cFiles ? 1 : 0));
-      const policyDisplay = c.policy_filename ? c.policy_filename.replace(/\.pdf$/i, '') : 'POL-AUTO';
+    tbody.innerHTML = displayList.map(claim => {
+      const cid = claim.claim_id;
+      const isRunning = claim.is_running || AppState.isClaimRunning(cid) || String(claim.status).toLowerCase() === 'in_progress';
+      const statusText = isRunning ? 'IN PROGRESS' : (claim.status || 'PENDING');
+      const badgeClass = isRunning ? 'badge-processing' : this.getStatusBadgeClass(statusText);
+      const icon = isRunning ? '●' : this.getStatusIcon(statusText);
+
+      const policyRef = claim.policy_filename || claim.session_name || '--';
+      const claimType = claim.claim_type ? (claim.claim_type.charAt(0).toUpperCase() + claim.claim_type.slice(1)) : 'General';
+      const dateStr = Utils.formatDate(claim.created_at);
+
+      const cFiles = claim.claim_filenames || [];
+      const docCount = (claim.policy_filename ? 1 : 0) + (Array.isArray(cFiles) ? cFiles.length : (claim.claim_filename ? 1 : 0));
+
+      const runBtnHtml = isRunning ? `
+        <button class="btn btn-secondary btn-sm" onclick="Dashboard.trackAgent('${cid}')" style="color: var(--accent); border-color: var(--accent);">
+          <span class="spinner-sm" style="width: 10px; height: 10px; border: 1.5px solid var(--accent); border-top-color: transparent; border-radius: 50%; display: inline-block; animation: spin 1s linear infinite;"></span>
+          <span>Tracking</span>
+        </button>
+      ` : `
+        <button class="btn btn-secondary btn-sm" onclick="Dashboard.runClaim('${cid}', this)" title="Execute Agent Analysis">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+          <span>Run</span>
+        </button>
+      `;
 
       return `
-        <tr data-claim-id="${Utils.escapeHtml(c.claim_id)}">
+        <tr>
           <td>
-            <a href="#" class="text-mono" style="font-weight: 600; color: var(--primary);" onclick="Dashboard.openClaim('${Utils.escapeHtml(c.claim_id)}'); return false;">
-              ${Utils.escapeHtml(c.claim_id)}
+            <a href="#" class="claim-id-link" onclick="Dashboard.openClaim('${cid}'); return false;" title="Inspect Claim">
+              ${Utils.escapeHtml(cid)}
             </a>
-            <div style="font-size: 0.74rem; color: var(--text-muted);">${Utils.escapeHtml(c.session_name || 'General Claim')}</div>
-          </td>
-          <td style="font-size: 0.82rem; font-family: var(--font-mono); color: var(--text-secondary);">
-            ${Utils.escapeHtml(policyDisplay)}
           </td>
           <td>
-            <span style="font-size: 0.82rem; text-transform: capitalize; color: var(--text-secondary); font-weight: 500;">
-              ${Utils.escapeHtml(c.claim_type || 'General')}
-            </span>
-          </td>
-          <td style="font-size: 0.82rem;">${Utils.formatDate(c.created_at)}</td>
-          <td>
-            <span class="badge" style="background: var(--bg-elevated); color: var(--text-secondary); font-weight: 500;">
-              ${docsCount} doc(s)
+            <span style="font-weight: 500; color: #FFFFFF;" title="${Utils.escapeHtml(policyRef)}">
+              ${Utils.escapeHtml(policyRef.length > 24 ? policyRef.substring(0, 24) + '...' : policyRef)}
             </span>
           </td>
           <td>
-            ${isRunning ? `
-              <span class="badge badge-processing" style="display: inline-flex; align-items: center; gap: 6px; font-weight: 600; padding: 4px 10px;">
-                <span class="pulse-dot-running"></span>
-                Agent is running
-              </span>
-            ` : `
-              <span class="badge ${badgeClass}">
-                ${this.getStatusIcon(verdict)} ${Utils.escapeHtml(verdict.replace(/_/g, ' '))}
-              </span>
-            `}
+            <span class="badge badge-neutral" style="font-size: 0.7rem;">${Utils.escapeHtml(claimType)}</span>
+          </td>
+          <td style="font-size: 0.74rem; color: var(--text-muted); font-family: var(--font-mono);">
+            ${Utils.escapeHtml(dateStr)}
           </td>
           <td>
-            <div style="display: flex; gap: 6px; align-items: center;">
-              <button class="btn btn-secondary btn-sm" onclick="Dashboard.openClaim('${Utils.escapeHtml(c.claim_id)}')">
-                View
+            <span style="font-family: var(--font-mono); font-size: 0.76rem; color: var(--text-secondary);">
+              ${docCount} file(s)
+            </span>
+          </td>
+          <td>
+            <span class="badge ${badgeClass}">
+              <span style="font-size: 0.65rem;">${icon}</span>
+              <span>${Utils.escapeHtml(statusText.replace(/_/g, ' '))}</span>
+            </span>
+          </td>
+          <td>
+            <div style="display: flex; align-items: center; gap: 6px;">
+              <button class="btn btn-secondary btn-sm" onclick="Dashboard.openClaim('${cid}')" title="Open Claim Results & Details">
+                Open
               </button>
-              ${isRunning ? `
-                <button class="btn btn-secondary btn-sm" disabled style="opacity: 0.85; cursor: not-allowed; display: inline-flex; align-items: center; gap: 6px;" title="Agent is currently analyzing this claim">
-                  <span class="spinner-sm" style="width: 11px; height: 11px; border: 2px solid currentColor; border-top-color: transparent; border-radius: 50%; display: inline-block; animation: spin 1s linear infinite;"></span>
-                  In Progress
-                </button>
-                <button class="btn btn-primary btn-sm btn-track-agent" onclick="Dashboard.trackAgent('${Utils.escapeHtml(c.claim_id)}')" title="Track live agent activity in operations console" style="display: inline-flex; align-items: center; gap: 5px;">
-                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg>
-                  Agent Activity
-                </button>
-              ` : (String(c.status).toLowerCase() === 'pending' ? `
-                <button class="btn btn-primary btn-sm btn-run-agent" id="btn-run-${Utils.escapeHtml(c.claim_id)}" onclick="Dashboard.runClaim('${Utils.escapeHtml(c.claim_id)}', this)">
-                  Run Agent
-                </button>
-              ` : (c.final_report || c.verdict ? `
-                <button class="btn btn-secondary btn-sm" onclick="Dashboard.openClaim('${Utils.escapeHtml(c.claim_id)}')">
-                  Results
-                </button>
-                <button class="btn btn-icon btn-sm" title="View Agent Activity Log" onclick="Dashboard.trackAgent('${Utils.escapeHtml(c.claim_id)}')">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg>
-                </button>
-              ` : ''))}
-              <button class="btn btn-icon btn-sm" title="Delete Claim" onclick="Dashboard.deleteClaim('${Utils.escapeHtml(c.claim_id)}')">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+              ${runBtnHtml}
+              <button class="btn btn-icon btn-sm" onclick="Dashboard.promptDeleteClaim('${cid}')" title="Delete Claim Session" style="color: var(--rose);">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
               </button>
             </div>
           </td>
@@ -308,7 +319,7 @@ const Dashboard = {
 
   getStatusBadgeClass(status) {
     const s = String(status).toUpperCase();
-    if (s.includes('READY') || s.includes('CLAIM_READY')) return 'badge-ready';
+    if (s.includes('READY')) return 'badge-ready';
     if (s.includes('MISSING')) return 'badge-warning';
     if (s.includes('INVALID') || s.includes('FAILED')) return 'badge-error';
     if (s.includes('PROGRESS') || s.includes('RUNNING')) return 'badge-processing';
@@ -326,7 +337,7 @@ const Dashboard = {
 
   async openClaim(claimId) {
     try {
-      Utils.showToast(`Loading claim ${claimId}...`, 'info', 1500);
+      Utils.showToast(`Loading claim ${claimId}...`, 'info', 1200);
       const bundle = await AppState.setActiveClaim(claimId);
       if (bundle && bundle.final_report) {
         window.App.navigateTo('results');
@@ -338,13 +349,9 @@ const Dashboard = {
     }
   },
 
-  /**
-   * Navigate directly to Agent Operations Console to track live agent execution.
-   */
   async trackAgent(claimId) {
     if (!claimId) return;
     try {
-      Utils.showToast(`Opening Agent Activity for ${claimId}...`, 'info', 1200);
       await AppState.setActiveClaim(claimId);
       window.App.navigateTo('agent');
       if (window.AgentView && (AppState.isClaimRunning(claimId) || AppState.get().activeClaimBundle?.is_running)) {
@@ -365,16 +372,12 @@ const Dashboard = {
       return;
     }
 
-    // Immediately mark as running in local AppState so table row updates instantly
     AppState.setClaimRunning(claimId, true);
     this.startPolling();
 
     Utils.showToast(`Launching InsureMate Agent for ${claimId}...`, 'info');
-
-    // Automatically navigate to Agent Activity so user can track it
     await this.trackAgent(claimId);
 
-    // Trigger agent execution in background with real-time polling
     if (window.AgentView) {
       window.AgentView.startExecution(claimId);
     } else {
@@ -385,15 +388,24 @@ const Dashboard = {
     }
   },
 
-  async deleteClaim(claimId) {
-    if (!confirm(`Are you sure you want to delete claim ${claimId}? This action cannot be undone.`)) return;
+  promptDeleteClaim(claimId) {
+    this.pendingDeleteClaimId = claimId;
+    const label = document.getElementById('delete-claim-id-label');
+    if (label) label.textContent = claimId;
+    Utils.openModal('delete-confirm-modal');
+  },
+
+  async executeDelete(claimId) {
     try {
+      Utils.closeModal('delete-confirm-modal');
+      Utils.showToast(`Deleting claim ${claimId}...`, 'info');
       await API.deleteClaim(claimId);
       Utils.showToast(`Deleted claim ${claimId}`, 'success');
       AppState.setClaimRunning(claimId, false);
       if (AppState.get().activeClaimId === claimId) {
         AppState.setActiveClaim(null);
       }
+      this.pendingDeleteClaimId = null;
       await this.refresh();
     } catch (err) {
       Utils.showToast(`Failed to delete claim: ${err.message}`, 'error');
@@ -409,7 +421,6 @@ const Dashboard = {
       await this.refresh();
       await AppState.setActiveClaim(claimId);
       window.App.navigateTo('agent');
-      // Execute the agent on the demo claim
       if (window.AgentView) {
         window.AgentView.startExecution(claimId);
       }
