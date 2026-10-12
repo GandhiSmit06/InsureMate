@@ -5,7 +5,7 @@ enabling dynamic discovery, validation, and invocation by the Phase 5 Agent Orch
 """
 
 from abc import ABC, abstractmethod
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 from utils.logger import logger
 
 
