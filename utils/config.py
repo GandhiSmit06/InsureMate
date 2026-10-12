@@ -56,6 +56,9 @@ class QwenConfig:
             "QWEN_BASE_URL",
             "https://dashscope-intl.aliyuncs.com/compatible-mode/v1"
         ).strip()
+        # Automatically append /v1 for Ollama endpoints to ensure OpenAI SDK compatibility
+        if "11434" in base_url and not base_url.rstrip("/").endswith("/v1"):
+            base_url = f"{base_url.rstrip('/')}/v1"
 
         model_name = os.getenv("QWEN_MODEL_NAME", "qwen-vl-max").strip()
 

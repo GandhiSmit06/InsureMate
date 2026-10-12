@@ -96,15 +96,19 @@ def test_invalid_tool_registration():
 
 
 def test_create_tool_registry_factory():
-    """Verify create_tool_registry factory registers all 4 core InsureMate tools."""
+    """Verify create_tool_registry factory registers all core InsureMate tools."""
     registry = create_tool_registry()
 
-    assert len(registry) == 4
+    assert len(registry) == 6
     assert registry.has("document_extraction_tool") is True
     assert registry.has("qwen_vl_extraction_tool") is True  # Alias
     assert registry.has("document_validation_tool") is True
     assert registry.has("validity_checker_tool") is True
     assert registry.has("missing_document_tool") is True
+    assert registry.has("policy_clause_search_tool") is True
+    assert registry.has("clause_search_tool") is True  # Alias
+    assert registry.has("cross_document_consistency_tool") is True
+    assert registry.has("consistency_tool") is True  # Alias
 
     tools = registry.list_tools()
     names = [t["name"] for t in tools]
@@ -112,13 +116,15 @@ def test_create_tool_registry_factory():
     assert "document_validation_tool" in names
     assert "validity_checker_tool" in names
     assert "missing_document_tool" in names
+    assert "policy_clause_search_tool" in names
+    assert "cross_document_consistency_tool" in names
 
 
 def test_schemas_generation():
     """Verify schemas generation returns valid function definitions."""
     registry = create_tool_registry()
     schemas = registry.get_schemas()
-    assert len(schemas) == 4
+    assert len(schemas) == 6
     for s in schemas:
         assert s["type"] == "function"
         assert "name" in s["function"]

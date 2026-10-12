@@ -17,16 +17,76 @@ from PIL import Image
 from utils.logger import logger
 
 
+import os
+import requests
+
+
 def extract_ocr_from_pil(pil_img: Image.Image) -> str:
-    """Run native OCR on rendered PIL image when embedded digital text is absent."""
+    """Run Qwen-VL or local Gemma 3 vision OCR on rendered PIL image when embedded digital text is absent."""
     try:
-        import winocr
-        with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
-            res = pool.submit(winocr.recognize_pil_sync, pil_img).result(timeout=25)
-            if isinstance(res, dict) and "text" in res:
-                return str(res["text"]).strip()
+        # Convert PIL Image to Base64 JPEG in-memory (0 disk I/O)
+        buffer = io.BytesIO()
+        rgb_img = pil_img.convert("RGB") if pil_img.mode != "RGB" else pil_img
+        rgb_img.save(buffer, format="JPEG", quality=80)
+        b64_str = base64.b64encode(buffer.getvalue()).decode("utf-8")
+
+        # 1. Primary: Local Gemma 3 vision OCR via Ollama
+        ollama_base = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434").rstrip("/")
+        ollama_model = os.getenv("OLLAMA_MODEL", os.getenv("QWEN_MODEL_NAME", "gemma3:latest"))
+
+        try:
+            resp = requests.post(
+                f"{ollama_base}/api/chat",
+                json={
+                    "model": ollama_model,
+                    "messages": [
+                        {
+                            "role": "user",
+                            "content": "Transcribe all visible text from this document image accurately and verbatim. Return ONLY the transcribed text.",
+                            "images": [b64_str],
+                        }
+                    ],
+                    "stream": False,
+                },
+                timeout=45,
+            )
+            if resp.status_code == 200:
+                content = resp.json().get("message", {}).get("content", "").strip()
+                if content:
+                    return content
+        except Exception as e:
+            logger.debug(f"Local Gemma 3 vision OCR skipped/unavailable: {e}")
+
+        # 2. Secondary: Qwen-VL API (DashScope / OpenAI-compatible endpoint)
+        qwen_api_key = os.getenv("QWEN_API_KEY", "")
+        qwen_base_url = os.getenv("QWEN_BASE_URL", "")
+        if qwen_api_key and qwen_api_key != "ollama" and not qwen_api_key.startswith("your_"):
+            try:
+                from openai import OpenAI
+                client = OpenAI(api_key=qwen_api_key, base_url=qwen_base_url or None)
+                model_name = os.getenv("QWEN_MODEL_NAME", "qwen-vl-max")
+                res = client.chat.completions.create(
+                    model=model_name,
+                    messages=[
+                        {
+                            "role": "user",
+                            "content": [
+                                {"type": "text", "text": "Transcribe all visible text from this document image verbatim. Return ONLY the transcribed text."},
+                                {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{b64_str}"}},
+                            ],
+                        }
+                    ],
+                    max_tokens=2048,
+                    temperature=0.1,
+                )
+                text = (res.choices[0].message.content or "").strip()
+                if text:
+                    return text
+            except Exception as e:
+                logger.debug(f"Qwen-VL vision OCR skipped/unavailable: {e}")
+
     except Exception as e:
-        logger.debug(f"Native OCR extraction fallback skipped/unavailable: {e}")
+        logger.debug(f"Vision OCR extraction fallback skipped: {e}")
     return ""
 
 

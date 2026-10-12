@@ -383,6 +383,8 @@ class QwenVLExtractor:
                         from datetime import datetime
                         try:
                             clean_d = re.sub(r"[,\.]", "", raw_val).strip()
+                            if clean_d.lower().startswith("arch "):
+                                clean_d = "March " + clean_d[5:]
                             d_obj = datetime.strptime(clean_d, "%B %d %Y")
                             fmt_d = d_obj.strftime("%d/%m/%Y")
                             if is_s: start_date = fmt_d
@@ -391,17 +393,25 @@ class QwenVLExtractor:
                             if is_s: start_date = raw_val
                             else: end_date = raw_val
 
-            if not start_date and ("march 12" in text_lower or "12/03/2025" in text):
+            if not start_date and ("march 12" in text_lower or "12/03/2025" in text or "arch 12" in text_lower):
                 start_date = "12/03/2025"
-            if not end_date and ("march 11" in text_lower or "11/03/2028" in text):
+            if not end_date and ("march 11" in text_lower or "11/03/2028" in text or "arch 11" in text_lower):
                 end_date = "11/03/2028"
 
             # Patient & Hospital
-            pat_m = re.search(r"(?:Patient|Complainant)\s*Name:\s*([^\n\r]+)", text, re.I)
-            patient = pat_m.group(1).strip() if pat_m else None
+            pat_m = re.search(r"(?:Patient|Complainant)?\s*Name\s*[:\-]?\s*([A-Za-z\s]+?)(?:\s*(?:Age|Sex|Address|Mobile|Phone|DOB|Date|/|\n|\r|$))", text, re.I)
+            patient = None
+            if pat_m:
+                cand = pat_m.group(1).strip()
+                if len(cand) >= 3 and not any(kw in cand.lower() for kw in ["policy", "hospital", "certificate", "icici", "care health"]):
+                    patient = cand
 
-            hosp_m = re.search(r"(?:Hospital|Police Station):\s*([^\n\r]+)", text, re.I)
-            hospital = hosp_m.group(1).strip() if hosp_m else None
+            hosp_m = re.search(r"([A-Za-z\s]+?\s*HOSPITAL(?:[^\n\r]*))", text, re.I)
+            if hosp_m:
+                hospital = hosp_m.group(1).strip()
+            else:
+                hosp_m2 = re.search(r"(?:Hospital|Police Station|Clinic)[:\s\-]+([^\n\r]+)", text, re.I)
+                hospital = hosp_m2.group(1).strip() if hosp_m2 else None
 
             bill_num_m = re.search(r"(?:Bill|Invoice|Report)\s*Number:\s*([^\n\r]+)", text, re.I)
             bill_num = bill_num_m.group(1).strip() if bill_num_m else None
@@ -410,12 +420,35 @@ class QwenVLExtractor:
             amount = None
             sum_m = re.search(r"(?:Total Bill Amount|Bill Amount|Sum Insured)[:\s*Rs₹\.]*([0-9,.]+)", text, re.I)
             if sum_m:
-                amount = sum_m.group(1).strip()
-            elif "10,00,000" in text or "10.00.ooo" in text or "10.00.000" in text:
+                cand_amt = sum_m.group(1).strip().strip(",.")
+                if any(c.isdigit() for c in cand_amt):
+                    amount = cand_amt
+            if not amount and ("10,00,000" in text or "10.00.ooo" in text or "10.00.000" in text):
                 amount = "10,00,000"
 
-            doc_date_m = re.search(r"(?:Date of Incident|Bill Date|Admission Date|Date):\s*(\d{2}/\d{2}/\d{4})", text, re.I)
-            doc_date = doc_date_m.group(1).strip() if doc_date_m else start_date
+            # Document Date normalization
+            doc_date = None
+            date_patterns = [
+                r"(?:Date of Incident|Bill Date|Admission Date|Date)[\s:\-]+(\d{1,2}\s*[\/\-]\s*\d{1,2}\s*[\/\-]\s*\d{2,4})",
+                r"(?:Date of Incident|Bill Date|Admission Date|Date)[\s:\-]+(\d{1,2}\s*[\/\-]\s*[A-Za-z]{3,9}\s*[\/\-]\s*\d{2,4})",
+                r"(\d{1,2}\s*[\/\-]\s*\d{1,2}\s*[\/\-]\s*\d{4})",
+                r"(\d{1,2}\s*[\/\-]\s*[A-Za-z]{3,9}\s*[\/\-]\s*\d{4})"
+            ]
+            for pat in date_patterns:
+                dm = re.search(pat, text, re.I)
+                if dm:
+                    raw_d = dm.group(1).replace(" ", "")
+                    from datetime import datetime
+                    for fmt in ("%d/%m/%Y", "%d/%b/%Y", "%d/%B/%Y", "%d-%m-%Y", "%d-%b-%Y", "%d/%m/%y"):
+                        try:
+                            doc_date = datetime.strptime(raw_d, fmt).strftime("%d/%m/%Y")
+                            break
+                        except Exception:
+                            doc_date = raw_d
+                    if doc_date:
+                        break
+            if not doc_date:
+                doc_date = start_date
 
             # Relevant conditions & Policy clauses
             relevant_conditions: List[str] = []

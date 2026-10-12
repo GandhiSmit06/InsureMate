@@ -16,6 +16,8 @@ from tools.qwen_vl_tool import QwenVLExtractionTool
 from tools.document_validation_tool import DocumentValidationTool
 from tools.validity_checker_tool import ValidityCheckerTool
 from tools.missing_document_tool import MissingDocumentTool
+from tools.policy_clause_search_tool import PolicyClauseSearchTool
+from tools.cross_document_consistency_tool import CrossDocumentConsistencyTool
 from utils.logger import logger
 
 
@@ -441,11 +443,67 @@ class ClaimPreparationAdapter(BaseAgentTool):
         )
 
 
+class PolicyClauseSearchAdapter(BaseAgentTool):
+    """
+    Tool: policy_clause_search
+    Wraps PolicyClauseSearchTool.
+    Inspects policy clauses, terms, conditions, waiting periods, and exclusions.
+    """
+    name: str = "policy_clause_search"
+    description: str = (
+        "Searches extracted policy clauses, conditions, exclusions, waiting periods, "
+        "room rent caps, and benefits for specific user queries or insurance topics."
+    )
+    required_inputs: List[str] = ["query"]
+
+    def __init__(self, tool: Optional[PolicyClauseSearchTool] = None):
+        self.underlying_tool = tool or PolicyClauseSearchTool()
+
+    def run(self, state: ClaimState, query: Optional[str] = None, **kwargs: Any) -> ToolExecutionResult:
+        search_query = query or kwargs.get("search_query") or state.goal
+        res = self.underlying_tool.run(query=search_query, extracted_data=state.extracted_data)
+        summary = res.get("summary", "Policy clause search completed.")
+        return ToolExecutionResult(
+            tool_name=self.name,
+            status=res.get("status", "success"),
+            summary=summary,
+            data=res,
+            error=res.get("error")
+        )
+
+
+class CrossDocumentConsistencyAdapter(BaseAgentTool):
+    """
+    Tool: cross_document_consistency_check
+    Wraps CrossDocumentConsistencyTool.
+    Cross-checks patient names, hospital facilities, and amounts across all submitted documents.
+    """
+    name: str = "cross_document_consistency_check"
+    description: str = (
+        "Cross-checks consistency between submitted documents, comparing patient names, "
+        "hospital names, dates, and amounts to detect contradictions or discrepancies."
+    )
+    required_inputs: List[str] = ["extracted_data"]
+
+    def __init__(self, tool: Optional[CrossDocumentConsistencyTool] = None):
+        self.underlying_tool = tool or CrossDocumentConsistencyTool()
+
+    def run(self, state: ClaimState, **kwargs: Any) -> ToolExecutionResult:
+        res = self.underlying_tool.run(extracted_data=state.extracted_data)
+        summary = res.get("summary", "Cross-document consistency check completed.")
+        return ToolExecutionResult(
+            tool_name=self.name,
+            status=res.get("status", "success"),
+            summary=summary,
+            data=res
+        )
+
+
 class InsureMateToolRegistry:
     """
     Central tool registry holding the InsureMate Agent tools.
     Provides uniform execution, lookup, alias resolution, and schema exposure
-    for both Phase 5 and Phase 6 workflows.
+    for dynamic agent orchestration.
     """
 
     def __init__(
@@ -454,6 +512,8 @@ class InsureMateToolRegistry:
         validation_tool: Optional[DocumentValidationTool] = None,
         validity_tool: Optional[ValidityCheckerTool] = None,
         missing_doc_tool: Optional[MissingDocumentTool] = None,
+        clause_tool: Optional[PolicyClauseSearchTool] = None,
+        consistency_tool: Optional[CrossDocumentConsistencyTool] = None,
         offline_mode: Optional[bool] = None,
         phase6_registry: Optional[Any] = None
     ):
@@ -462,15 +522,21 @@ class InsureMateToolRegistry:
             "document_validation": DocumentValidationAdapter(tool=validation_tool),
             "validity_checker": ValidityCheckerAdapter(tool=validity_tool),
             "missing_document_detector": MissingDocumentDetectorAdapter(tool=missing_doc_tool),
+            "policy_clause_search": PolicyClauseSearchAdapter(tool=clause_tool),
+            "cross_document_consistency_check": CrossDocumentConsistencyAdapter(tool=consistency_tool),
             "claim_preparation": ClaimPreparationAdapter(),
         }
 
-        # Bidirectional aliases between Phase 5 and Phase 6
+        # Bidirectional aliases
         self.tools["document_extraction_tool"] = self.tools["document_extraction"]
         self.tools["qwen_vl_extraction_tool"] = self.tools["document_extraction"]
         self.tools["document_validation_tool"] = self.tools["document_validation"]
         self.tools["validity_checker_tool"] = self.tools["validity_checker"]
         self.tools["missing_document_tool"] = self.tools["missing_document_detector"]
+        self.tools["policy_clause_search_tool"] = self.tools["policy_clause_search"]
+        self.tools["clause_search"] = self.tools["policy_clause_search"]
+        self.tools["cross_document_consistency_tool"] = self.tools["cross_document_consistency_check"]
+        self.tools["consistency_check"] = self.tools["cross_document_consistency_check"]
 
         self.phase6_registry = phase6_registry
 
@@ -519,6 +585,8 @@ class InsureMateToolRegistry:
             "document_validation",
             "validity_checker",
             "missing_document_detector",
+            "policy_clause_search",
+            "cross_document_consistency_check",
             "claim_preparation"
         ]
         return [self.tools[k].get_schema() for k in canonical_keys if k in self.tools]

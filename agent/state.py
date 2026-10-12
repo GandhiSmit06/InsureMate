@@ -61,6 +61,10 @@ class ClaimState:
     validation_result: Optional[Dict[str, Any]] = None
     validity_result: Optional[Dict[str, Any]] = None
     missing_documents: Optional[Dict[str, Any]] = None
+    clause_search_results: Optional[Dict[str, Any]] = None
+    consistency_results: Optional[Dict[str, Any]] = None
+    human_review_required: bool = False
+    unresolved_questions: List[str] = field(default_factory=list)
     current_plan: Optional[Dict[str, Any]] = None
     current_step: Optional[str] = None
     completed_steps: List[str] = field(default_factory=list)
@@ -149,6 +153,10 @@ class ClaimState:
             "validation_result": self.validation_result,
             "validity_result": self.validity_result,
             "missing_documents": self.missing_documents,
+            "clause_search_results": self.clause_search_results,
+            "consistency_results": self.consistency_results,
+            "human_review_required": self.human_review_required,
+            "unresolved_questions": self.unresolved_questions,
             "current_plan": self.current_plan,
             "current_step": self.current_step,
             "completed_steps": self.completed_steps,

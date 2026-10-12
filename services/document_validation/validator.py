@@ -265,9 +265,25 @@ class DocumentValidator:
         results: List[SingleDocumentValidationResult] = []
         overall_reasons: List[str] = []
 
+        # Collect document-level context across all pages of each document type
+        type_contexts: Dict[str, Dict[str, Any]] = {}
         for doc in extracted_documents:
-            custom_rules = requirements.get(doc.get("document_type")) if requirements else None
-            res = self.validate_single_document(doc, custom_rules=custom_rules)
+            dtype = doc.get("document_type")
+            if dtype:
+                ctx = type_contexts.setdefault(dtype, {})
+                for k, v in doc.items():
+                    if v is not None and str(v).strip() != "" and k not in ctx:
+                        ctx[k] = v
+
+        for doc in extracted_documents:
+            dtype = doc.get("document_type")
+            merged_doc = dict(doc)
+            if dtype in type_contexts:
+                for k, v in type_contexts[dtype].items():
+                    if merged_doc.get(k) is None or str(merged_doc.get(k)).strip() == "":
+                        merged_doc[k] = v
+            custom_rules = requirements.get(dtype) if requirements else None
+            res = self.validate_single_document(merged_doc, custom_rules=custom_rules)
             results.append(res)
             if not res.valid:
                 overall_reasons.extend(res.reasons)

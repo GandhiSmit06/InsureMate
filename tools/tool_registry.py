@@ -128,6 +128,8 @@ def create_tool_registry() -> ToolRegistry:
     from tools.document_validation_tool import DocumentValidationTool
     from tools.validity_checker_tool import ValidityCheckerTool
     from tools.missing_document_tool import MissingDocumentTool
+    from tools.policy_clause_search_tool import PolicyClauseSearchTool
+    from tools.cross_document_consistency_tool import CrossDocumentConsistencyTool
 
     registry = ToolRegistry()
 
@@ -146,5 +148,13 @@ def create_tool_registry() -> ToolRegistry:
     # 4. Missing Document Tool
     missing_tool = MissingDocumentTool()
     registry.register(missing_tool)
+
+    # 5. Policy Clause Search Tool
+    clause_tool = PolicyClauseSearchTool()
+    registry.register(clause_tool, alias="clause_search_tool")
+
+    # 6. Cross Document Consistency Tool
+    consistency_tool = CrossDocumentConsistencyTool()
+    registry.register(consistency_tool, alias="consistency_tool")
 
     return registry

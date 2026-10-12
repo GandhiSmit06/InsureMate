@@ -160,10 +160,12 @@ def test_phase5_agent_orchestration_simulation(integrated_registry):
     # 2. Agent initializes claim state
     claim_state = ClaimState(claim_id="CLM-AGENT-8888")
 
-    # 3. Agent selects and calls Tool 1: Document Extraction
+    policy_pdf = ROOT_DIR / "sample_policy.pdf"
+    if not policy_pdf.exists():
+        policy_pdf = ROOT_DIR / "policy_A.pdf"
     extraction_input = {
         "claim_id": claim_state.claim_id,
-        "documents": [str(ROOT_DIR / "policy_A.pdf")],
+        "documents": [str(policy_pdf)],
         "max_pages": 1,
     }
     step1_res = executor.execute("document_extraction_tool", extraction_input, state=claim_state)

@@ -37,7 +37,9 @@ class InsureMateAgent:
         tool_registry: Optional[Union[InsureMateToolRegistry, ToolRegistry]] = None,
         executor: Optional[ToolExecutor] = None,
         offline_mode: Optional[bool] = None,
-        max_iterations: int = 10
+        max_iterations: int = 10,
+        planner: Optional[InsureMatePlanner] = None,
+        decision_engine: Optional[InsureMateDecisionEngine] = None
     ):
         if offline_mode is True and llm_client is None:
             self.llm_client = None
@@ -56,8 +58,8 @@ class InsureMateAgent:
             self.tool_registry = tool_registry or InsureMateToolRegistry(offline_mode=offline_mode)
             self.executor = executor or ToolExecutor()
 
-        self.planner = InsureMatePlanner(llm_client=self.llm_client)
-        self.decision_engine = InsureMateDecisionEngine(llm_client=self.llm_client)
+        self.planner = planner or InsureMatePlanner(llm_client=self.llm_client)
+        self.decision_engine = decision_engine or InsureMateDecisionEngine(llm_client=self.llm_client)
         self.max_iterations = max_iterations
 
 
@@ -111,12 +113,12 @@ class InsureMateAgent:
         while not state.is_finished() and state.iteration_count < state.max_iterations:
             state.iteration_count += 1
 
-            # Update plan based on current state
+            # Update plan based on current state observations
             plan = self.planner.update_plan(plan, state)
             state.current_plan = plan.to_dict()
 
-            # Dynamic Decision-Making based on intermediate results
-            decision = self.decision_engine.decide_next_action(state)
+            # Dynamic Decision-Making based on intermediate results and available tools
+            decision = self.decision_engine.decide_next_action(state, tool_registry=self.tool_registry)
             state.current_step = decision.action
 
             logger.info(
@@ -124,9 +126,21 @@ class InsureMateAgent:
                 f"Action={decision.action} | Reason='{decision.reason}'"
             )
 
-            # Case A: Terminal - Terminate normally
-            if decision.action == "complete":
+            # Case A: Terminal - Complete
+            if decision.action in ("complete", "finish"):
                 state.record_trace(decision=decision.reason, tool=None, tool_result=None)
+                if not state.final_status:
+                    state.final_status = ClaimStatus.CLAIM_READY_FOR_SUBMISSION.value
+                if not state.final_report:
+                    state.final_report = {
+                        "claim_id": state.claim_id,
+                        "status": state.final_status,
+                        "is_ready": state.final_status == ClaimStatus.CLAIM_READY_FOR_SUBMISSION.value,
+                        "decision_summary": decision.reason,
+                        "action_items": [],
+                        "human_review_required": True,
+                        "notice": "This analysis is an AI-assisted preparation assessment and does not constitute guaranteed insurer approval."
+                    }
                 break
 
             # Case B: Terminal - Abort gracefully due to unreadable/missing input
@@ -138,7 +152,8 @@ class InsureMateAgent:
                     "status": state.final_status,
                     "is_ready": False,
                     "decision_summary": decision.reason,
-                    "action_items": ["Provide legible and complete claim documents."]
+                    "action_items": ["Provide legible and complete claim documents."],
+                    "human_review_required": True,
                 }
                 break
 
@@ -156,7 +171,6 @@ class InsureMateAgent:
                     tool_result=prep_result.summary
                 )
                 state.mark_step_completed("claim_preparation")
-                # Immediately record terminal decision
                 state.record_trace(
                     decision="Claim analysis and preparation are complete.",
                     tool=None,
@@ -164,22 +178,30 @@ class InsureMateAgent:
                 )
                 break
 
-            # Case D: Standard Tool Invocations
+            # Case D: Dynamic Tool Invocations
             tool_name = decision.action
+            tool_args = decision.action_input or {}
             tool_res = self.tool_registry.execute_tool(
                 tool_name=tool_name,
                 state=state,
-                max_pages=max_pages
+                max_pages=max_pages,
+                **tool_args
             )
 
-            # Failure Handling & Single Retry policy
+            # Failure Handling & Controlled Single Retry policy
             if tool_res.status == "error" and state.can_retry(tool_name):
                 logger.warning(f"[AGENT RETRY] Retrying {tool_name} once following error: {tool_res.error}")
                 state.increment_retry(tool_name)
+                state.record_trace(
+                    decision=f"Retrying {tool_name} once following error: {tool_res.error}",
+                    tool=tool_name,
+                    tool_result="Initiating retry attempt"
+                )
                 tool_res = self.tool_registry.execute_tool(
                     tool_name=tool_name,
                     state=state,
-                    max_pages=max_pages
+                    max_pages=max_pages,
+                    **tool_args
                 )
 
             # Record tool result in state history
@@ -187,6 +209,7 @@ class InsureMateAgent:
                 tool_name=tool_name,
                 status=tool_res.status,
                 summary=tool_res.summary,
+                inputs_summary=str(tool_args) if tool_args else None,
                 error=tool_res.error
             )
 
@@ -201,7 +224,6 @@ class InsureMateAgent:
                 state.mark_step_completed(tool_name)
             else:
                 state.mark_step_failed(tool_name, tool_res.error or "Unknown error")
-                # If extraction fails completely, abort gracefully on next turn
                 if tool_name == "document_extraction":
                     state.final_status = ClaimStatus.INSUFFICIENT_INFORMATION.value
                     state.final_report = {
@@ -209,20 +231,22 @@ class InsureMateAgent:
                         "status": state.final_status,
                         "is_ready": False,
                         "decision_summary": f"Document extraction failed: {tool_res.error}",
-                        "action_items": ["Please upload valid, uncorrupted PDF documents."]
+                        "action_items": ["Please upload valid, uncorrupted PDF documents."],
+                        "human_review_required": True,
                     }
                     break
 
-        # Infinite loop guard check
+        # Bounded execution limit guard check
         if state.iteration_count >= state.max_iterations and not state.is_finished():
             state.final_status = ClaimStatus.FAILED.value
-            state.errors.append("Execution exceeded safe iteration limit (loop prevention).")
+            state.errors.append(f"Execution reached maximum limit of {state.max_iterations} iterations without converging.")
             state.final_report = {
                 "claim_id": state.claim_id,
                 "status": state.final_status,
                 "is_ready": False,
-                "decision_summary": "Agent reached maximum iteration limit without converging.",
-                "action_items": ["Review document formatting and retry."]
+                "decision_summary": f"Agent reached iteration limit ({state.max_iterations}) to ensure bounded execution.",
+                "action_items": ["Review document formatting and retry with clearer instructions."],
+                "human_review_required": True,
             }
 
         logger.info(f"[AGENT] Workflow concluded. Final Status: {state.final_status}")
