@@ -157,30 +157,49 @@ class InsureMateAgent:
                 }
                 break
 
-            # Case C: Claim Preparation tool
-            if decision.action == "claim_preparation":
-                prep_result = self.tool_registry.execute_tool("claim_preparation", state)
-                state.record_tool_execution(
-                    tool_name="claim_preparation",
-                    status=prep_result.status,
-                    summary=prep_result.summary
-                )
-                state.record_trace(
-                    decision=decision.reason,
-                    tool="claim_preparation",
-                    tool_result=prep_result.summary
-                )
-                state.mark_step_completed("claim_preparation")
-                state.record_trace(
-                    decision="Claim analysis and preparation are complete.",
-                    tool=None,
-                    tool_result=None
-                )
+            # Case C: Terminal / Interaction - Request information from user
+            if decision.action in ("request_user_info", "ask_user"):
+                state.record_trace(decision=decision.reason, tool=None, tool_result=None)
+                state.final_status = ClaimStatus.ACTION_REQUIRED_MISSING_EVIDENCE.value
+                question = decision.reason or "Additional user information or document evidence is required."
+                state.record_unresolved_question(question)
+                state.final_report = {
+                    "claim_id": state.claim_id,
+                    "status": state.final_status,
+                    "is_ready": False,
+                    "decision_summary": decision.reason,
+                    "action_items": [question],
+                    "human_review_required": True,
+                    "unresolved_questions": state.unresolved_questions,
+                }
                 break
 
             # Case D: Dynamic Tool Invocations
             tool_name = decision.action
-            tool_args = decision.action_input or {}
+            tool_args = decision.action_input if isinstance(decision.action_input, dict) else {}
+
+            # Safety & Validation: Reject unknown tools
+            if not self.tool_registry.has(tool_name):
+                logger.warning(f"[AGENT] Rejected unknown tool '{tool_name}' requested by agent.")
+                rejection_error = (
+                    f"Tool '{tool_name}' is not recognized or available. "
+                    f"Available tools: {self.tool_registry.get_tool_names()}"
+                )
+                state.record_tool_execution(
+                    tool_name=tool_name,
+                    status="error",
+                    summary=f"Unknown tool '{tool_name}' rejected.",
+                    inputs_summary=str(tool_args) if tool_args else None,
+                    error=rejection_error
+                )
+                state.record_trace(
+                    decision=decision.reason,
+                    tool=tool_name,
+                    tool_result=f"REJECTED: {rejection_error}"
+                )
+                state.mark_step_failed(tool_name, rejection_error)
+                continue
+
             tool_res = self.tool_registry.execute_tool(
                 tool_name=tool_name,
                 state=state,
@@ -222,19 +241,44 @@ class InsureMateAgent:
 
             if tool_res.status == "success":
                 state.mark_step_completed(tool_name)
+                # Ground verified facts into state
+                if tool_name == "validity_checker" and state.validity_result:
+                    state.record_verified_fact(
+                        "date_validity",
+                        state.validity_result.get("valid", False),
+                        provenance="validity_checker"
+                    )
+                elif tool_name == "document_validation" and state.validation_result:
+                    state.record_verified_fact(
+                        "document_validation",
+                        state.validation_result.get("valid", False),
+                        provenance="document_validation"
+                    )
+                elif tool_name == "policy_clause_search" and state.clause_search_results:
+                    matches = state.clause_search_results.get("matched_clauses") or state.clause_search_results.get("matches", [])
+                    if matches:
+                        state.record_verified_fact(
+                            "policy_clauses_found",
+                            [m.get("clause_text") or m.get("clause") for m in matches[:3]],
+                            provenance="policy_clause_search"
+                        )
+                elif tool_name == "cross_document_consistency_check" and state.consistency_results:
+                    discrepancies = state.consistency_results.get("discrepancies", [])
+                    if discrepancies:
+                        state.record_verified_fact(
+                            "discrepancies_detected",
+                            discrepancies,
+                            provenance="cross_document_consistency_check"
+                        )
+                elif tool_name == "missing_document_detector" and state.missing_documents:
+                    missing = state.missing_documents.get("missing_documents", [])
+                    if missing:
+                        for m_doc in missing:
+                            state.record_unresolved_question(
+                                f"Missing mandatory document: {m_doc.get('document_type', 'unknown')}"
+                            )
             else:
                 state.mark_step_failed(tool_name, tool_res.error or "Unknown error")
-                if tool_name == "document_extraction":
-                    state.final_status = ClaimStatus.INSUFFICIENT_INFORMATION.value
-                    state.final_report = {
-                        "claim_id": state.claim_id,
-                        "status": state.final_status,
-                        "is_ready": False,
-                        "decision_summary": f"Document extraction failed: {tool_res.error}",
-                        "action_items": ["Please upload valid, uncorrupted PDF documents."],
-                        "human_review_required": True,
-                    }
-                    break
 
         # Bounded execution limit guard check
         if state.iteration_count >= state.max_iterations and not state.is_finished():

@@ -21,6 +21,13 @@ class AgentTool(ABC):
 
     name: str = "base_agent_tool"
     description: str = "Abstract agent tool interface."
+    parameters: Dict[str, Any] = {}
+    expected_output: str = "Structured result dictionary."
+    prerequisites: List[str] = []
+    side_effects: bool = False
+    requires_authorization: bool = False
+    error_behavior: str = "Returns status='error' with error description."
+    execution_constraints: Dict[str, Any] = {}
 
     @abstractmethod
     def execute(self, input_data: Dict[str, Any]) -> Dict[str, Any]:
@@ -48,7 +55,7 @@ class AgentTool(ABC):
                 "description": self.description,
                 "parameters": {
                     "type": "object",
-                    "properties": {
+                    "properties": self.parameters or {
                         "input_data": {
                             "type": "object",
                             "description": "Input payload for tool execution.",
@@ -56,6 +63,20 @@ class AgentTool(ABC):
                     },
                 },
             },
+        }
+
+    def get_manifest(self) -> Dict[str, Any]:
+        """Return comprehensive metadata for agent discovery and runtime argument validation."""
+        return {
+            "name": self.name,
+            "description": self.description,
+            "parameters": self.parameters,
+            "expected_output": self.expected_output,
+            "prerequisites": self.prerequisites,
+            "side_effects": self.side_effects,
+            "requires_authorization": self.requires_authorization,
+            "error_behavior": self.error_behavior,
+            "execution_constraints": self.execution_constraints,
         }
 
     def validate_input(self, input_data: Any) -> Dict[str, Any]:

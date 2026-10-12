@@ -32,10 +32,17 @@ class ToolExecutionResult:
 
 
 class BaseAgentTool:
-    """Base class for Agent Tools with schema and error handling."""
+    """Base class for Agent Tools with schema, manifest, and error handling."""
     name: str = ""
     description: str = ""
     required_inputs: List[str] = []
+    parameters: Dict[str, Any] = {}
+    expected_output: str = ""
+    prerequisites: List[str] = []
+    side_effects: bool = False
+    requires_authorization: bool = False
+    error_behavior: str = "Returns ToolExecutionResult with status='error' and error message."
+    execution_constraints: Dict[str, Any] = {}
 
     def run(self, state: ClaimState, **kwargs: Any) -> ToolExecutionResult:
         raise NotImplementedError
@@ -44,7 +51,21 @@ class BaseAgentTool:
         return {
             "name": self.name,
             "description": self.description,
-            "required_inputs": self.required_inputs
+            "required_inputs": self.required_inputs,
+            "parameters": self.parameters,
+        }
+
+    def get_manifest(self) -> Dict[str, Any]:
+        return {
+            "name": self.name,
+            "description": self.description,
+            "parameters": self.parameters,
+            "expected_output": self.expected_output,
+            "prerequisites": self.prerequisites,
+            "side_effects": self.side_effects,
+            "requires_authorization": self.requires_authorization,
+            "error_behavior": self.error_behavior,
+            "execution_constraints": self.execution_constraints,
         }
 
 
@@ -57,9 +78,18 @@ class DocumentExtractionAdapter(BaseAgentTool):
     name: str = "document_extraction"
     description: str = (
         "Extracts structured insurance entities and classifications from uploaded PDF documents "
-        "using the existing Qwen-VL vision understanding tool, preserving 1-indexed page numbers."
+        "using Qwen-VL / vision understanding, preserving 1-indexed page numbers."
     )
     required_inputs: List[str] = ["documents"]
+    parameters: Dict[str, Any] = {
+        "documents": {"type": "array", "description": "Optional list of document filepaths to extract"},
+        "max_pages": {"type": "integer", "description": "Optional upper limit of pages to extract per document"}
+    }
+    expected_output: str = "Extracted list of document pages with entities, titles, dates, amounts, and classifications."
+    prerequisites: List[str] = []
+    side_effects: bool = False
+    requires_authorization: bool = False
+    error_behavior: str = "Returns status='error' if files do not exist or cannot be parsed."
 
     def __init__(self, tool: Optional[QwenVLExtractionTool] = None, offline_mode: Optional[bool] = None):
         self.underlying_tool = tool or QwenVLExtractionTool(offline_mode=offline_mode)
@@ -462,6 +492,7 @@ class PolicyClauseSearchAdapter(BaseAgentTool):
     def run(self, state: ClaimState, query: Optional[str] = None, **kwargs: Any) -> ToolExecutionResult:
         search_query = query or kwargs.get("search_query") or state.goal
         res = self.underlying_tool.run(query=search_query, extracted_data=state.extracted_data)
+        state.clause_search_results = res
         summary = res.get("summary", "Policy clause search completed.")
         return ToolExecutionResult(
             tool_name=self.name,
@@ -490,6 +521,7 @@ class CrossDocumentConsistencyAdapter(BaseAgentTool):
 
     def run(self, state: ClaimState, **kwargs: Any) -> ToolExecutionResult:
         res = self.underlying_tool.run(extracted_data=state.extracted_data)
+        state.consistency_results = res
         summary = res.get("summary", "Cross-document consistency check completed.")
         return ToolExecutionResult(
             tool_name=self.name,
@@ -555,15 +587,45 @@ class InsureMateToolRegistry:
     def has(self, tool_name: str) -> bool:
         return tool_name in self.tools
 
-    def execute_tool(self, tool_name: str, state: ClaimState, **kwargs: Any) -> ToolExecutionResult:
+    def get_tool_names(self) -> List[str]:
+        return list(self.tools.keys())
+
+    def execute_tool(
+        self,
+        tool_name: str,
+        state: ClaimState,
+        authorization_granted: bool = True,
+        **kwargs: Any
+    ) -> ToolExecutionResult:
         tool = self.get_tool(tool_name)
         if not tool:
             return ToolExecutionResult(
                 tool_name=tool_name,
                 status="error",
-                summary=f"Unknown tool '{tool_name}' requested by agent.",
+                summary=f"Unknown tool '{tool_name}' requested. Not available in registry.",
                 data={},
                 error=f"Tool '{tool_name}' not registered."
+            )
+
+        # Check authorization
+        if getattr(tool, "requires_authorization", False) and not authorization_granted:
+            return ToolExecutionResult(
+                tool_name=tool_name,
+                status="error",
+                summary=f"Execution of '{tool_name}' requires explicit user authorization.",
+                data={},
+                error="Authorization required."
+            )
+
+        # Check prerequisites
+        prereqs = getattr(tool, "prerequisites", [])
+        if "extracted_data" in prereqs and not state.extracted_data and not state.documents:
+            return ToolExecutionResult(
+                tool_name=tool_name,
+                status="error",
+                summary=f"Tool '{tool_name}' prerequisite failed: requires extracted document data.",
+                data={},
+                error="Prerequisite missing: extracted_data."
             )
 
         try:
@@ -579,7 +641,7 @@ class InsureMateToolRegistry:
             )
 
     def list_tools(self) -> List[Dict[str, Any]]:
-        """Return discovery list for unique canonical tools."""
+        """Return discovery manifest for unique canonical tools."""
         canonical_keys = [
             "document_extraction",
             "document_validation",
@@ -589,7 +651,12 @@ class InsureMateToolRegistry:
             "cross_document_consistency_check",
             "claim_preparation"
         ]
-        return [self.tools[k].get_schema() for k in canonical_keys if k in self.tools]
+        manifests = []
+        for k in canonical_keys:
+            if k in self.tools:
+                t = self.tools[k]
+                manifests.append(t.get_manifest() if hasattr(t, "get_manifest") else t.get_schema())
+        return manifests
 
     def get_schemas(self) -> List[Dict[str, Any]]:
         """Return schema definitions compatible with LLM function calling."""

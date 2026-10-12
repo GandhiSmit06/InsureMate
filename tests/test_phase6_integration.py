@@ -163,6 +163,10 @@ def test_phase5_agent_orchestration_simulation(integrated_registry):
     policy_pdf = ROOT_DIR / "sample_policy.pdf"
     if not policy_pdf.exists():
         policy_pdf = ROOT_DIR / "policy_A.pdf"
+    if not policy_pdf.exists():
+        policy_candidates = list((ROOT_DIR / "uploads").glob("*/sample_policy.pdf"))
+        if policy_candidates:
+            policy_pdf = policy_candidates[0]
     extraction_input = {
         "claim_id": claim_state.claim_id,
         "documents": [str(policy_pdf)],
@@ -255,9 +259,37 @@ def test_insuremate_agent_with_phase6_executor(integrated_registry):
     policy_pdf = ROOT_DIR / "sample_policy.pdf"
     if not policy_pdf.exists():
         policy_pdf = ROOT_DIR / "policy_A.pdf"
+    if not policy_pdf.exists():
+        policy_candidates = list((ROOT_DIR / "uploads").glob("*/sample_policy.pdf"))
+        if policy_candidates:
+            policy_pdf = policy_candidates[0]
+
     claim_pdf = ROOT_DIR / "sample_claim.pdf"
     if not claim_pdf.exists():
         claim_pdf = ROOT_DIR / "claim_A.pdf"
+    if not claim_pdf.exists():
+        claim_candidates = list((ROOT_DIR / "uploads").glob("*/sample_claim.pdf"))
+        if claim_candidates:
+            claim_pdf = claim_candidates[0]
+
+    agent_responses = [
+        {"thought": "Step 1: Extract documents.", "action": "document_extraction", "action_input": {}, "reason": "Extract text.", "decision_type": "TOOL_CALL"},
+        {"thought": "Step 2: Validate documents.", "action": "document_validation", "action_input": {}, "reason": "Validate documents.", "decision_type": "TOOL_CALL"},
+        {"thought": "Step 3: Check validity dates.", "action": "validity_checker", "action_input": {}, "reason": "Check dates.", "decision_type": "TOOL_CALL"},
+        {"thought": "Complete.", "action": "complete", "reason": "Done.", "decision_type": "TERMINATE"}
+    ]
+    agent_llm = MockLLMClient(
+        responses=agent_responses,
+        planner_response={
+            "goal": "Determine claim readiness.",
+            "steps": [
+                {"step": 1, "action": "document_extraction"},
+                {"step": 2, "action": "document_validation"},
+                {"step": 3, "action": "validity_checker"}
+            ]
+        }
+    )
+    agent = InsureMateAgent(llm_client=agent_llm, tool_registry=integrated_registry, executor=executor)
 
     state = agent.run(
         documents=[str(policy_pdf), str(claim_pdf)],

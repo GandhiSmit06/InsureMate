@@ -58,6 +58,8 @@ class ClaimState:
     document_classifications: Dict[int, str] = field(default_factory=dict)
     page_numbers: List[int] = field(default_factory=list)
     extracted_data: List[Dict[str, Any]] = field(default_factory=list)
+    verified_facts: Dict[str, Any] = field(default_factory=dict)
+    evidence_provenance: Dict[str, str] = field(default_factory=dict)
     validation_result: Optional[Dict[str, Any]] = None
     validity_result: Optional[Dict[str, Any]] = None
     missing_documents: Optional[Dict[str, Any]] = None
@@ -76,6 +78,18 @@ class ClaimState:
     retry_counts: Dict[str, int] = field(default_factory=dict)
     max_iterations: int = 10
     iteration_count: int = 0
+
+    @property
+    def remaining_budget(self) -> int:
+        return max(0, self.max_iterations - self.iteration_count)
+
+    def record_verified_fact(self, key: str, value: Any, provenance: str) -> None:
+        self.verified_facts[key] = value
+        self.evidence_provenance[key] = provenance
+
+    def record_unresolved_question(self, question: str) -> None:
+        if question not in self.unresolved_questions:
+            self.unresolved_questions.append(question)
 
     def record_tool_execution(
         self,
@@ -150,6 +164,8 @@ class ClaimState:
             "document_classifications": self.document_classifications,
             "page_numbers": self.page_numbers,
             "extracted_data": self.extracted_data,
+            "verified_facts": self.verified_facts,
+            "evidence_provenance": self.evidence_provenance,
             "validation_result": self.validation_result,
             "validity_result": self.validity_result,
             "missing_documents": self.missing_documents,

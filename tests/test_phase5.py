@@ -102,7 +102,26 @@ def test_1_valid_policy_and_bill():
         missing_doc_tool=missing_tool,
         offline_mode=True
     )
-    agent = InsureMateAgent(tool_registry=registry, offline_mode=True)
+    agent_responses = [
+        {"thought": "Step 1: Validate documents.", "action": "document_validation", "action_input": {}, "reason": "Validate documents.", "decision_type": "TOOL_CALL"},
+        {"thought": "Step 2: Check date validity.", "action": "validity_checker", "action_input": {}, "reason": "Check date validity.", "decision_type": "TOOL_CALL"},
+        {"thought": "Step 3: Check missing evidence.", "action": "missing_document_detector", "action_input": {}, "reason": "Detect missing evidence.", "decision_type": "TOOL_CALL"},
+        {"thought": "Step 4: Prepare claim readiness package.", "action": "claim_preparation", "action_input": {}, "reason": "Synthesize claim preparation package.", "decision_type": "TOOL_CALL"},
+        {"thought": "Claim readiness determined.", "action": "complete", "reason": "Workflow completed.", "decision_type": "TERMINATE"}
+    ]
+    agent_llm = MockLLMClient(
+        responses=agent_responses,
+        planner_response={
+            "goal": "Determine claim readiness.",
+            "steps": [
+                {"step": 1, "action": "document_validation"},
+                {"step": 2, "action": "validity_checker"},
+                {"step": 3, "action": "missing_document_detector"},
+                {"step": 4, "action": "claim_preparation"}
+            ]
+        }
+    )
+    agent = InsureMateAgent(llm_client=agent_llm, tool_registry=registry)
 
     state = ClaimState(
         goal="Determine claim readiness.",
@@ -183,7 +202,24 @@ def test_2_date_outside_policy_period():
         missing_doc_tool=missing_tool,
         offline_mode=True
     )
-    agent = InsureMateAgent(tool_registry=registry, offline_mode=True)
+    agent_responses = [
+        {"thought": "Step 1: Validate documents.", "action": "document_validation", "action_input": {}, "reason": "Validate documents.", "decision_type": "TOOL_CALL"},
+        {"thought": "Step 2: Check date validity.", "action": "validity_checker", "action_input": {}, "reason": "Check date validity.", "decision_type": "TOOL_CALL"},
+        {"thought": "Step 3: Dates invalid, prepare report.", "action": "claim_preparation", "action_input": {}, "reason": "Document date is outside policy period.", "decision_type": "TOOL_CALL"},
+        {"thought": "Complete.", "action": "complete", "reason": "Done.", "decision_type": "TERMINATE"}
+    ]
+    agent_llm = MockLLMClient(
+        responses=agent_responses,
+        planner_response={
+            "goal": "Determine claim readiness.",
+            "steps": [
+                {"step": 1, "action": "document_validation"},
+                {"step": 2, "action": "validity_checker"},
+                {"step": 3, "action": "claim_preparation"}
+            ]
+        }
+    )
+    agent = InsureMateAgent(llm_client=agent_llm, tool_registry=registry)
 
     state = ClaimState(
         goal="Determine claim readiness.",
@@ -257,7 +293,26 @@ def test_3_required_document_missing():
         missing_doc_tool=missing_tool,
         offline_mode=True
     )
-    agent = InsureMateAgent(tool_registry=registry, offline_mode=True)
+    agent_responses = [
+        {"thought": "Step 1: Validate documents.", "action": "document_validation", "action_input": {}, "reason": "Validate documents.", "decision_type": "TOOL_CALL"},
+        {"thought": "Step 2: Check date validity.", "action": "validity_checker", "action_input": {}, "reason": "Check date validity.", "decision_type": "TOOL_CALL"},
+        {"thought": "Step 3: Check missing evidence.", "action": "missing_document_detector", "action_input": {}, "reason": "Detect missing documents.", "decision_type": "TOOL_CALL"},
+        {"thought": "Step 4: Prepare claim package with missing evidence.", "action": "claim_preparation", "action_input": {}, "reason": "Synthesize report noting missing documents.", "decision_type": "TOOL_CALL"},
+        {"thought": "Complete.", "action": "complete", "reason": "Done.", "decision_type": "TERMINATE"}
+    ]
+    agent_llm = MockLLMClient(
+        responses=agent_responses,
+        planner_response={
+            "goal": "Determine claim readiness.",
+            "steps": [
+                {"step": 1, "action": "document_validation"},
+                {"step": 2, "action": "validity_checker"},
+                {"step": 3, "action": "missing_document_detector"},
+                {"step": 4, "action": "claim_preparation"}
+            ]
+        }
+    )
+    agent = InsureMateAgent(llm_client=agent_llm, tool_registry=registry)
 
     state = ClaimState(
         goal="Determine claim readiness.",
@@ -303,7 +358,22 @@ def test_4_incomplete_or_unreadable_document():
         }
     ]
 
-    agent = InsureMateAgent(offline_mode=True)
+    agent_responses = [
+        {"thought": "Step 1: Validate documents.", "action": "document_validation", "action_input": {}, "reason": "Validate document structure.", "decision_type": "TOOL_CALL"},
+        {"thought": "Step 2: Documents invalid, prepare deficiency report.", "action": "claim_preparation", "action_input": {}, "reason": "Prepare claim report noting invalid documents.", "decision_type": "TOOL_CALL"},
+        {"thought": "Complete.", "action": "complete", "reason": "Done.", "decision_type": "TERMINATE"}
+    ]
+    agent_llm = MockLLMClient(
+        responses=agent_responses,
+        planner_response={
+            "goal": "Determine claim readiness.",
+            "steps": [
+                {"step": 1, "action": "document_validation"},
+                {"step": 2, "action": "claim_preparation"}
+            ]
+        }
+    )
+    agent = InsureMateAgent(llm_client=agent_llm, offline_mode=True)
     state = ClaimState(
         goal="Determine claim readiness.",
         extracted_data=corrupt_data
@@ -421,7 +491,24 @@ def test_8_real_documents_agent_run():
         pytest.skip("Sample PDF documents not present; skipping live PDF run.")
         return
 
-    agent = InsureMateAgent(offline_mode=True)
+    agent_responses = [
+        {"thought": "Step 1: Extract documents.", "action": "document_extraction", "action_input": {}, "reason": "Extract text.", "decision_type": "TOOL_CALL"},
+        {"thought": "Step 2: Validate documents.", "action": "document_validation", "action_input": {}, "reason": "Validate documents.", "decision_type": "TOOL_CALL"},
+        {"thought": "Step 3: Check validity dates.", "action": "validity_checker", "action_input": {}, "reason": "Check dates.", "decision_type": "TOOL_CALL"},
+        {"thought": "Complete.", "action": "complete", "reason": "Done.", "decision_type": "TERMINATE"}
+    ]
+    agent_llm = MockLLMClient(
+        responses=agent_responses,
+        planner_response={
+            "goal": "Determine claim readiness.",
+            "steps": [
+                {"step": 1, "action": "document_extraction"},
+                {"step": 2, "action": "document_validation"},
+                {"step": 3, "action": "validity_checker"}
+            ]
+        }
+    )
+    agent = InsureMateAgent(llm_client=agent_llm)
     result_state = agent.run(
         documents=[str(policy_pdf), str(claim_pdf)],
         max_pages=2
