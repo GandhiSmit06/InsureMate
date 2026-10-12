@@ -234,12 +234,27 @@ This analysis is an AI-assisted preparation assessment and does not constitute g
     const validityStatusEl = document.getElementById('metric-results-validity');
 
     const extracted = latestState.extracted_data || [];
-    const missingDocs = latestState.missing_documents?.missing_documents || report.missing_documents || [];
     const validity = latestState.validity_result || report.validity_check || {};
+
+    // Accurately compute count of truly missing documents
+    let missingCount = 0;
+    if (typeof report.missing_count === 'number' && !isNaN(report.missing_count)) {
+      missingCount = report.missing_count;
+    } else if (latestState.missing_documents?.summary?.missing !== undefined) {
+      missingCount = latestState.missing_documents.summary.missing;
+    } else {
+      const allReqs = latestState.missing_documents?.missing_documents || latestState.missing_documents?.document_results || report.missing_documents || [];
+      missingCount = allReqs.filter(d => {
+        if (typeof d === 'string') return true;
+        if (d.missing === true) return true;
+        const s = String(d.status || '').toLowerCase();
+        return s === 'missing';
+      }).length;
+    }
 
     if (docsCountEl) docsCountEl.textContent = extracted.length || (bundle.claim?.policy_filename ? 2 : 1);
     if (validDocsEl) validDocsEl.textContent = Math.max(0, extracted.length - (latestState.validation_result?.invalid_count || 0));
-    if (missingDocsEl) missingDocsEl.textContent = missingDocs.length;
+    if (missingDocsEl) missingDocsEl.textContent = missingCount;
     if (validityStatusEl) {
       const isPass = validity.valid !== false;
       validityStatusEl.textContent = isPass ? 'PASS' : 'FAIL';
@@ -251,7 +266,7 @@ This analysis is an AI-assisted preparation assessment and does not constitute g
     const tbody = document.getElementById('missing-evidence-tbody');
     if (!tbody) return;
 
-    const items = missingData?.missing_documents || missingData?.items || [];
+    const items = missingData?.missing_documents || missingData?.document_results || missingData?.items || [];
 
     if (!items || items.length === 0) {
       tbody.innerHTML = `
@@ -266,12 +281,13 @@ This analysis is an AI-assisted preparation assessment and does not constitute g
 
     tbody.innerHTML = items.map((doc, idx) => {
       const statusRaw = String(doc.status || '').toLowerCase();
-      const isFound = statusRaw === 'found' || statusRaw === 'available' || statusRaw === 'received' || statusRaw === 'present';
+      const isMissing = doc.missing === true || statusRaw === 'missing';
+      const isReceived = doc.missing === false || statusRaw === 'received' || statusRaw === 'found' || statusRaw === 'available' || statusRaw === 'present' || (!isMissing && (doc.page_number != null || doc.matched_submitted_document != null));
       const isIncomplete = statusRaw === 'incomplete';
       const isReview = statusRaw === 'needs_review' || statusRaw === 'review';
       
       let statusBadge;
-      if (isFound) {
+      if (isReceived) {
         statusBadge = '<span class="badge badge-ready">✓ Received</span>';
       } else if (isIncomplete) {
         statusBadge = '<span class="badge badge-warning">⚠ Incomplete</span>';
@@ -282,8 +298,8 @@ This analysis is an AI-assisted preparation assessment and does not constitute g
       }
 
       const docName = doc.document_title || doc.required_document || doc.document_name || doc.title || doc.name || 'Required Evidence Document';
-      const reasonText = doc.reason || doc.matching_reason || (isFound ? 'Matching document identified in claim inventory.' : 'No matching claim documents were submitted to fulfill this requirement.');
-      const pageInfo = doc.source_page ? `Page ${doc.source_page}` : (doc.page_number ? `Page ${doc.page_number}` : '—');
+      const reasonText = doc.reason || doc.matching_reason || (isReceived ? 'Matching document identified in claim inventory.' : 'No matching claim documents were submitted to fulfill this requirement.');
+      const pageInfo = (doc.page_number != null && doc.page_number !== '') ? `Page ${doc.page_number}` : (doc.source_page ? `Page ${doc.source_page}` : '—');
 
       return `
         <tr>

@@ -124,6 +124,7 @@ class MissingDocumentResponse(BaseModel):
                 "document_name": r.document_title,
                 "name": r.document_title,
                 "missing": r.missing,
+                "status": "missing" if r.missing else "received",
                 "page_number": r.page_number,
                 "page_no": r.page_number,
                 "matched_submitted_document": r.matched_submitted_document,
