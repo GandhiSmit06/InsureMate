@@ -254,7 +254,17 @@ This analysis is an AI-assisted preparation assessment and does not constitute g
 
     if (docsCountEl) docsCountEl.textContent = extracted.length || (bundle.claim?.policy_filename ? 2 : 1);
     if (validDocsEl) validDocsEl.textContent = Math.max(0, extracted.length - (latestState.validation_result?.invalid_count || 0));
-    if (missingDocsEl) missingDocsEl.textContent = missingCount;
+    if (missingDocsEl) {
+      missingDocsEl.textContent = missingCount;
+      const subEl = missingDocsEl.parentElement?.querySelector('.kpi-subtext');
+      if (missingCount === 0) {
+        missingDocsEl.className = 'kpi-value text-emerald';
+        if (subEl) subEl.textContent = 'All requirements satisfied';
+      } else {
+        missingDocsEl.className = 'kpi-value text-amber';
+        if (subEl) subEl.textContent = `${missingCount} unfulfilled policy clause(s)`;
+      }
+    }
     if (validityStatusEl) {
       const isPass = validity.valid !== false;
       validityStatusEl.textContent = isPass ? 'PASS' : 'FAIL';
