@@ -45,13 +45,9 @@ app.add_middleware(
 
 # Initialize Service & Database
 agent_service = AgentService()
-static_dir = Path(__file__).resolve().parent / "static"
-static_dir.mkdir(parents=True, exist_ok=True)
 frontend_dir = ROOT_DIR / "frontend"
 
-# Mount Static & Frontend Files
-app.mount("/static", StaticFiles(directory=str(static_dir)), name="static")
-
+# Mount Frontend Static Assets
 if frontend_dir.exists():
     app.mount("/frontend", StaticFiles(directory=str(frontend_dir)), name="frontend")
     if (frontend_dir / "css").exists():
@@ -87,9 +83,7 @@ class StartAgentRequest(BaseModel):
 async def serve_index():
     index_file = frontend_dir / "index.html"
     if not index_file.exists():
-        index_file = static_dir / "index.html"
-    if not index_file.exists():
-        raise HTTPException(status_code=404, detail="Index HTML not found.")
+        raise HTTPException(status_code=404, detail="Frontend index.html not found.")
     return FileResponse(str(index_file))
 
 
