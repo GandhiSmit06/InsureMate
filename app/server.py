@@ -495,9 +495,11 @@ async def get_claim_missing_documents(claim_id: str):
     latest_state = data.get("latest_state") or {}
     missing_data = latest_state.get("missing_documents") or {}
     docs = missing_data.get("missing_documents", [])
+    summary = missing_data.get("summary") or {}
+    missing_count = summary.get("missing", len([d for d in docs if isinstance(d, dict) and d.get("missing") is True]))
     return {
         "claim_id": claim_id,
-        "missing_count": len(docs),
+        "missing_count": missing_count,
         "missing_documents": docs,
         "analysis": missing_data
     }

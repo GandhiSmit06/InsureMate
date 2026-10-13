@@ -197,30 +197,33 @@ This analysis is an AI-assisted preparation assessment and does not constitute g
     banner.className = 'card';
     banner.style.background = 'var(--bg-card)';
 
+    const backendStatus = report?.final_status || claim?.status || verdict;
+    const displayTitle = backendStatus ? String(backendStatus).replace(/_/g, ' ').toUpperCase() : 'ASSESSMENT COMPLETED';
+
     if (s.includes('READY') || s.includes('CLAIM_READY')) {
       banner.style.borderLeft = '3px solid var(--emerald)';
       iconEl.textContent = '✓';
       iconEl.style.color = 'var(--emerald)';
-      titleEl.textContent = 'CLAIM READY FOR SUBMISSION';
+      titleEl.textContent = displayTitle;
       descEl.textContent = report?.decision_summary || 'All required evidence has been submitted and verified. The claim satisfies coverage validity and required evidence policies.';
     } else if (s.includes('MISSING')) {
       banner.style.borderLeft = '3px solid var(--amber)';
       iconEl.textContent = '⚠';
       iconEl.style.color = 'var(--amber)';
-      titleEl.textContent = 'ACTION REQUIRED: MISSING EVIDENCE DETECTED';
+      titleEl.textContent = displayTitle;
       descEl.textContent = report?.decision_summary || 'The submitted documents do not contain all mandatory evidence required by the insurance policy clauses.';
     } else if (s.includes('INVALID') || s.includes('FAILED')) {
       banner.style.borderLeft = '3px solid var(--rose)';
       iconEl.textContent = '✕';
       iconEl.style.color = 'var(--rose)';
-      titleEl.textContent = s.includes('DATES') ? 'INVALID CLAIM DATES (OUTSIDE POLICY PERIOD)' : 'ACTION REQUIRED: INVALID DOCUMENTS';
+      titleEl.textContent = displayTitle;
       descEl.textContent = report?.decision_summary || 'Document validation or policy coverage verification failed.';
     } else {
       banner.style.borderLeft = '3px solid var(--accent)';
       iconEl.textContent = '●';
       iconEl.style.color = 'var(--accent)';
-      titleEl.textContent = 'ASSESSMENT PENDING / IN PROGRESS';
-      descEl.textContent = 'Launch the InsureMate Agent to evaluate this claim.';
+      titleEl.textContent = displayTitle;
+      descEl.textContent = report?.decision_summary || 'Assessment in progress.';
     }
   },
 
