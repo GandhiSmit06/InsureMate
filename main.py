@@ -50,59 +50,44 @@ def run_phase_1(pdf_path: str, max_pages: int = 2):
     return res
 
 
-def run_phase_2(extracted_data=None):
+def run_phase_2(extracted_data=None, pdf_path=None):
     print("\n" + "=" * 70)
     print("PHASE 2: DOCUMENT VALIDATION")
     print("=" * 70)
     tool = DocumentValidationTool()
     if not extracted_data:
-        extracted_data = [
-            {
-                "page_number": 1,
-                "document_type": "insurance_policy",
-                "policy_number": "POL-2025-00123",
-                "policy_holder_name": "John Doe",
-                "policy_start_date": "12/03/2025",
-                "policy_end_date": "11/03/2028",
-            },
-            {
-                "page_number": 2,
-                "document_type": "medical_bill",
-                "bill_number": "BILL-101",
-                "patient_name": "Jane Doe",
-                "document_date": "15/08/2026",
-                "bill_amount": "25000.00",
-            }
-        ]
+        target = pdf_path or str(ROOT_DIR / "sample_policy.pdf")
+        if not Path(target).exists():
+            target = str(ROOT_DIR / "4225IELVT38453879200000_policy_copy.pdf")
+        if Path(target).exists():
+            ext = QwenVLExtractionTool().run(target, max_pages=2)
+            extracted_data = ext.get("extracted_documents", [])
+        else:
+            extracted_data = []
     res = tool.run(extracted_data)
     print(json.dumps(res["validation_result"], indent=2))
     return res
 
 
-def run_phase_3(policy_data=None, claim_data=None):
+def run_phase_3(policy_data=None, claim_data=None, policy_pdf=None, claim_pdf=None):
     print("\n" + "=" * 70)
     print("PHASE 3: CLAIM VALIDITY CHECKER")
     print("=" * 70)
     tool = ValidityCheckerTool()
-    if not policy_data:
-        policy_data = {
-            "policy_number": "POL-2025-00123",
-            "policy_holder_name": "John Doe",
-            "policy_start_date": "12/03/2025",
-            "policy_end_date": "11/03/2028",
-            "insured_names": ["John Doe", "Jane Doe"]
-        }
-    if not claim_data:
-        claim_data = [
-            {
-                "document_type": "medical_bill",
-                "page_number": 2,
-                "document_date": "15/08/2026",
-                "patient_name": "Jane Doe",
-                "bill_amount": "25000.00"
-            }
-        ]
-    res = tool.run(policy_data=policy_data, document_data=claim_data)
+    if not policy_data or not claim_data:
+        p_path = policy_pdf or str(ROOT_DIR / "sample_policy.pdf")
+        if not Path(p_path).exists():
+            p_path = str(ROOT_DIR / "4225IELVT38453879200000_policy_copy.pdf")
+        c_path = claim_pdf or str(ROOT_DIR / "sample_claim.pdf")
+        if not Path(c_path).exists():
+            c_path = str(ROOT_DIR / "DOCUMENTS FOR Re- activation REQUEST OF CLAIM NO.95151709.pdf")
+        if not policy_data and Path(p_path).exists():
+            p_res = QwenVLExtractionTool().run(p_path, max_pages=2)
+            policy_data = p_res.get("extracted_documents", [])
+        if not claim_data and Path(c_path).exists():
+            c_res = QwenVLExtractionTool().run(c_path, max_pages=2)
+            claim_data = c_res.get("extracted_documents", [])
+    res = tool.run(policy_data=policy_data or [], document_data=claim_data or [])
     print(json.dumps(res, indent=2))
     return res
 
@@ -162,7 +147,7 @@ def run_phase_5(
         if c_default.exists():
             docs.append(str(c_default))
 
-    agent = InsureMateAgent(offline_mode=offline_mode)
+    agent = InsureMateAgent()
     state = agent.run(
         documents=docs,
         goal=goal or "Determine claim readiness.",

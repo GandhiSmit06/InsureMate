@@ -404,10 +404,11 @@ class ValidityChecker:
         if not p_tokens or not m_tokens:
             return False
 
+        required_matches = min(2, len(p_tokens), len(m_tokens))
         # Direct token intersection (e.g. ['john', 'doe'] vs ['john', 'sample', 'doe'])
         p_set = set(p_tokens)
         m_set = set(m_tokens)
-        if len(p_set.intersection(m_set)) >= 2:
+        if len(p_set.intersection(m_set)) >= required_matches:
             return True
 
         # Check token and initial alignment
@@ -422,7 +423,7 @@ class ValidityChecker:
                     used_m.add(idx)
                     break
 
-        return matches >= 2
+        return matches >= required_matches
 
 
 def validity_checker(

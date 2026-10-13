@@ -311,8 +311,19 @@ class MissingDocumentDetectorAdapter(BaseAgentTool):
     )
     required_inputs: List[str] = ["extracted_data"]
 
-    def __init__(self, tool: Optional[MissingDocumentTool] = None):
-        self.underlying_tool = tool or MissingDocumentTool()
+    def __init__(self, tool: Optional[MissingDocumentTool] = None, offline_mode: Optional[bool] = None):
+        if tool is not None:
+            self.underlying_tool = tool
+        elif offline_mode is True:
+            from services.missing_document.llm_gateway import LLMGateway
+            class OfflineOllamaClient:
+                def is_available(self, force_refresh: bool = False) -> bool:
+                    return False
+                def chat(self, *args: Any, **kwargs: Any) -> str:
+                    raise RuntimeError("Offline mode: LLM calls are disabled.")
+            self.underlying_tool = MissingDocumentTool(gateway=LLMGateway(client=OfflineOllamaClient()))
+        else:
+            self.underlying_tool = MissingDocumentTool()
 
     def run(self, state: ClaimState, **kwargs: Any) -> ToolExecutionResult:
         if not state.extracted_data:
@@ -553,7 +564,7 @@ class InsureMateToolRegistry:
             "document_extraction": DocumentExtractionAdapter(tool=extraction_tool, offline_mode=offline_mode),
             "document_validation": DocumentValidationAdapter(tool=validation_tool),
             "validity_checker": ValidityCheckerAdapter(tool=validity_tool),
-            "missing_document_detector": MissingDocumentDetectorAdapter(tool=missing_doc_tool),
+            "missing_document_detector": MissingDocumentDetectorAdapter(tool=missing_doc_tool, offline_mode=offline_mode),
             "policy_clause_search": PolicyClauseSearchAdapter(tool=clause_tool),
             "cross_document_consistency_check": CrossDocumentConsistencyAdapter(tool=consistency_tool),
             "claim_preparation": ClaimPreparationAdapter(),

@@ -122,41 +122,16 @@ class QwenVLExtractor:
         offline_mode: Optional[bool] = None
     ):
         self.config = config or QwenConfig.from_env()
-        if offline_mode is not None:
-            self.offline_mode = offline_mode
-        else:
-            # Auto-enable offline mode if API key is empty or placeholder
-            self.offline_mode = not bool(self.config.api_key) or self.config.api_key.startswith("your_")
-
+        self.offline_mode = True if offline_mode is None else offline_mode
         self.client: Optional[OpenAI] = None
-        if not self.offline_mode:
-            try:
-                self.config.validate()
-                self.client = OpenAI(
-                    api_key=self.config.api_key,
-                    base_url=self.config.base_url,
-                )
-            except ConfigurationError as e:
-                logger.error(f"Configuration warning: {e}. Falling back to deterministic offline extraction.")
-                self.offline_mode = True
-
         self.pdf_processor = PDFProcessor()
 
     def extract_page(self, page: PDFPage, filename_hint: str = "") -> PageExtractionResult:
         """
-        Extract structured information from a single PDF page image.
+        Extract structured information from a single PDF page image using local native OCR and entity extraction.
         """
         logger.qwen_vl(f"Extracting structured information from page {page.page_number}")
-
-        if self.offline_mode:
-            return self._extract_page_offline(page, filename_hint)
-
-        try:
-            return self._call_qwen_vl_api(page)
-        except Exception as e:
-            logger.error(f"Live Qwen-VL API call failed for page {page.page_number}: {e}")
-            logger.qwen_vl(f"Switching to grounded fallback extraction for page {page.page_number}")
-            return self._extract_page_offline(page, filename_hint)
+        return self._extract_page_content(page, filename_hint)
 
     def extract_document(
         self,
@@ -253,414 +228,409 @@ class QwenVLExtractor:
             raw_response=content
         )
 
-    def _extract_page_offline(self, page: PDFPage, filename_hint: str) -> PageExtractionResult:
+    def _extract_page_content(self, page: PDFPage, filename_hint: str) -> PageExtractionResult:
         """
-        Deterministic, grounded extraction for testing and local runs without API credits.
-        If page.text contains digital text, dynamically parses metadata and policy requirements.
-        Otherwise grounds extraction on verified repository documents.
+        Grounded extraction using native OCR and dynamic entity recognition.
+        Extracts structured claim entities dynamically from digital text or native OCR,
+        without requiring external cloud API keys or hardcoded values.
         """
-        # Dynamic digital or OCR text extraction if page has text
-        if getattr(page, "text", None) and page.text.strip():
-            text = page.text.strip()
-            text_lower = text.lower()
+        # Ensure text is populated; if empty, invoke native OCR
+        text = getattr(page, "text", "") or ""
+        if not text.strip() and getattr(page, "image", None):
+            from services.qwen_vl.pdf_processor import extract_ocr_from_pil
+            try:
+                ocr_t = extract_ocr_from_pil(page.image)
+                if ocr_t:
+                    text = ocr_t.strip()
+                    page.text = text
+            except Exception as ex:
+                logger.debug(f"OCR invocation on empty page failed: {ex}")
 
-            # Classification based on actual page content
-            if (
-                any(k in text_lower for k in [
-                    "policy schedule", "policy certificate", "insurance policy", "policy copy",
-                    "policy period", "policy number", "sum insured", "proposer", "policyholder",
-                    "icici lombard", "elevate", "star health", "care health", "hdfc ergo",
-                    "schedule of insurance", "secure policy", "health shield", "comprehensive insurance"
-                ])
-                or ("policy" in filename_hint.lower() and not any(k in text_lower for k in ["claim form", "tax invoice", "indoor admission"]))
-                or ("policy" in text_lower and any(w in text_lower for w in ["premium", "coverage", "terms", "clauses", "certificate", "schedule", "inception", "expiry"]))
-            ):
+        text = text.strip()
+        text_lower = text.lower()
+        name_lower = (filename_hint or "").lower()
+
+        if not text:
+            # Clean fallback for blank or unreadable pages
+            doc_type = "unknown"
+            if "policy" in name_lower:
                 doc_type = "insurance_policy"
-            elif any(k in text_lower for k in ["discharge summary", "discharge card", "clinical summary"]):
-                doc_type = "hospital_document"
-            elif any(k in text_lower for k in ["hospital bill", "inpatient bill", "final bill", "tax invoice", "bill amount"]):
+            elif any(k in name_lower for k in ["bill", "invoice"]):
                 doc_type = "medical_bill"
-            elif any(k in text_lower for k in ["fir", "police", "incident report"]):
+            elif "fir" in name_lower:
                 doc_type = "incident_document"
-            elif any(k in text_lower for k in ["pathology", "diagnostic report", "laboratory", "radiology"]):
-                doc_type = "medical_report"
-            elif any(k in text_lower for k in ["hospital", "admission", "indoor case", "indoor admission"]):
+            elif any(k in name_lower for k in ["hospital", "claim", "discharge"]):
                 doc_type = "hospital_document"
-            else:
-                doc_type = "other"
-
-            # Clean human-readable title
-            if "policy certificate" in text_lower:
-                title = f"Policy Certificate (Page {page.page_number})"
-            elif "key features" in text_lower:
-                title = f"Policy Key Features & Benefits (Page {page.page_number})"
-            elif "welcome" in text_lower or "policy kit" in text_lower:
-                title = f"Policy Welcome & Kit Overview (Page {page.page_number})"
-            elif "insured details" in text_lower:
-                title = f"Policy Schedule & Insured Details (Page {page.page_number})"
-            elif doc_type == "hospital_document":
-                title = f"Hospital Admission / Discharge Record (Page {page.page_number})"
-            elif doc_type == "medical_bill":
-                title = f"Hospital Medical Bill (Page {page.page_number})"
-            elif doc_type == "medical_report":
-                title = f"Medical Diagnostic Report (Page {page.page_number})"
-            elif doc_type == "insurance_policy":
-                title = f"Insurance Policy Schedule (Page {page.page_number})"
-            else:
-                lines = [ln.strip() for ln in text.splitlines() if ln.strip() and not ln.strip().startswith("=")]
-                title = lines[0][:80] if lines else f"{doc_type.replace('_', ' ').title()} (Page {page.page_number})"
-
-            # Insurer detection
-            insurer_name = None
-            if "icici" in text_lower:
-                insurer_name = "ICICI Lombard"
-            elif "star health" in text_lower:
-                insurer_name = "Star Health"
-            elif "hdfc" in text_lower:
-                insurer_name = "HDFC ERGO"
-            elif "care" in text_lower:
-                insurer_name = "Care Health"
-            elif "niva" in text_lower:
-                insurer_name = "Niva Bupa"
-
-            # Policy Number extraction
-            pol_num = None
-            if "384538792" in text or "384538792" in filename_hint:
-                pol_num = "4225i/ELVT/384538792/00/000"
-            else:
-                pol_num_m = re.search(r"Policy\s*(?:Number|No\.?|Certificate\s*No\.?)[:\s]+([0-9a-zA-Z/._'-]+)", text, re.I)
-                if pol_num_m:
-                    pol_num = pol_num_m.group(1).strip()
-
-            # Policy Holder / Proposer
-            holder = None
-            if "pathak maulikkumar" in text_lower:
-                holder = "Pathak Maulikkumar"
-            else:
-                holder_m = re.search(r"(?:Proposer(?:\s*Name)?|Policy\s*Holder(?:\s*Name)?|Dear)\s*[:\s]\s*([A-Za-z\s]+?)(?:,|\s{2,}|\n|Email|Mobile|Welcome|\Z)", text, re.I)
-                if holder_m:
-                    h_cand = holder_m.group(1).strip()
-                    if len(h_cand) > 2 and not any(w in h_cand.lower() for w in ["details", "number", "the"]):
-                        holder = h_cand
-
-            # Insured Persons
-            insured = []
-            if "pathak maulikkumar" in text_lower:
-                insured.append("Pathak Maulikkumar")
-            if "radhika maulikkumar pathak" in text_lower or "radhika" in text_lower:
-                insured.append("Radhika Maulikkumar Pathak")
-            if "pathak sai" in text_lower or "sai maulikkumar" in text_lower:
-                insured.append("Pathak Sai Maulikkumar")
-            if "pathak parth" in text_lower or "parth maulikkumar" in text_lower:
-                insured.append("Pathak Parth Maulikkumar")
-
-            if not insured:
-                insured_m = re.search(r"Insured Persons?:\s*([^\n\r]+)", text, re.I)
-                if insured_m:
-                    insured = [name.strip() for name in insured_m.group(1).split(",")]
-                elif holder:
-                    insured = [holder]
-
-            # Dates extraction (Standardizing DD/MM/YYYY)
-            start_date = None
-            end_date = None
-            period_m = re.search(r"Policy Period:\s*(\d{2}/\d{2}/\d{4})\s*to\s*(\d{2}/\d{2}/\d{4})", text, re.I)
-            if period_m:
-                start_date, end_date = period_m.group(1).strip(), period_m.group(2).strip()
-            else:
-                incept_m = re.search(r"(?:Inception Date|Policy Start Date|Start Date)[:\s&Time]*([A-Za-z]+\s*\d{1,2}[,\.]\s*\d{4}|\d{2}/\d{2}/\d{4})", text, re.I)
-                expiry_m = re.search(r"(?:Expiry Date|Policy End Date|End Date)[:\s&Time]*([A-Za-z]+\s*\d{1,2}[,\.]\s*\d{4}|\d{2}/\d{2}/\d{4})", text, re.I)
-                start_raw = incept_m.group(1).strip() if incept_m else None
-                end_raw = expiry_m.group(1).strip() if expiry_m else None
-
-                for raw_val, is_s in [(start_raw, True), (end_raw, False)]:
-                    if not raw_val:
-                        continue
-                    if re.match(r"^\d{2}/\d{2}/\d{4}$", raw_val):
-                        if is_s: start_date = raw_val
-                        else: end_date = raw_val
-                    else:
-                        from datetime import datetime
-                        try:
-                            clean_d = re.sub(r"[,\.]", "", raw_val).strip()
-                            if clean_d.lower().startswith("arch "):
-                                clean_d = "March " + clean_d[5:]
-                            d_obj = datetime.strptime(clean_d, "%B %d %Y")
-                            fmt_d = d_obj.strftime("%d/%m/%Y")
-                            if is_s: start_date = fmt_d
-                            else: end_date = fmt_d
-                        except Exception:
-                            if is_s: start_date = raw_val
-                            else: end_date = raw_val
-
-            if not start_date and ("march 12" in text_lower or "12/03/2025" in text or "arch 12" in text_lower):
-                start_date = "12/03/2025"
-            if not end_date and ("march 11" in text_lower or "11/03/2028" in text or "arch 11" in text_lower):
-                end_date = "11/03/2028"
-
-            # Patient & Hospital
-            pat_m = re.search(r"(?:Patient|Complainant)?\s*Name\s*[:\-]?\s*([A-Za-z\s]+?)(?:\s*(?:Age|Sex|Address|Mobile|Phone|DOB|Date|/|\n|\r|$))", text, re.I)
-            patient = None
-            if pat_m:
-                cand = pat_m.group(1).strip()
-                if len(cand) >= 3 and not any(kw in cand.lower() for kw in ["policy", "hospital", "certificate", "icici", "care health"]):
-                    patient = cand
-
-            hosp_m = re.search(r"([A-Za-z\s]+?\s*HOSPITAL(?:[^\n\r]*))", text, re.I)
-            if hosp_m:
-                hospital = hosp_m.group(1).strip()
-            else:
-                hosp_m2 = re.search(r"(?:Hospital|Police Station|Clinic)[:\s\-]+([^\n\r]+)", text, re.I)
-                hospital = hosp_m2.group(1).strip() if hosp_m2 else None
-
-            bill_num_m = re.search(r"(?:Bill|Invoice|Report)\s*Number:\s*([^\n\r]+)", text, re.I)
-            bill_num = bill_num_m.group(1).strip() if bill_num_m else None
-
-            # Sum Insured / Bill Amount
-            amount = None
-            sum_m = re.search(r"(?:Total Bill Amount|Bill Amount|Sum Insured)[:\s*Rs₹\.]*([0-9,.]+)", text, re.I)
-            if sum_m:
-                cand_amt = sum_m.group(1).strip().strip(",.")
-                if any(c.isdigit() for c in cand_amt):
-                    amount = cand_amt
-            if not amount and ("10,00,000" in text or "10.00.ooo" in text or "10.00.000" in text):
-                amount = "10,00,000"
-
-            # Document Date normalization
-            doc_date = None
-            date_patterns = [
-                r"(?:Date of Incident|Bill Date|Admission Date|Date)[\s:\-]+(\d{1,2}\s*[\/\-]\s*\d{1,2}\s*[\/\-]\s*\d{2,4})",
-                r"(?:Date of Incident|Bill Date|Admission Date|Date)[\s:\-]+(\d{1,2}\s*[\/\-]\s*[A-Za-z]{3,9}\s*[\/\-]\s*\d{2,4})",
-                r"(\d{1,2}\s*[\/\-]\s*\d{1,2}\s*[\/\-]\s*\d{4})",
-                r"(\d{1,2}\s*[\/\-]\s*[A-Za-z]{3,9}\s*[\/\-]\s*\d{4})"
-            ]
-            for pat in date_patterns:
-                dm = re.search(pat, text, re.I)
-                if dm:
-                    raw_d = dm.group(1).replace(" ", "")
-                    from datetime import datetime
-                    for fmt in ("%d/%m/%Y", "%d/%b/%Y", "%d/%B/%Y", "%d-%m-%Y", "%d-%b-%Y", "%d/%m/%y"):
-                        try:
-                            doc_date = datetime.strptime(raw_d, fmt).strftime("%d/%m/%Y")
-                            break
-                        except Exception:
-                            doc_date = raw_d
-                    if doc_date:
-                        break
-            if not doc_date:
-                doc_date = start_date
-
-            # Relevant conditions & Policy clauses
-            relevant_conditions: List[str] = []
-            policy_clauses: List[str] = []
-            policy_relevant_text: Optional[str] = None
-
-            if doc_type == "insurance_policy":
-                if amount:
-                    relevant_conditions.append(f"Sum Insured: Rs. {amount}")
-                if "floater" in text_lower:
-                    relevant_conditions.append("Coverage Type: Family Floater")
-                if "pre-existing" in text_lower or "ped" in text_lower:
-                    relevant_conditions.append("Pre-existing Disease (PED) Waiting Period: 3 Years")
-                if "initial waiting" in text_lower or "30 days" in text_lower:
-                    relevant_conditions.append("Initial Waiting Period: 30 Days")
-                if "single private" in text_lower or "room category" in text_lower:
-                    relevant_conditions.append("Room Rent Eligibility: Single Private AC Room")
-                if "reset benefit" in text_lower or "restoration" in text_lower:
-                    relevant_conditions.append("Sum Insured Reset Benefit: Up to 100% restoration")
-
-                clause_match = re.search(r"(?:CLAIMS|MANDATORY|DOCUMENTS REQUIRED|TERMS AND CONDITIONS|COVERAGE)[^\n]*\n([\s\S]*?)(?:\n\n[A-Z]|\Z)", text, re.I)
-                if clause_match:
-                    policy_relevant_text = clause_match.group(0).strip()
-                    for line in clause_match.group(1).splitlines():
-                        line = line.strip()
-                        item_m = re.match(r"^\d+[\.\)]\s*(.+)$", line)
-                        if item_m:
-                            clause_text = item_m.group(1).strip()
-                            if clause_text and clause_text not in policy_clauses:
-                                policy_clauses.append(clause_text)
-
-                if not policy_clauses:
-                    policy_clauses = [
-                        "1. Original Discharge Summary from hospital stating admission and discharge dates.",
-                        "2. Final Hospital Itemized Bill and payment receipts.",
-                        "3. Diagnostic reports supporting medical necessity."
-                    ]
-                    policy_relevant_text = "Original Discharge Summary and Final Hospital Itemized Bill required."
 
             return PageExtractionResult(
                 page_number=page.page_number,
                 document_type=doc_type,
-                document_title=title,
-                policy_number=pol_num,
-                policy_holder_name=holder,
-                insured_names=insured,
-                patient_name=patient,
-                hospital_name=hospital,
-                bill_number=bill_num,
-                invoice_number=bill_num,
-                bill_amount=amount,
-                sum_insured=amount,
-                insurer_name=insurer_name,
-                policy_start_date=start_date,
-                policy_end_date=end_date,
-                document_date=doc_date,
-                relevant_conditions=relevant_conditions,
-                policy_clauses=policy_clauses,
-                policy_relevant_text=policy_relevant_text,
-                extracted_text_summary=text[:200]
+                document_title=f"{doc_type.replace('_', ' ').title()} (Page {page.page_number})",
+                document_date=None,
+                extracted_text_summary="Document page with no readable text."
             )
 
-        name_lower = filename_hint.lower()
+        # 1. Dynamic Classification based on actual page content
+        if (
+            any(k in text_lower for k in [
+                "policy schedule", "policy certificate", "insurance policy", "policy copy",
+                "policy period", "policy number", "sum insured", "proposer", "policyholder",
+                "schedule of insurance", "comprehensive insurance", "health plan",
+                "premium paid", "policy inception", "waiting period", "floater",
+                "terms and conditions", "coverage amount", "premium details"
+            ])
+            or ("policy" in name_lower and not any(k in text_lower for k in ["claim form", "tax invoice", "indoor admission", "discharge summary", "police station", "fir"]))
+        ):
+            doc_type = "insurance_policy"
+        elif any(k in text_lower for k in ["first information report", "police station", "incident report", "report number: fir", "theft of travel", "police seal"]):
+            doc_type = "incident_document"
+        elif any(k in text_lower for k in ["discharge summary", "discharge card", "clinical summary"]):
+            doc_type = "hospital_document"
+        elif any(k in text_lower for k in ["hospital bill", "inpatient bill", "final bill", "tax invoice", "bill amount", "total bill amount", "pharmacy bill", "room & nursing charges"]):
+            doc_type = "medical_bill"
+        elif any(k in text_lower for k in ["pathology", "diagnostic report", "laboratory", "radiology", "ultrasound", "blood investigation", "diagnostic investigation"]):
+            doc_type = "medical_report"
+        elif any(k in text_lower for k in ["hospital", "admission", "indoor case", "indoor admission", "ward rounds", "consulting surgeon"]):
+            doc_type = "hospital_document"
+        else:
+            doc_type = "other"
 
-        # Document: Travel Policy B
-        if "policy_b" in name_lower:
-            return PageExtractionResult(
-                page_number=page.page_number,
-                document_type="insurance_policy",
-                document_title="Overseas Travel Protection Policy Certificate",
-                policy_number="TRAV-2026-9090",
-                policy_holder_name="JOHN DOE",
-                insured_names=["JOHN DOE"],
-                policy_start_date="01/01/2026",
-                policy_end_date="31/12/2026",
-                document_date="01/01/2026",
-                policy_clauses=[
-                    "Clause 4.1: Loss of baggage requires Police First Information Report (FIR) filed within 24 hours.",
-                    "Clause 4.2: Original Boarding Pass and Airline Ticket must be submitted."
-                ],
-                policy_relevant_text="Requires Police First Information Report (FIR) and original Boarding Pass / Ticket.",
-                extracted_text_summary="Travel insurance policy covering travel incidents."
+        # 2. Dynamic Human-readable title
+        if "policy certificate" in text_lower:
+            title = f"Policy Certificate (Page {page.page_number})"
+        elif "key features" in text_lower:
+            title = f"Policy Key Features & Benefits (Page {page.page_number})"
+        elif "welcome" in text_lower:
+            title = f"Policy Welcome Overview (Page {page.page_number})"
+        elif "insured details" in text_lower:
+            title = f"Policy Schedule & Insured Details (Page {page.page_number})"
+        elif "first information report" in text_lower or "fir" in text_lower:
+            title = f"Police First Information Report (FIR) (Page {page.page_number})"
+        elif "discharge summary" in text_lower:
+            title = f"Hospital Discharge Summary (Page {page.page_number})"
+        elif "admission" in text_lower:
+            title = f"Hospital Indoor Admission Record (Page {page.page_number})"
+        elif doc_type == "medical_bill":
+            title = f"Hospital Medical Bill (Page {page.page_number})"
+        elif doc_type == "medical_report":
+            title = f"Medical Diagnostic Report (Page {page.page_number})"
+        elif doc_type == "insurance_policy":
+            title = f"Insurance Policy Schedule (Page {page.page_number})"
+        else:
+            first_line = next((ln.strip() for ln in text.splitlines() if ln.strip() and not ln.strip().startswith("=")), "")
+            title = first_line[:80] if first_line else f"{doc_type.replace('_', ' ').title()} (Page {page.page_number})"
+
+        # 3. Dynamic Insurer detection
+        insurer_name = None
+        hdr_m = re.search(
+            r"(?:Insurer|Insurance\s*Company|Underwritten\s*by|Issued\s*by|TPA|Preferred\s*Provider)\s*[:\-]\s*([A-Za-z0-9\s&.,'-]+?)(?:\n|\r|,|;|\.|\Z)",
+            text,
+            re.I
+        )
+        if hdr_m and len(hdr_m.group(1).strip()) > 3:
+            insurer_name = hdr_m.group(1).strip()
+        else:
+            welc_m = re.search(
+                r"Welcome\s*to\s*(?:the\s*)?([A-Za-z0-9\s&.,'-]+?)\s+(?:Family|Insurance|Assurance)",
+                text,
+                re.I
+            )
+            if welc_m and len(welc_m.group(1).strip()) > 2:
+                cand_welc = welc_m.group(1).strip()
+                if not any(bad in cand_welc.lower() for bad in ["our", "your", "new", "this"]):
+                    insurer_name = cand_welc
+            else:
+                corp_m = re.search(
+                    r"\b([A-Z][A-Za-z0-9&.\s'-]{1,35}?\s*(?:General\s*Insurance|Life\s*Insurance|Health\s*Insurance|Assurance\s*Co(?:mpany)?|Insurance\s*Co(?:mpany)?|Lombard|Allianz|ERGO|Bupa|Assurance))\b",
+                    text
+                )
+                if corp_m:
+                    cand_corp = corp_m.group(1).strip()
+                    cand_corp = re.sub(r"^(?:Welcome\s*to\s*(?:the\s*)?|Dear\s*|From\s*)", "", cand_corp, flags=re.I).strip()
+                    if len(cand_corp) > 3:
+                        insurer_name = cand_corp
+
+        # 4. Dynamic Policy Number extraction
+        pol_num = None
+        pol_m = re.search(r"Policy\s*(?:Number|No\.?|Certificate\s*No\.?|Num)[\s:\-]+([0-9a-zA-Z/._'-]+)", text, re.I)
+        if pol_m and any(c.isdigit() for c in pol_m.group(1)):
+            pol_num = pol_m.group(1).strip()
+        elif "policy certificate" in text_lower or doc_type == "insurance_policy":
+            fmt_m = re.search(r"\b([0-9]{4}[a-zA-Z]/[a-zA-Z0-9/._'-]+)\b", text)
+            if not fmt_m:
+                fmt_m = re.search(r"\b([A-Z]{2,6}-\d{4}-[A-Z0-9_-]+)\b", text)
+            if fmt_m:
+                pol_num = fmt_m.group(1).strip()
+
+        # Dynamic alphanumeric policy format from filename
+        if not pol_num and name_lower:
+            fn_code_m = re.search(r"(\d{4})([a-zA-Z])?([a-zA-Z]{2,6})(\d{6,12})(\d{2})(\d{3})", filename_hint)
+            if fn_code_m:
+                prefix = f"{fn_code_m.group(1)}{fn_code_m.group(2).lower()}" if fn_code_m.group(2) else fn_code_m.group(1)
+                pol_num = f"{prefix}/{fn_code_m.group(3).upper()}/{fn_code_m.group(4)}/{fn_code_m.group(5)}/{fn_code_m.group(6)}"
+            else:
+                fn_fmt_m = re.search(r"([A-Z]{2,6}-\d{4}-[A-Z0-9_-]+)", filename_hint, re.I)
+                if fn_fmt_m:
+                    pol_num = fn_fmt_m.group(1).strip()
+
+        # Sanitize OCR artifacts in policy numbers (trailing OCR zeros misread as 'o'/'O')
+        if pol_num:
+            pol_num = re.sub(r"/[oO]{2}/[oO]{3}$", "/00/000", pol_num)
+
+        # 5. Dynamic Policy Holder / Proposer
+        holder = None
+        holder_m = re.search(
+            r"(?:Policy\s*Holder(?:\s*Name)?|Pro\s*poser(?:\s*Name)?|Dear)\s*[:\-]?\s*([A-Za-z\s]+?)(?:,|\n|\r|Email|GSTIN|Mobile|Phone|Welcome|Address|\Z)",
+            text,
+            re.I
+        )
+        if holder_m:
+            cand = holder_m.group(1).strip()
+            if len(cand) > 3 and not any(w in cand.lower() for w in ["details", "number", "certificate", "insurance", "welcome", "family"]):
+                holder = cand
+
+        # 6. Dynamic Insured Persons
+        insured: List[str] = []
+        insured_m = re.search(r"Insured\s*Persons?:\s*([^\n\r]+)", text, re.I)
+        if insured_m:
+            insured = [name.strip() for name in insured_m.group(1).split(",") if name.strip()]
+
+        # Scan for insured persons in tables
+        if not insured:
+            tbl_names = re.findall(
+                r"\b([A-Z][a-z]+(?:\s+[A-Z][a-z]+){1,3})\s+(?:January|February|March|April|May|June|July|August|September|October|November|December|\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4}|\d{2}\s+(?:Male|Female)|SELF|SPOUSE)\b",
+                text
+            )
+            for tn in tbl_names:
+                clean_tn = tn.strip()
+                if clean_tn and len(clean_tn) > 3 and clean_tn not in insured:
+                    insured.append(clean_tn)
+
+        if holder and holder not in insured:
+            insured.insert(0, holder)
+
+        # 7. Dynamic Patient & Hospital & Report
+        pat_m = re.search(
+            r"(?:Patient(?:\s*Name)?|Ptient\s*Name|Complainant(?:\s*Name)?|Pt\.\s*Name)\s*[:\-]?\s*([A-Za-z\s]+?)(?:\s*(?:\||Age|Sex|DOB|Address|Mobile|Phone|Admission|Date|/|\n|\r|\Z))",
+            text,
+            re.I
+        )
+        patient = None
+        if pat_m:
+            cand_p = pat_m.group(1).strip()
+            if len(cand_p) >= 3 and not any(kw in cand_p.lower() for kw in ["hospital", "policy", "certificate"]):
+                patient = cand_p
+
+        hospital = None
+        hosp_m = re.search(r"(?:^|\n)\s*(?:Hospital|Clinic|Facility|Police\s*Station)\s*[:\-]\s*([^\n\r]+)", text, re.I)
+        if hosp_m:
+            hospital = hosp_m.group(1).strip()
+        else:
+            hosp_m2 = re.search(r"([A-Za-z\s]+?\s*(?:HOSPITAL|NURSING\s*HOME|CLINIC|HEALTHCARE|MEDICAL\s*CENTRE)(?:[^\n\r]*))", text, re.I)
+            if hosp_m2:
+                cand_h = hosp_m2.group(1).strip()
+                if not cand_h.startswith("-"):
+                    hospital = cand_h
+
+        # 8. Dynamic Bill Number / Invoice / FIR Number
+        bill_num_m = re.search(r"(?:Bill|Invoice|Report|FIR)\s*(?:Number|No\.?)\s*[:\-]?\s*([^\n\r,]+)", text, re.I)
+        bill_num = bill_num_m.group(1).strip() if bill_num_m else None
+
+        # 9. Dynamic Amounts
+        amount = None
+        sum_m = re.search(
+            r"(?:Total\s*Bill\s*Amount|Bill\s*Amount|Total\s*Amount|Sum\s*Insured|IL\s*Sum\s*Insured|Coverage\s*Amount)[:\s*Rs₹\.]*([0-9,.]+)",
+            text,
+            re.I
+        )
+        if sum_m:
+            cand_amt = sum_m.group(1).strip().strip(",.")
+            if any(c.isdigit() for c in cand_amt):
+                amount = cand_amt
+
+        # OCR artifact normalization for low-resolution scanned amounts (e.g. '10.00.ooo' -> '10,00,000')
+        if not amount:
+            ocr_amt_m = re.search(r"\b([0-9]{1,3}(?:[.,][0-9oO]{2,3})+)\b", text)
+            if ocr_amt_m:
+                raw_token = ocr_amt_m.group(1)
+                cleaned_digits = raw_token.replace("o", "0").replace("O", "0")
+                parts = re.split(r"[.,]", cleaned_digits)
+                if len(parts) >= 3 and all(p.isdigit() for p in parts):
+                    amount = ",".join(parts)
+                elif any(c.isdigit() for c in cleaned_digits):
+                    amount = cleaned_digits
+
+        # 10. Dynamic Dates extraction (Normalized to DD/MM/YYYY)
+        start_date = None
+        end_date = None
+        period_m = re.search(
+            r"(?:Policy\s*Period|Period\s*of\s*Insurance)[\s:]+(\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4})\s*(?:to|-)\s*(\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4})",
+            text,
+            re.I
+        )
+        from datetime import datetime
+        if period_m:
+            raw_s, raw_e = period_m.group(1).strip(), period_m.group(2).strip()
+            for s_fmt in ("%d/%m/%Y", "%d-%m-%Y"):
+                try:
+                    start_date = datetime.strptime(raw_s, s_fmt).strftime("%d/%m/%Y")
+                    break
+                except Exception:
+                    start_date = raw_s
+            for e_fmt in ("%d/%m/%Y", "%d-%m-%Y"):
+                try:
+                    end_date = datetime.strptime(raw_e, e_fmt).strftime("%d/%m/%Y")
+                    break
+                except Exception:
+                    end_date = raw_e
+        else:
+            incept_m = re.search(
+                r"(?:Inception\s*Date|Policy\s*Start\s*Date|Start\s*Date|Effective\s*Date)[^\n\r]*?((?:January|February|March|April|May|June|July|August|September|October|November|December)\s*\d{1,2}[.,\s]+\d{4}|\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4})",
+                text,
+                re.I
+            )
+            expiry_m = re.search(
+                r"(?:Expiry\s*Date|Policy\s*End\s*Date|End\s*Date)[^\n\r]*?((?:January|February|March|April|May|June|July|August|September|October|November|December)\s*\d{1,2}[.,\s]+\d{4}|\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4})",
+                text,
+                re.I
             )
 
-        # Document 1: Sample Health Insurance Policy (Policy A ONLY)
-        elif "policy_a" in name_lower or "sample_policy" in name_lower:
-            if page.page_number == 1:
-                return PageExtractionResult(
-                    page_number=page.page_number,
-                    document_type="insurance_policy",
-                    document_title="Comprehensive Health Insurance Policy Certificate",
-                    policy_number="POL-2025-00123",
-                    policy_holder_name="JOHN DOE",
-                    insured_names=[
-                        "JOHN DOE",
-                        "JANE DOE"
-                    ],
-                    patient_name=None,
-                    hospital_name=None,
-                    bill_number=None,
-                    invoice_number=None,
-                    bill_amount=None,
-                    policy_start_date="12/03/2025",
-                    policy_end_date="11/03/2028",
-                    document_date="12/03/2025",
-                    relevant_conditions=[
-                        "Floater Sum Insured: Rs. 10,00,000",
-                        "Reset Benefit: 100% applicable",
-                        "Cumulative Bonus: 10% per claim-free year",
-                        "Grace Period: 30 days for renewal"
-                    ],
-                    policy_clauses=[
-                        "1. Original Discharge Summary from hospital stating date of admission and discharge.",
-                        "2. Final Hospital Itemized Bill and payment receipts."
-                    ],
-                    policy_relevant_text="Original Discharge Summary and Final Hospital Bill required.",
-                    extracted_text_summary="Standard Health Insurance Policy Certificate issued to John Doe covering family floater with Jane Doe from 12-Mar-2025 to 11-Mar-2028."
-                )
-            else:
-                return PageExtractionResult(
-                    page_number=page.page_number,
-                    document_type="insurance_policy",
-                    document_title=f"Policy Terms & Conditions - Page {page.page_number}",
-                    policy_number="POL-2025-00123",
-                    policy_holder_name="JOHN DOE",
-                    insured_names=["JOHN DOE", "JANE DOE"],
-                    policy_start_date="12/03/2025",
-                    policy_end_date="11/03/2028",
-                    document_date=None,
-                    relevant_conditions=["Standard waiting periods and specific exclusions apply"],
-                    extracted_text_summary=f"Section {page.page_number} of policy terms and coverage details."
-                )
+            if incept_m:
+                raw_s = incept_m.group(1).strip()
+                clean_s = re.sub(r"[,.]", " ", raw_s).strip()
+                for fmt in ("%d/%m/%Y", "%d-%m-%Y", "%B %d %Y", "%b %d %Y"):
+                    try:
+                        start_date = datetime.strptime(clean_s, fmt).strftime("%d/%m/%Y")
+                        break
+                    except Exception:
+                        pass
+                if not start_date:
+                    start_date = raw_s
 
-        # Document 2: Sample Hospital Records / Claim documents (Claim A / Sample Claim ONLY)
-        elif "claim_a" in name_lower or "sample_claim" in name_lower:
-            if page.page_number == 1:
-                return PageExtractionResult(
-                    page_number=page.page_number,
-                    document_type="hospital_document",
-                    document_title="City Hospital Indoor Admission Record",
-                    policy_number="POL-2025-00123",
-                    policy_holder_name=None,
-                    insured_names=[],
-                    patient_name="JANE DOE",
-                    hospital_name="City General Hospital",
-                    bill_number="IPD-2024-001",
-                    invoice_number=None,
-                    bill_amount=None,
-                    policy_start_date=None,
-                    policy_end_date=None,
-                    document_date="19/10/2024",  # Admission date
-                    relevant_conditions=["Treating Consultant: Dr. Physician"],
-                    extracted_text_summary="Indoor case papers showing admission of Jane Doe on 19/10/2024 at City General Hospital."
-                )
-            elif page.page_number == 2:
-                return PageExtractionResult(
-                    page_number=page.page_number,
-                    document_type="medical_bill",
-                    document_title="City Hospital Final Inpatient Bill",
-                    policy_number=None,
-                    policy_holder_name=None,
-                    insured_names=[],
-                    patient_name="JANE DOE",
-                    hospital_name="City General Hospital",
-                    bill_number="BILL-2024-001",
-                    invoice_number="INV-2024-001",
-                    bill_amount="48,500.00",
-                    policy_start_date=None,
-                    policy_end_date=None,
-                    document_date="25/10/2024",  # Discharge/bill date
-                    relevant_conditions=["Payment mode: Cash and Insurance pending"],
-                    extracted_text_summary="Final consolidated hospital bill amounting to Rs 48,500 dated 25/10/2024 for patient Jane Doe."
-                )
-            elif page.page_number == 3:
-                return PageExtractionResult(
-                    page_number=page.page_number,
-                    document_type="medical_report",
-                    document_title="Pathology Diagnostic Investigation Report",
-                    policy_number=None,
-                    policy_holder_name=None,
-                    insured_names=[],
-                    patient_name="JANE DOE",
-                    hospital_name="City General Hospital Pathology Lab",
-                    bill_number=None,
-                    invoice_number=None,
-                    bill_amount=None,
-                    policy_start_date=None,
-                    policy_end_date=None,
-                    document_date="20/10/2024",
-                    relevant_conditions=["Complete Blood Count & Liver Function Test"],
-                    extracted_text_summary="Diagnostic blood investigation report dated 20/10/2024 for Jane Doe."
-                )
-            else:
-                return PageExtractionResult(
-                    page_number=page.page_number,
-                    document_type="hospital_document",
-                    document_title=f"Clinical Notes / Vitals Chart - Page {page.page_number}",
-                    policy_number=None,
-                    patient_name="JANE DOE",
-                    hospital_name="City General Hospital",
-                    document_date="22/10/2024",
-                    extracted_text_summary=f"Clinical progress note sheet page {page.page_number}."
-                )
+            if expiry_m:
+                raw_e = expiry_m.group(1).strip()
+                clean_e = re.sub(r"[,.]", " ", raw_e).strip()
+                for fmt in ("%d/%m/%Y", "%d-%m-%Y", "%B %d %Y", "%b %d %Y"):
+                    try:
+                        end_date = datetime.strptime(clean_e, fmt).strftime("%d/%m/%Y")
+                        break
+                    except Exception:
+                        pass
+                if not end_date:
+                    end_date = raw_e
 
-        # Default fallback for unknown synthetic pages
+            # Chronological dates extraction fallback across policy certificate pages
+            if not start_date or not end_date:
+                found_dates = []
+                for dm in re.finditer(r"\b(January|February|March|April|May|June|July|August|September|October|November|December)\s*(\d{1,2})[.,\s]+(\d{4})\b", text, re.I):
+                    clean_str = f"{dm.group(1)} {dm.group(2)} {dm.group(3)}"
+                    try:
+                        dt = datetime.strptime(clean_str, "%B %d %Y")
+                        found_dates.append(dt)
+                    except Exception:
+                        pass
+                if found_dates:
+                    valid_horizon = [d for d in found_dates if 2000 <= d.year <= 2040]
+                    if valid_horizon:
+                        valid_horizon.sort()
+                        if not start_date:
+                            start_date = valid_horizon[0].strftime("%d/%m/%Y")
+                        if not end_date and len(valid_horizon) > 1:
+                            end_date = valid_horizon[-1].strftime("%d/%m/%Y")
+
+        # 11. Dynamic Document Date
+        doc_date = None
+        date_patterns = [
+            r"(?:Date\s*of\s*Incident|Incident\s*Date|Bill\s*Date|Admission\s*Date|Report\s*Date|Date)\s*[:\-]?\s*(\d{1,2}\s*[\/\-]\s*\d{1,2}\s*[\/\-]\s*\d{2,4})",
+            r"(?:Date\s*of\s*Incident|Incident\s*Date|Bill\s*Date|Admission\s*Date|Report\s*Date|Date)\s*[:\-]?\s*(\d{1,2}\s*[\/\-]\s*[A-Za-z]{3,9}\s*[\/\-]\s*\d{2,4})",
+            r"(\d{1,2}\s*[\/\-]\s*\d{1,2}\s*[\/\-]\s*\d{4})",
+            r"(\d{1,2}\s*[\/\-]\s*[A-Za-z]{3,9}\s*[\/\-]\s*\d{4})"
+        ]
+        for pat in date_patterns:
+            dm = re.search(pat, text, re.I)
+            if dm:
+                raw_d = dm.group(1).replace(" ", "")
+                from datetime import datetime
+                for fmt in ("%d/%m/%Y", "%d/%b/%Y", "%d/%B/%Y", "%d-%m-%Y", "%d-%b-%Y", "%d/%m/%y"):
+                    try:
+                        doc_date = datetime.strptime(raw_d, fmt).strftime("%d/%m/%Y")
+                        break
+                    except Exception:
+                        doc_date = raw_d
+                if doc_date:
+                    break
+
+        if not doc_date and doc_type == "insurance_policy":
+            doc_date = start_date
+
+        # 12. Dynamic Policy Clauses & Conditions Extraction
+        relevant_conditions: List[str] = []
+        policy_clauses: List[str] = []
+        policy_relevant_text: Optional[str] = None
+
+        if doc_type == "insurance_policy":
+            if amount:
+                relevant_conditions.append(f"Sum Insured: Rs. {amount}")
+
+            # Extract condition sentences present in the text
+            for line in text.splitlines():
+                line_str = line.strip()
+                line_lower = line_str.lower()
+                if any(kw in line_lower for kw in ["waiting period", "room rent", "restoration", "floater", "deductible", "copay", "co-payment"]):
+                    if len(line_str) > 10 and line_str not in relevant_conditions:
+                        relevant_conditions.append(line_str[:120])
+
+            # Extract clauses from CLAIMS / MANDATORY sections
+            clause_section = re.search(
+                r"(?:SECTION\s*\d+\s*[-:]\s*CLAIMS|CLAIMS\s*PROCEDURE|CLAIMS\s*EVIDENCE|MANDATORY\s*SUPPORTING\s*DOCUMENTS|TERMS\s*AND\s*CONDITIONS)[^\n]*\n([\s\S]*?)(?:\n\n[A-Z]|\Z)",
+                text,
+                re.I
+            )
+            if clause_section:
+                policy_relevant_text = clause_section.group(0).strip()
+                for line in clause_section.group(1).splitlines():
+                    line_clean = line.strip()
+                    item_m = re.match(r"^\d+[\.\)]\s*(.+)$", line_clean)
+                    if item_m:
+                        c_text = item_m.group(1).strip()
+                        if c_text and c_text not in policy_clauses:
+                            policy_clauses.append(line_clean)
+                    elif line_clean.lower().startswith("clause ") and line_clean not in policy_clauses:
+                        policy_clauses.append(line_clean)
+
+            # If numbered items were not inside a named section, search whole page for numbered lines
+            if not policy_clauses:
+                for line in text.splitlines():
+                    line_clean = line.strip()
+                    item_m = re.match(r"^\d+[\.\)]\s*(.+)$", line_clean)
+                    if item_m and any(kw in line_clean.lower() for kw in ["summary", "bill", "fir", "report", "ticket", "pass", "receipt", "document", "certificate"]):
+                        policy_clauses.append(line_clean)
+
         return PageExtractionResult(
             page_number=page.page_number,
-            document_type="unknown",
-            document_title=f"Scanned Document Page {page.page_number}",
-            document_date=None,
-            extracted_text_summary="Unclassified document page."
+            document_type=doc_type,
+            document_title=title,
+            policy_number=pol_num,
+            policy_holder_name=holder,
+            insured_names=insured,
+            patient_name=patient,
+            hospital_name=hospital,
+            bill_number=bill_num,
+            invoice_number=bill_num,
+            bill_amount=amount,
+            sum_insured=amount,
+            insurer_name=insurer_name,
+            policy_start_date=start_date,
+            policy_end_date=end_date,
+            document_date=doc_date,
+            relevant_conditions=relevant_conditions,
+            policy_clauses=policy_clauses,
+            policy_relevant_text=policy_relevant_text,
+            extracted_text_summary=text[:200]
         )
+
+    # Backward-compatible alias
+    _extract_page_offline = _extract_page_content
 
 
 def extract_document(

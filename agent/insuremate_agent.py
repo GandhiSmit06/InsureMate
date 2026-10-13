@@ -42,9 +42,8 @@ class InsureMateAgent:
         planner: Optional[InsureMatePlanner] = None,
         decision_engine: Optional[InsureMateDecisionEngine] = None
     ):
-        if offline_mode is True and llm_client is None:
-            self.llm_client = None
-        elif llm_client is not None:
+        # Local Ollama LLM is the default reasoning controller; no external API key needed
+        if llm_client is not None:
             self.llm_client = llm_client
         else:
             self.llm_client = OllamaClient()
@@ -297,11 +296,14 @@ class InsureMateAgent:
                 "timestamp": t_start
             })
 
+            exec_kwargs = dict(tool_args) if isinstance(tool_args, dict) else {}
+            if max_pages is not None and "max_pages" not in exec_kwargs:
+                exec_kwargs["max_pages"] = max_pages
+
             tool_res = self.tool_registry.execute_tool(
                 tool_name=tool_name,
                 state=state,
-                max_pages=max_pages,
-                **tool_args
+                **exec_kwargs
             )
 
             # Failure Handling & Controlled Single Retry policy
@@ -316,8 +318,7 @@ class InsureMateAgent:
                 tool_res = self.tool_registry.execute_tool(
                     tool_name=tool_name,
                     state=state,
-                    max_pages=max_pages,
-                    **tool_args
+                    **exec_kwargs
                 )
 
             t_duration = round((time.time() - t_start) * 1000, 1)

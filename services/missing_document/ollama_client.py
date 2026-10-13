@@ -36,13 +36,24 @@ class OllamaClient:
         env_timeout = os.environ.get("OLLAMA_TIMEOUT")
         self.timeout = timeout or (int(env_timeout) if env_timeout else 120)
 
-    def is_available(self) -> bool:
-        """Check if local Ollama daemon is reachable and responding."""
+    _cached_status: Optional[bool] = None
+    _last_checked: float = 0.0
+
+    def is_available(self, force_refresh: bool = False) -> bool:
+        """Check if local Ollama daemon is reachable and responding, cached for 5s."""
+        import time
+        now = time.time()
+        if not force_refresh and OllamaClient._cached_status is not None and (now - OllamaClient._last_checked) < 5.0:
+            return OllamaClient._cached_status
+
         try:
-            resp = requests.get(f"{self.base_url}/api/tags", timeout=5)
-            return resp.status_code == 200
+            resp = requests.get(f"{self.base_url}/api/tags", timeout=0.8)
+            OllamaClient._cached_status = (resp.status_code == 200)
         except Exception:
-            return False
+            OllamaClient._cached_status = False
+
+        OllamaClient._last_checked = now
+        return OllamaClient._cached_status
 
     def chat(
         self,

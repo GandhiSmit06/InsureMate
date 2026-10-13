@@ -140,20 +140,20 @@ class AgentService:
         selected_type = (demo_type or preset or "health").lower()
         claim_id = f"DEMO-{uuid.uuid4().hex[:6].upper()}"
 
-        if selected_type in ("travel", "flight", "baggage"):
+        if selected_type in ("travel", "flight", "baggage", "surgery", "daycare", "emergency"):
             p_src = ROOT_DIR / "policy_B.pdf"
             c_src = ROOT_DIR / "claim_B.pdf"
-            session_name = "Demo: Travel Incident Claim (Policy B)"
-            goal = "Analyze travel insurance policy and detect missing baggage claim documents."
-            claim_type = "travel"
-        elif selected_type in ("health", "hospital", "medical"):
+            session_name = "Demo: Emergency & Surgical Hospital Claim (Policy B)" if selected_type in ("surgery", "daycare", "emergency") else "Demo: Travel Incident Claim (Policy B)"
+            goal = "Analyze medical policy coverage and audit required surgical/emergency evidence." if selected_type in ("surgery", "daycare", "emergency") else "Analyze travel insurance policy and detect missing baggage claim documents."
+            claim_type = "travel" if selected_type in ("travel", "flight", "baggage") else "daycare"
+        elif selected_type in ("health", "hospital", "medical", "inpatient"):
             p_src = ROOT_DIR / "policy_A.pdf"
             c_src = ROOT_DIR / "claim_A.pdf"
-            session_name = "Demo: Health Hospitalization Claim (Policy A)"
+            session_name = "Demo: Inpatient Hospitalization Claim (Policy A)"
             goal = "Determine claim readiness, validate medical bills, and detect missing discharge summary."
             claim_type = "health"
         else:
-            raise ValueError(f"Invalid preset or demo_type: '{selected_type}'. Supported: 'health', 'travel'.")
+            raise ValueError(f"Invalid preset or demo_type: '{selected_type}'. Supported: 'health', 'hospital', 'inpatient', 'daycare', 'surgery', 'travel'.")
 
         # Fallback to sample files if A/B not found
         if not p_src.exists():
@@ -171,12 +171,12 @@ class AgentService:
         if p_src.exists():
             shutil.copyfile(p_src, p_dest)
         else:
-            p_dest.write_text("Dummy Policy Content")
+            raise FileNotFoundError(f"Source policy file not found: {p_src}")
 
         if c_src.exists():
             shutil.copyfile(c_src, c_dest)
         else:
-            c_dest.write_text("Dummy Claim Content")
+            raise FileNotFoundError(f"Source claim file not found: {c_src}")
 
         return self.create_session(
             goal=goal,

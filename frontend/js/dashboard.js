@@ -254,9 +254,10 @@ const Dashboard = {
       const icon = isRunning ? '●' : this.getStatusIcon(statusText);
 
       const policyName = claim.policy_filename || null;
+      const cFiles = claim.claim_filenames || (claim.claim_filename ? [claim.claim_filename] : []);
       const hospitalDoc = (Array.isArray(cFiles) && cFiles.length > 0) ? cFiles[0] : (claim.claim_filename || null);
       const sessionLabel = claim.session_name || '--';
-      const claimType = claim.claim_type ? (claim.claim_type.charAt(0).toUpperCase() + claim.claim_type.slice(1)) : 'General';
+      const claimType = claim.claim_type ? (claim.claim_type.toLowerCase() === 'health' ? 'Hospital' : (claim.claim_type.charAt(0).toUpperCase() + claim.claim_type.slice(1))) : 'Hospital';
       const dateStr = Utils.formatDate(claim.created_at);
 
       const docCount = (claim.policy_filename ? 1 : 0) + (Array.isArray(cFiles) ? cFiles.length : (claim.claim_filename ? 1 : 0));

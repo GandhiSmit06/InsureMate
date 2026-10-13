@@ -65,18 +65,9 @@ class InsureMateDecisionEngine:
                 decision_type="TERMINATE"
             )
 
-        # If LLM client is unavailable
+        # If LLM client is unavailable or local daemon offline, use grounded decision engine
         if not self.llm_client or not self.llm_client.is_available():
-            if self.offline_mode:
-                return self._evaluate_grounded_decision(state, tool_registry)
-
-            logger.warning("[DECISION ENGINE] LLM controller is not available. Halting safely.")
-            state.record_unresolved_question("LLM decision controller unavailable; halting without executing unauthorized hardcoded pipelines.")
-            return AgentDecision(
-                action="abort",
-                reason="LLM decision controller unavailable; halting without executing unauthorized hardcoded pipelines.",
-                decision_type="TERMINATE"
-            )
+            return self._evaluate_grounded_decision(state, tool_registry)
 
         # LLM-driven decision with bounded recovery
         last_error = ""
@@ -357,7 +348,75 @@ class InsureMateDecisionEngine:
                 decision_type="TERMINATE"
             )
 
-        # 3. Document Validation Check
+        # 3. Targeted validity check goal
+        is_validity_goal = any(kw in goal_lower for kw in [
+            "date validity", "validity check", "is policy valid", "coverage period", "active period", "dates valid"
+        ])
+        if is_validity_goal and not any(kw in goal_lower for kw in ["readiness", "full audit", "prepare claim"]):
+            if "validity_checker" not in state.completed_steps:
+                return AgentDecision(
+                    action="validity_checker",
+                    reason=f"Auditing policy validity period against document dates for goal: '{state.goal}'.",
+                    decision_type="TOOL_CALL"
+                )
+            return AgentDecision(
+                action="complete",
+                reason="Validity check inquiry satisfied.",
+                decision_type="TERMINATE"
+            )
+
+        # 4. Targeted missing document checklist goal
+        is_missing_doc_goal = any(kw in goal_lower for kw in [
+            "missing document", "document checklist", "missing evidence", "what documents are missing", "detect missing"
+        ])
+        if is_missing_doc_goal and not any(kw in goal_lower for kw in ["readiness", "full audit", "prepare claim"]):
+            if "missing_document_detector" not in state.completed_steps:
+                return AgentDecision(
+                    action="missing_document_detector",
+                    reason=f"Auditing submitted documents against required policy evidence for goal: '{state.goal}'.",
+                    decision_type="TOOL_CALL"
+                )
+            return AgentDecision(
+                action="complete",
+                reason="Missing document inquiry satisfied.",
+                decision_type="TERMINATE"
+            )
+
+        # 5. Targeted document validation goal
+        is_field_val_goal = any(kw in goal_lower for kw in [
+            "validate field", "field validation", "mandatory field", "document completeness", "field completeness"
+        ])
+        if is_field_val_goal and not any(kw in goal_lower for kw in ["readiness", "full audit", "prepare claim"]):
+            if "document_validation" not in state.completed_steps:
+                return AgentDecision(
+                    action="document_validation",
+                    reason=f"Validating mandatory document fields for goal: '{state.goal}'.",
+                    decision_type="TOOL_CALL"
+                )
+            return AgentDecision(
+                action="complete",
+                reason="Document validation inquiry satisfied.",
+                decision_type="TERMINATE"
+            )
+
+        # 6. Targeted cross-document consistency goal
+        is_consistency_goal = any(kw in goal_lower for kw in [
+            "consistency check", "discrepancy", "cross check", "cross-document"
+        ])
+        if is_consistency_goal and not any(kw in goal_lower for kw in ["readiness", "full audit", "prepare claim"]):
+            if "cross_document_consistency_check" not in state.completed_steps:
+                return AgentDecision(
+                    action="cross_document_consistency_check",
+                    reason=f"Cross-checking records across submitted documents for goal: '{state.goal}'.",
+                    decision_type="TOOL_CALL"
+                )
+            return AgentDecision(
+                action="complete",
+                reason="Cross-document consistency inquiry satisfied.",
+                decision_type="TERMINATE"
+            )
+
+        # 7. Adaptive Comprehensive Evaluation (Goal: readiness / full assessment)
         if state.validation_result is None:
             return AgentDecision(
                 action="document_validation",
@@ -365,7 +424,21 @@ class InsureMateDecisionEngine:
                 decision_type="TOOL_CALL"
             )
 
-        # 4. Coverage Validity Check
+        # Observation branch: if all documents failed validation, synthesize rejection report directly
+        if state.validation_result.get("total_documents", 0) > 0 and state.validation_result.get("valid_documents", 0) == 0:
+            if "claim_preparation" not in state.completed_steps:
+                return AgentDecision(
+                    action="claim_preparation",
+                    reason="All submitted documents failed mandatory validation checks. Synthesizing deficiency findings.",
+                    decision_type="PREPARE_CLAIM"
+                )
+            return AgentDecision(
+                action="complete",
+                reason="All submitted documents failed validation checks. Deficiency report generated.",
+                decision_type="TERMINATE"
+            )
+
+        # Coverage Validity Check
         if state.validity_result is None:
             return AgentDecision(
                 action="validity_checker",
@@ -373,7 +446,7 @@ class InsureMateDecisionEngine:
                 decision_type="TOOL_CALL"
             )
 
-        # 5. Missing Document Detection
+        # Missing Document Detection
         if state.missing_documents is None:
             return AgentDecision(
                 action="missing_document_detector",
@@ -381,7 +454,7 @@ class InsureMateDecisionEngine:
                 decision_type="TOOL_CALL"
             )
 
-        # 6. Cross-Document Consistency Check
+        # Cross-Document Consistency Check
         if len(state.extracted_data) > 1 and "cross_document_consistency_check" not in state.completed_steps:
             return AgentDecision(
                 action="cross_document_consistency_check",
@@ -389,7 +462,7 @@ class InsureMateDecisionEngine:
                 decision_type="TOOL_CALL"
             )
 
-        # 7. Final Claim Preparation
+        # Final Claim Preparation
         if "claim_preparation" not in state.completed_steps:
             return AgentDecision(
                 action="claim_preparation",

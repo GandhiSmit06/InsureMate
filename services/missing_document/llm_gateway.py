@@ -72,37 +72,185 @@ class LLMGateway:
     def __init__(self, client: Optional[OllamaClient] = None):
         self.client = client or OllamaClient()
 
+    def _extract_policy_requirements_offline(
+        self,
+        policy_documents: List[Dict[str, Any]],
+        conditions: Optional[List[str]] = None
+    ) -> List[Dict[str, Any]]:
+        """Dynamically extract required documents from policy clauses and text when LLM is offline."""
+        requirements: List[Dict[str, Any]] = []
+        seen = set()
+
+        candidate_texts = list(conditions or [])
+        for doc in policy_documents:
+            candidate_texts.extend(doc.get("policy_clauses", []))
+            candidate_texts.extend(doc.get("relevant_conditions", []))
+            if doc.get("policy_relevant_text"):
+                candidate_texts.append(doc.get("policy_relevant_text"))
+
+        idx = 1
+        doc_keywords = ["bill", "receipt", "discharge", "summary", "report", "certificate", "prescription", "claim form", "investigation", "id proof", "cheque"]
+        for txt in candidate_texts:
+            lines = [l.strip() for l in re.split(r"[\n\r;]+", str(txt)) if l.strip()]
+            for line in lines:
+                clean_line = re.sub(r"^[\d\.\-\*\)\s]+", "", line).strip()
+                if not clean_line or len(clean_line) < 4:
+                    continue
+                if any(kw in clean_line.lower() for kw in doc_keywords):
+                    split_c = re.split(r"\s+(?:with|stating|and payment|supporting|issued by|duly)\s+", clean_line, flags=re.I)
+                    title = split_c[0].strip() if split_c else clean_line
+                    if len(title) > 60:
+                        title = title[:60].strip()
+                    title_norm = title.lower()
+                    if title_norm not in seen:
+                        seen.add(title_norm)
+                        requirements.append({
+                            "sr_no": idx,
+                            "document_title": title,
+                            "source": "policy_clause",
+                            "reason": clean_line
+                        })
+                        idx += 1
+
+        return requirements
+
+    def _match_submitted_documents_offline(
+        self,
+        required_documents: List[Dict[str, Any]],
+        submitted_documents: List[Dict[str, Any]],
+        valid_submitted_pages: Optional[List[int]] = None
+    ) -> MissingDocumentResponse:
+        """Dynamically match submitted documents against requirements when LLM is offline."""
+        valid_pages = set(valid_submitted_pages or [
+            (d.get("page_number") if d.get("page_number") is not None else d.get("page_no"))
+            for d in submitted_documents
+            if (d.get("page_number") is not None or d.get("page_no") is not None)
+        ])
+
+        results = []
+        for idx, req in enumerate(required_documents, start=1):
+            req_title = (req.get("document_title") or "").strip()
+            req_norm = req_title.lower()
+
+            matched_doc = None
+            matched_page = None
+
+            req_words = set(re.findall(r"\w+", req_norm)) - {"and", "the", "of", "in", "for", "with", "or", "a", "an", "original", "copy", "duly", "stamped", "signed"}
+
+            for sub in submitted_documents:
+                sub_title = (sub.get("document_title") or sub.get("document_type") or "").strip()
+                sub_norm = sub_title.lower()
+                sub_page = sub.get("page_number") if sub.get("page_number") is not None else sub.get("page_no")
+
+                # 1. Exact or substring match
+                if req_norm in sub_norm or sub_norm in req_norm:
+                    matched_doc = sub_title
+                    matched_page = sub_page
+                    break
+
+                # 2. Key category matches
+                cat_pairs = [
+                    ({"discharge", "summary", "card"}, {"discharge", "summary", "card"}),
+                    ({"bill", "final", "hospital", "indoor"}, {"bill", "hospital", "indoor", "inpatient"}),
+                    ({"receipt", "payment", "deposit"}, {"receipt", "payment", "deposit", "settlement"}),
+                    ({"pharmacy", "medicine", "chemist"}, {"pharmacy", "medicine", "chemist", "drug"}),
+                    ({"investigation", "lab", "pathology", "diagnostic", "report", "radiology", "ct", "mri", "x-ray"}, {"investigation", "lab", "pathology", "test", "radiology", "report", "diagnostic"}),
+                    ({"claim", "form"}, {"claim", "form", "part-a", "part-b"}),
+                    ({"cheque", "cancelled", "passbook", "bank"}, {"cheque", "passbook", "bank"}),
+                    ({"aadhar", "pan", "kyc", "identity", "id"}, {"aadhar", "pan", "kyc", "identity", "id"}),
+                ]
+                matched_category = False
+                for req_syns, sub_syns in cat_pairs:
+                    if req_words.intersection(req_syns) and any(s in sub_norm for s in sub_syns):
+                        matched_doc = sub_title
+                        matched_page = sub_page
+                        matched_category = True
+                        break
+                if matched_category:
+                    break
+
+                # 3. Word overlap match
+                sub_words = set(re.findall(r"\w+", sub_norm))
+                overlap = req_words.intersection(sub_words)
+                if len(overlap) >= 2 or (len(req_words) == 1 and overlap):
+                    matched_doc = sub_title
+                    matched_page = sub_page
+                    break
+
+            if matched_doc and matched_page is not None:
+                try:
+                    p_num = int(matched_page)
+                    if not valid_pages or p_num in valid_pages:
+                        results.append({
+                            "sr_no": idx,
+                            "document_title": req_title,
+                            "missing": False,
+                            "page_number": p_num,
+                            "matched_submitted_document": matched_doc,
+                            "reason": f"Located '{matched_doc}' on page {p_num} satisfying requirement."
+                        })
+                        continue
+                except (ValueError, TypeError):
+                    pass
+
+            results.append({
+                "sr_no": idx,
+                "document_title": req_title,
+                "missing": True,
+                "page_number": None,
+                "matched_submitted_document": None,
+                "reason": f"No submitted document matched '{req_title}'."
+            })
+
+        payload = {
+            "required_documents": required_documents,
+            "document_results": results,
+            "reason": "Matched submitted documents against policy requirements dynamically."
+        }
+        return validate_detection_output(payload, valid_submitted_pages=list(valid_pages))
+
     def extract_policy_requirements(
         self,
         policy_documents: List[Dict[str, Any]],
         conditions: Optional[List[str]] = None
     ) -> List[Dict[str, Any]]:
         """Call #1: Use Gemma 3 to dynamically determine required documents from policy evidence."""
+        if not self.client.is_available():
+            logger.missing_doc("Ollama is offline; deriving policy requirements dynamically from policy text/clauses.")
+            return self._extract_policy_requirements_offline(policy_documents, conditions)
+
         messages = build_requirement_extraction_messages(
             policy_documents=policy_documents,
             conditions=conditions
         )
         logger.missing_doc("Calling LLM Gateway for dynamic requirement extraction...")
-        raw_response = self.client.chat(
-            messages=messages,
-            format_type="json"
-        )
+        try:
+            raw_response = self.client.chat(
+                messages=messages,
+                format_type="json"
+            )
+        except Exception as e:
+            logger.missing_doc(f"Ollama chat failed ({e}); falling back to dynamic offline requirement extraction.")
+            return self._extract_policy_requirements_offline(policy_documents, conditions)
 
         try:
             parsed = extract_json_from_text(raw_response)
         except Exception as e:
             # Retry once on malformed requirement JSON
             retry_prompt = build_retry_prompt(messages[1]["content"], raw_response, str(e))
-            raw_response = self.client.chat(
-                messages=[
-                    messages[0],
-                    messages[1],
-                    {"role": "assistant", "content": raw_response},
-                    {"role": "user", "content": retry_prompt}
-                ],
-                format_type="json"
-            )
-            parsed = extract_json_from_text(raw_response)
+            try:
+                raw_response = self.client.chat(
+                    messages=[
+                        messages[0],
+                        messages[1],
+                        {"role": "assistant", "content": raw_response},
+                        {"role": "user", "content": retry_prompt}
+                    ],
+                    format_type="json"
+                )
+                parsed = extract_json_from_text(raw_response)
+            except Exception:
+                return self._extract_policy_requirements_offline(policy_documents, conditions)
 
         if isinstance(parsed, list):
             raw_list = parsed
@@ -132,6 +280,9 @@ class LLMGateway:
                     "reason": item.get("reason", "")
                 })
 
+        if not requirements:
+            return self._extract_policy_requirements_offline(policy_documents, conditions)
+
         return requirements
 
     def match_submitted_documents(
@@ -143,6 +294,10 @@ class LLMGateway:
         valid_submitted_pages: Optional[List[int]] = None
     ) -> MissingDocumentResponse:
         """Call #2: Use Gemma 3 to semantically match submitted documents against requirements."""
+        if not self.client.is_available():
+            logger.missing_doc("Ollama is offline; executing dynamic rule-based document matching.")
+            return self._match_submitted_documents_offline(required_documents, submitted_documents, valid_submitted_pages)
+
         messages = build_matching_messages(
             required_documents=required_documents,
             submitted_documents=submitted_documents,
@@ -152,10 +307,14 @@ class LLMGateway:
 
         # Attempt 1
         logger.missing_doc("Calling LLM Gateway for semantic document matching (Attempt 1/2)...")
-        raw_resp = self.client.chat(
-            messages=messages,
-            format_type="json"
-        )
+        try:
+            raw_resp = self.client.chat(
+                messages=messages,
+                format_type="json"
+            )
+        except Exception as e:
+            logger.missing_doc(f"Ollama chat failed ({e}); falling back to dynamic offline document matching.")
+            return self._match_submitted_documents_offline(required_documents, submitted_documents, valid_submitted_pages)
 
         try:
             parsed = extract_json_from_text(raw_resp)
@@ -188,12 +347,11 @@ CORRECTION INSTRUCTIONS:
                 {"role": "user", "content": retry_content}
             ]
 
-            raw_retry_resp = self.client.chat(
-                messages=retry_messages,
-                format_type="json"
-            )
-
             try:
+                raw_retry_resp = self.client.chat(
+                    messages=retry_messages,
+                    format_type="json"
+                )
                 parsed_retry = extract_json_from_text(raw_retry_resp)
                 parsed_retry["required_documents"] = required_documents
                 return validate_detection_output(parsed_retry, valid_submitted_pages=valid_submitted_pages)
@@ -208,7 +366,6 @@ CORRECTION INSTRUCTIONS:
                     ) if isinstance(r, dict) else r
                     for idx, r in enumerate(required_documents, start=1)
                 ]
-                # Structured error on second failure
                 return MissingDocumentResponse(
                     status="error",
                     tool="missing_document_tool",
@@ -218,6 +375,6 @@ CORRECTION INSTRUCTIONS:
                     error={
                         "attempt_1_error": str(first_error),
                         "attempt_2_error": str(second_error),
-                        "raw_response": raw_retry_resp
+                        "raw_response": raw_retry_resp if "raw_retry_resp" in locals() else None
                     }
                 )

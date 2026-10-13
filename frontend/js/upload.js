@@ -299,8 +299,8 @@ const Upload = {
         }
 
         formData.append('goal', finalGoal);
-        formData.append('claim_type', claimTypeSelect ? claimTypeSelect.value : 'general');
-        formData.append('offline_mode', checkOffline ? checkOffline.checked : true);
+        formData.append('claim_type', claimTypeSelect ? (claimTypeSelect.value || 'health') : 'health');
+        formData.append('offline_mode', true);
         formData.append('auto_run', false);
 
         this.updateWizardSteps(4);
