@@ -14,6 +14,7 @@ Identify each specific supporting document, record, certificate, or proof requir
 
 STRICT INSTRUCTIONS:
 - Base requirements ONLY on the provided policy information.
+- Do NOT list the insurance policy itself, policy schedule, policy certificate, or policy pages as required documents. Only list supporting medical, hospital, or billing records that the claimant must submit to substantiate the claim.
 - Do NOT invent requirements not mentioned in the policy.
 - Do NOT use a predefined list of insurance documents.
 - Do NOT assume every policy requires the same documents.
@@ -45,7 +46,7 @@ STRICT INSTRUCTIONS:
 - CRITICAL: PERFORM SEMANTIC MATCHING, NOT EXACT TITLE MATCHING.
   Different hospitals, diagnostic centres, and insurers use different terminology for the same documents.
   If a submitted document serves the same purpose, it satisfies the requirement.
-  For example, records like 'Patient Discharge Record' or 'Discharge Card' satisfy 'Discharge Summary'; 'Final Hospital Invoice' or 'Inpatient Bill' satisfies 'Final Hospital Bill'.
+  For example, records like 'Patient Discharge Record' or 'Discharge Card' satisfy 'Discharge Summary'; 'Final Hospital Invoice' or 'Inpatient Bill' satisfies 'Final Hospital Bill'; 'Medical Diagnostic Report', 'Ultrasound Scan Report', or 'Radiology/Pathology Report' satisfies 'Scan Reports' or 'Investigation Reports'.
   Do NOT mark a document missing merely because the words in the title are not an exact word-for-word match.
 - Only mark missing = true if NO submitted document serves the purpose of the required document (for example, a billing invoice cannot satisfy a laboratory investigation report).
 - For each required document:

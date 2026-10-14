@@ -245,6 +245,8 @@ class ClaimState:
             self.current_step = "missing_document_analysis_completed"
 
     def __getitem__(self, key: str) -> Any:
+        if not isinstance(key, str):
+            raise KeyError(str(key))
         if hasattr(self, key):
             return getattr(self, key)
         raise KeyError(key)

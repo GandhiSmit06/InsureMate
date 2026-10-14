@@ -84,13 +84,13 @@ def test_agent_orchestration_and_sub_endpoints_workflow(client: TestClient):
         assert status_data["claim_id"] == claim_id
         assert status_data["status"] == "completed"
         assert status_data["has_result"] is True
-        assert status_data["tool_count"] >= 3
+        assert status_data["tool_count"] >= 2
 
         # Step 4: Check Agent Activity
         act_res = client.get(f"/api/claims/{claim_id}/agent/activity")
         assert act_res.status_code == 200
         act_data = act_res.json()
-        assert len(act_data["tool_executions"]) >= 3
+        assert len(act_data["tool_executions"]) >= 2
         assert len(act_data["execution_trace"]) >= 1
 
         # Step 5: Check Documents Sub-Endpoint

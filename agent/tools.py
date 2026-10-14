@@ -417,7 +417,7 @@ class ClaimPreparationAdapter(BaseAgentTool):
             decision_summary = "Claim processing stopped due to unreadable or missing document files."
             action_items.append("Please upload legible PDF documents.")
 
-        elif validation_valid is False and (not state.validity_result or state.validation_result.get("valid_documents", 0) == 0):
+        elif validation_valid is False:
             final_status = ClaimStatus.ACTION_REQUIRED_INVALID_DOCUMENTS.value
             decision_summary = "Submitted documents failed mandatory field validation."
             reasons = []
@@ -455,6 +455,11 @@ class ClaimPreparationAdapter(BaseAgentTool):
             final_status = ClaimStatus.CLAIM_READY_FOR_SUBMISSION.value
             decision_summary = "All documents validated, coverage dates verified, and all required evidence present."
             action_items.append("Ready to assemble final claim package and submit to insurer.")
+
+        elif validation_valid is None or is_valid_dates is None:
+            final_status = ClaimStatus.INSUFFICIENT_INFORMATION.value
+            decision_summary = "Claim assessment is incomplete: mandatory document validation or validity checks have not been executed."
+            action_items.append("Execute complete claim verification before submission.")
 
         else:
             final_status = ClaimStatus.ACTION_REQUIRED_MISSING_EVIDENCE.value

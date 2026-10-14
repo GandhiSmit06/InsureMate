@@ -296,26 +296,30 @@ class QwenVLExtractor:
             doc_type = "other"
 
         # 2. Dynamic Human-readable title
-        if "policy certificate" in text_lower:
-            title = f"Policy Certificate (Page {page.page_number})"
-        elif "key features" in text_lower:
-            title = f"Policy Key Features & Benefits (Page {page.page_number})"
-        elif "welcome" in text_lower:
-            title = f"Policy Welcome Overview (Page {page.page_number})"
-        elif "insured details" in text_lower:
-            title = f"Policy Schedule & Insured Details (Page {page.page_number})"
-        elif "first information report" in text_lower or "fir" in text_lower:
-            title = f"Police First Information Report (FIR) (Page {page.page_number})"
-        elif "discharge summary" in text_lower:
-            title = f"Hospital Discharge Summary (Page {page.page_number})"
-        elif "admission" in text_lower:
-            title = f"Hospital Indoor Admission Record (Page {page.page_number})"
+        if doc_type == "insurance_policy":
+            if "policy certificate" in text_lower:
+                title = f"Policy Certificate (Page {page.page_number})"
+            elif "key features" in text_lower:
+                title = f"Policy Key Features & Benefits (Page {page.page_number})"
+            elif "welcome" in text_lower:
+                title = f"Policy Welcome Overview (Page {page.page_number})"
+            elif "insured details" in text_lower:
+                title = f"Policy Schedule & Insured Details (Page {page.page_number})"
+            else:
+                title = f"Insurance Policy Schedule (Page {page.page_number})"
         elif doc_type == "medical_bill":
             title = f"Hospital Medical Bill (Page {page.page_number})"
         elif doc_type == "medical_report":
-            title = f"Medical Diagnostic Report (Page {page.page_number})"
-        elif doc_type == "insurance_policy":
-            title = f"Insurance Policy Schedule (Page {page.page_number})"
+            if any(k in text_lower for k in ["scan", "ultrasound", "radiology", "x-ray", "mri", "ct", "sonography"]):
+                title = f"Medical Diagnostic Scan Report (Page {page.page_number})"
+            else:
+                title = f"Medical Diagnostic Report (Page {page.page_number})"
+        elif doc_type == "incident_document":
+            title = f"Police First Information Report (FIR) (Page {page.page_number})"
+        elif "discharge summary" in text_lower:
+            title = f"Hospital Discharge Summary (Page {page.page_number})"
+        elif "admission" in text_lower or doc_type == "hospital_document":
+            title = f"Hospital Indoor Admission Record (Page {page.page_number})"
         else:
             first_line = next((ln.strip() for ln in text.splitlines() if ln.strip() and not ln.strip().startswith("=")), "")
             title = first_line[:80] if first_line else f"{doc_type.replace('_', ' ').title()} (Page {page.page_number})"

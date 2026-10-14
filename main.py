@@ -192,13 +192,19 @@ def main():
     args = parser.parse_args()
 
     default_policy = args.policy or (
-        str(ROOT_DIR / "sample_policy.pdf") if (ROOT_DIR / "sample_policy.pdf").exists()
+        str(ROOT_DIR / "test_documents" / "InsureMate_Test_Health_Insurance_Policy.pdf") if (ROOT_DIR / "test_documents" / "InsureMate_Test_Health_Insurance_Policy.pdf").exists()
+        else str(ROOT_DIR / "InsureMate_Test_Health_Insurance_Policy.pdf") if (ROOT_DIR / "InsureMate_Test_Health_Insurance_Policy.pdf").exists()
+        else str(ROOT_DIR / "test_documents" / "sample_policy.pdf") if (ROOT_DIR / "test_documents" / "sample_policy.pdf").exists()
+        else str(ROOT_DIR / "sample_policy.pdf") if (ROOT_DIR / "sample_policy.pdf").exists()
         else str(ROOT_DIR / "policy_A.pdf") if (ROOT_DIR / "policy_A.pdf").exists()
         else str(ROOT_DIR / "4225IELVT38453879200000_policy_copy.pdf") if (ROOT_DIR / "4225IELVT38453879200000_policy_copy.pdf").exists()
         else None
     )
     default_claim = args.claim or (
-        str(ROOT_DIR / "sample_claim.pdf") if (ROOT_DIR / "sample_claim.pdf").exists()
+        str(ROOT_DIR / "test_documents" / "InsureMate_Test_Health_Insurance_Claim_Documents.pdf") if (ROOT_DIR / "test_documents" / "InsureMate_Test_Health_Insurance_Claim_Documents.pdf").exists()
+        else str(ROOT_DIR / "InsureMate_Test_Health_Insurance_Claim_Documents.pdf") if (ROOT_DIR / "InsureMate_Test_Health_Insurance_Claim_Documents.pdf").exists()
+        else str(ROOT_DIR / "test_documents" / "sample_claim.pdf") if (ROOT_DIR / "test_documents" / "sample_claim.pdf").exists()
+        else str(ROOT_DIR / "sample_claim.pdf") if (ROOT_DIR / "sample_claim.pdf").exists()
         else str(ROOT_DIR / "claim_A.pdf") if (ROOT_DIR / "claim_A.pdf").exists()
         else str(ROOT_DIR / "DOCUMENTS FOR Re- activation REQUEST OF CLAIM NO.95151709.pdf") if (ROOT_DIR / "DOCUMENTS FOR Re- activation REQUEST OF CLAIM NO.95151709.pdf").exists()
         else None

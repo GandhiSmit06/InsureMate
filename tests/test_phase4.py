@@ -84,9 +84,9 @@ def test_2_policy_requirements_dynamically_extracted():
     tool = QwenVLExtractionTool(offline_mode=True)
 
     # Extract Policy A
-    ext_a = tool.run(ROOT_DIR / "policy_A.pdf", max_pages=1)
+    ext_a = tool.run(ROOT_DIR / "policy_A.pdf", max_pages=2)
     assert ext_a["status"] == "success"
-    doc_a = ext_a["extracted_documents"][0]
+    doc_a = next((d for d in ext_a["extracted_documents"] if d.get("policy_clauses")), ext_a["extracted_documents"][0])
     # Phase 1 must NOT have required_documents
     assert "required_documents" not in doc_a, "Phase 1 output must NOT contain required_documents"
     # Phase 1 MUST have policy_clauses or policy_relevant_text extracted from PDF text

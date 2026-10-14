@@ -19,6 +19,7 @@ from services.missing_document.prompt_builder import (
 )
 from services.missing_document.schemas import (
     MissingDocumentResponse,
+    MissingDocumentSummary,
     Phase4ValidationError,
     RequiredDocumentDefinition,
     validate_detection_output,
@@ -89,7 +90,11 @@ class LLMGateway:
                 candidate_texts.append(doc.get("policy_relevant_text"))
 
         idx = 1
-        doc_keywords = ["bill", "receipt", "discharge", "summary", "report", "certificate", "prescription", "claim form", "investigation", "id proof", "cheque"]
+        doc_keywords = [
+            "bill", "receipt", "discharge", "summary", "report", "certificate",
+            "prescription", "claim form", "investigation", "id proof", "cheque",
+            "fir", "police", "boarding", "pass", "ticket", "invoice"
+        ]
         for txt in candidate_texts:
             lines = [l.strip() for l in re.split(r"[\n\r;]+", str(txt)) if l.strip()]
             for line in lines:
@@ -97,11 +102,15 @@ class LLMGateway:
                 if not clean_line or len(clean_line) < 4:
                     continue
                 if any(kw in clean_line.lower() for kw in doc_keywords):
+                    if any(ex in clean_line.lower() for ex in ["policy certificate", "policy schedule", "clause id", "admissible expenses", "statutory", "ombudsman"]):
+                        continue
                     split_c = re.split(r"\s+(?:with|stating|and payment|supporting|issued by|duly)\s+", clean_line, flags=re.I)
                     title = split_c[0].strip() if split_c else clean_line
                     if len(title) > 60:
                         title = title[:60].strip()
                     title_norm = title.lower()
+                    if any(ex in title_norm for ex in ["policy", "schedule", "clause id", "admissible"]):
+                        continue
                     if title_norm not in seen:
                         seen.add(title_norm)
                         requirements.append({
@@ -154,7 +163,7 @@ class LLMGateway:
                     ({"bill", "final", "hospital", "indoor"}, {"bill", "hospital", "indoor", "inpatient"}),
                     ({"receipt", "payment", "deposit"}, {"receipt", "payment", "deposit", "settlement"}),
                     ({"pharmacy", "medicine", "chemist"}, {"pharmacy", "medicine", "chemist", "drug"}),
-                    ({"investigation", "lab", "pathology", "diagnostic", "report", "radiology", "ct", "mri", "x-ray"}, {"investigation", "lab", "pathology", "test", "radiology", "report", "diagnostic"}),
+                    ({"investigation", "lab", "pathology", "diagnostic", "report", "reports", "radiology", "ct", "mri", "x-ray", "scan", "scans", "ultrasound", "usg", "imaging", "sonography"}, {"investigation", "lab", "pathology", "test", "radiology", "report", "reports", "diagnostic", "scan", "scans", "ultrasound", "usg", "imaging"}),
                     ({"claim", "form"}, {"claim", "form", "part-a", "part-b"}),
                     ({"cheque", "cancelled", "passbook", "bank"}, {"cheque", "passbook", "bank"}),
                     ({"aadhar", "pan", "kyc", "identity", "id"}, {"aadhar", "pan", "kyc", "identity", "id"}),
@@ -273,9 +282,12 @@ class LLMGateway:
                     "reason": "Explicitly stated in policy content"
                 })
             elif isinstance(item, dict) and item.get("document_title"):
+                t = item["document_title"].strip()
+                if any(ex in t.lower() for ex in ["policy schedule", "policy certificate", "insurance policy", "clause id"]):
+                    continue
                 requirements.append({
-                    "sr_no": idx,
-                    "document_title": item["document_title"].strip(),
+                    "sr_no": len(requirements) + 1,
+                    "document_title": t,
                     "source": item.get("source", "policy"),
                     "reason": item.get("reason", "")
                 })
@@ -356,25 +368,13 @@ CORRECTION INSTRUCTIONS:
                 parsed_retry["required_documents"] = required_documents
                 return validate_detection_output(parsed_retry, valid_submitted_pages=valid_submitted_pages)
             except Exception as second_error:
-                logger.error(f"Attempt 2 retry failed validation: {second_error}")
-                req_defs = [
-                    RequiredDocumentDefinition(
-                        sr_no=r.get("sr_no", idx),
-                        document_title=r.get("document_title", ""),
-                        source=r.get("source", "policy"),
-                        reason=r.get("reason", "")
-                    ) if isinstance(r, dict) else r
-                    for idx, r in enumerate(required_documents, start=1)
-                ]
+                logger.error(f"Attempt 2 retry failed validation: {second_error}.")
                 return MissingDocumentResponse(
                     status="error",
                     tool="missing_document_tool",
-                    required_documents=req_defs,
+                    required_documents=[],
                     document_results=[],
-                    reason=f"LLM output failed validation after retry: {second_error}",
-                    error={
-                        "attempt_1_error": str(first_error),
-                        "attempt_2_error": str(second_error),
-                        "raw_response": raw_retry_resp if "raw_retry_resp" in locals() else None
-                    }
+                    summary=MissingDocumentSummary(total_required=0, present=0, missing=0),
+                    reason=f"LLM response failed validation after retry: {second_error}",
+                    error=str(second_error)
                 )

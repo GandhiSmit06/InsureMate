@@ -279,7 +279,18 @@ This analysis is an AI-assisted preparation assessment and does not constitute g
     const tbody = document.getElementById('missing-evidence-tbody');
     if (!tbody) return;
 
-    const items = missingData?.missing_documents || missingData?.document_results || missingData?.items || [];
+    const rawItems = missingData?.missing_documents || missingData?.document_results || missingData?.items || [];
+
+    // Filter to only display missing documents in the Missing Evidence view (exclude received documents)
+    const items = rawItems.filter(doc => {
+      if (typeof doc === 'string') {
+        return true; // String items in missing_documents are missing document names
+      }
+      const statusRaw = String(doc.status || '').toLowerCase();
+      const isMissing = doc.missing === true || statusRaw === 'missing';
+      const isReceived = doc.missing === false || statusRaw === 'received' || statusRaw === 'found' || statusRaw === 'available' || statusRaw === 'present' || (!isMissing && (doc.page_number != null || doc.matched_submitted_document != null));
+      return isMissing && !isReceived;
+    });
 
     if (!items || items.length === 0) {
       tbody.innerHTML = `
@@ -293,6 +304,18 @@ This analysis is an AI-assisted preparation assessment and does not constitute g
     }
 
     tbody.innerHTML = items.map((doc, idx) => {
+      if (typeof doc === 'string') {
+        return `
+          <tr>
+            <td style="font-family: var(--font-mono);">${idx + 1}</td>
+            <td style="font-weight: 600; color: var(--text-heading);">${Utils.escapeHtml(doc)}</td>
+            <td><span class="badge badge-warning">⚠ Missing</span></td>
+            <td style="font-size: 0.78rem; line-height: 1.45;">Mandatory document required by policy terms was not submitted.</td>
+            <td style="font-family: var(--font-mono);">—</td>
+          </tr>
+        `;
+      }
+
       const statusRaw = String(doc.status || '').toLowerCase();
       const isMissing = doc.missing === true || statusRaw === 'missing';
       const isReceived = doc.missing === false || statusRaw === 'received' || statusRaw === 'found' || statusRaw === 'available' || statusRaw === 'present' || (!isMissing && (doc.page_number != null || doc.matched_submitted_document != null));

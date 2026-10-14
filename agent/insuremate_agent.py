@@ -112,6 +112,10 @@ class InsureMateAgent:
             Completed ClaimState containing tool history, trace, and final status.
         """
         # 1. Initialize or normalize working state
+        if isinstance(documents, ClaimState) and state is None:
+            state = documents
+            documents = None
+
         if state is None:
             doc_list: List[str] = []
             if documents:
@@ -189,15 +193,64 @@ class InsureMateAgent:
             if decision.action in ("complete", "finish"):
                 state.record_trace(decision=decision.reason, tool=None, tool_result=None)
                 if not state.final_status:
-                    state.final_status = ClaimStatus.CLAIM_READY_FOR_SUBMISSION.value
+                    # Ground final status in accumulated evidence rather than blindly defaulting to ready
+                    validation_valid = state.validation_result.get("valid") if state.validation_result else None
+                    is_valid_dates = state.validity_result.get("valid") if state.validity_result else None
+                    
+                    missing_list: list = []
+                    if state.missing_documents:
+                        raw_missing = (
+                            state.missing_documents.get("missing_documents", [])
+                            if isinstance(state.missing_documents, dict)
+                            else (state.missing_documents if isinstance(state.missing_documents, list) else [])
+                        )
+                        for item in raw_missing:
+                            if isinstance(item, str):
+                                missing_list.append(item)
+                            elif isinstance(item, dict) and item.get("missing") is True:
+                                missing_list.append(item.get("document_title", "Unknown document"))
+
+                    if state.errors and not state.extracted_data:
+                        state.final_status = ClaimStatus.INSUFFICIENT_INFORMATION.value
+                    elif not state.extracted_data and not state.documents:
+                        state.final_status = ClaimStatus.CLAIM_READY_FOR_SUBMISSION.value
+                    elif validation_valid is False:
+                        state.final_status = ClaimStatus.ACTION_REQUIRED_INVALID_DOCUMENTS.value
+                    elif is_valid_dates is False:
+                        state.final_status = ClaimStatus.INVALID_CLAIM_DATES.value
+                    elif missing_list:
+                        state.final_status = ClaimStatus.ACTION_REQUIRED_MISSING_EVIDENCE.value
+                    elif validation_valid is True and is_valid_dates is True and not missing_list:
+                        state.final_status = ClaimStatus.CLAIM_READY_FOR_SUBMISSION.value
+                    elif validation_valid is None or is_valid_dates is None:
+                        state.final_status = ClaimStatus.INSUFFICIENT_INFORMATION.value
+                    else:
+                        state.final_status = ClaimStatus.INSUFFICIENT_INFORMATION.value
+
                 if not state.final_report:
+                    is_ready = state.final_status == ClaimStatus.CLAIM_READY_FOR_SUBMISSION.value
+                    action_items = []
+                    if not is_ready:
+                        if state.final_status == ClaimStatus.INVALID_CLAIM_DATES.value:
+                            reasons = state.validity_result.get("reasons", []) if state.validity_result else []
+                            action_items.extend(reasons or ["Incident or treatment date falls outside the policy coverage period."])
+                        elif state.final_status == ClaimStatus.ACTION_REQUIRED_INVALID_DOCUMENTS.value:
+                            action_items.append("Provide valid, legible claim documents containing all mandatory fields.")
+                        elif state.final_status == ClaimStatus.ACTION_REQUIRED_MISSING_EVIDENCE.value:
+                            action_items.append("Upload all missing mandatory claim evidence.")
+                        elif state.final_status == ClaimStatus.INSUFFICIENT_INFORMATION.value:
+                            action_items.append("Execute complete claim verification before submission.")
+                        else:
+                            action_items.append(decision.reason or "Review claim deficiencies.")
                     state.final_report = {
                         "claim_id": state.claim_id,
                         "status": state.final_status,
-                        "is_ready": state.final_status == ClaimStatus.CLAIM_READY_FOR_SUBMISSION.value,
+                        "is_ready": is_ready,
                         "decision_summary": decision.reason,
-                        "action_items": [],
-                        "human_review_required": True,
+                        "coverage_validity_status": "PASS" if (state.validity_result and state.validity_result.get("valid")) else ("FAIL" if (state.validity_result and state.validity_result.get("valid") is False) else "NOT_CHECKED"),
+                        "validation_status": "PASS" if (state.validation_result and state.validation_result.get("valid")) else ("FAIL" if (state.validation_result and state.validation_result.get("valid") is False) else "NOT_CHECKED"),
+                        "action_items": action_items,
+                        "human_review_required": not is_ready,
                         "notice": "This analysis is an AI-assisted preparation assessment and does not constitute guaranteed insurer approval."
                     }
                 _emit({
@@ -235,7 +288,10 @@ class InsureMateAgent:
             # Case C: Terminal / Interaction - Request information from user
             if decision.action in ("request_user_info", "ask_user"):
                 state.record_trace(decision=decision.reason, tool=None, tool_result=None)
-                state.final_status = ClaimStatus.ACTION_REQUIRED_MISSING_EVIDENCE.value
+                if not state.documents and not state.extracted_data:
+                    state.final_status = ClaimStatus.INSUFFICIENT_INFORMATION.value
+                else:
+                    state.final_status = ClaimStatus.ACTION_REQUIRED_MISSING_EVIDENCE.value
                 question = decision.reason or "Additional user information or document evidence is required."
                 state.record_unresolved_question(question)
                 state.final_report = {

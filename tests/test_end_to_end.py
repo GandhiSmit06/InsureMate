@@ -48,7 +48,13 @@ def run_end_to_end_test(
             return False
     else:
         # Default policy search
-        p_candidate = ROOT_DIR / "sample_policy.pdf"
+        p_candidate = ROOT_DIR / "test_documents" / "InsureMate_Test_Health_Insurance_Policy.pdf"
+        if not p_candidate.exists():
+            p_candidate = ROOT_DIR / "InsureMate_Test_Health_Insurance_Policy.pdf"
+        if not p_candidate.exists():
+            p_candidate = ROOT_DIR / "test_documents" / "sample_policy.pdf"
+        if not p_candidate.exists():
+            p_candidate = ROOT_DIR / "sample_policy.pdf"
         if not p_candidate.exists():
             p_candidate = ROOT_DIR / "policy_A.pdf"
         if not p_candidate.exists():
@@ -62,7 +68,13 @@ def run_end_to_end_test(
             return False
     else:
         # Default claim search
-        c_candidate = ROOT_DIR / "sample_claim.pdf"
+        c_candidate = ROOT_DIR / "test_documents" / "InsureMate_Test_Health_Insurance_Claim_Documents.pdf"
+        if not c_candidate.exists():
+            c_candidate = ROOT_DIR / "InsureMate_Test_Health_Insurance_Claim_Documents.pdf"
+        if not c_candidate.exists():
+            c_candidate = ROOT_DIR / "test_documents" / "sample_claim.pdf"
+        if not c_candidate.exists():
+            c_candidate = ROOT_DIR / "sample_claim.pdf"
         if not c_candidate.exists():
             c_candidate = ROOT_DIR / "claim_A.pdf"
         if not c_candidate.exists():

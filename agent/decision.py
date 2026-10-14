@@ -145,10 +145,10 @@ class InsureMateDecisionEngine:
             },
             {
                 "name": "claim_preparation",
-                "description": "Synthesizes final claim readiness determination, action checklist, and verdict.",
+                "description": "Synthesizes final claim readiness determination, action checklist, and verdict. Prerequisite: validity_checker and missing_document_detector must be completed first.",
                 "parameters": {},
                 "expected_output": "Comprehensive readiness report.",
-                "prerequisites": []
+                "prerequisites": ["validity_checker", "missing_document_detector"]
             }
         ]
 
@@ -283,6 +283,18 @@ class InsureMateDecisionEngine:
         """Validate decision format and detect infinite repetition loops."""
         if not decision.action:
             return False, "Decision action is empty."
+
+        # Ensure documents have been extracted before claim_preparation
+        if decision.action == "claim_preparation":
+            if not state.extracted_data and not state.errors:
+                return False, "Document extraction must be executed before 'claim_preparation'."
+            has_val_failure = state.validation_result and state.validation_result.get("valid") is False and state.validation_result.get("valid_documents", 0) == 0
+            has_date_failure = state.validity_result and state.validity_result.get("valid") is False
+            if not has_val_failure and not has_date_failure:
+                if state.validity_result is None:
+                    return False, "Prerequisite 'validity_checker' must be executed before 'claim_preparation' to verify policy coverage dates."
+                if state.missing_documents is None:
+                    return False, "Prerequisite 'missing_document_detector' must be executed before 'claim_preparation' to audit required policy evidence."
 
         # Prevent infinite repetitions: same tool called 3 or more times consecutively
         history_actions = [h.get("tool_name") for h in state.tool_history[-3:]]
