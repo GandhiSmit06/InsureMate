@@ -216,6 +216,8 @@ class InsureMateAgent:
                         state.final_status = ClaimStatus.CLAIM_READY_FOR_SUBMISSION.value
                     elif validation_valid is False:
                         state.final_status = ClaimStatus.ACTION_REQUIRED_INVALID_DOCUMENTS.value
+                    elif state.consistency_results and (state.consistency_results.get("consistent") is False or state.consistency_results.get("severity") == "CRITICAL"):
+                        state.final_status = ClaimStatus.ACTION_REQUIRED_INVALID_DOCUMENTS.value
                     elif is_valid_dates is False:
                         state.final_status = ClaimStatus.INVALID_CLAIM_DATES.value
                     elif missing_list:
@@ -231,10 +233,13 @@ class InsureMateAgent:
                     is_ready = state.final_status == ClaimStatus.CLAIM_READY_FOR_SUBMISSION.value
                     action_items = []
                     if not is_ready:
+                        if state.consistency_results and state.consistency_results.get("consistent") is False:
+                            for d in state.consistency_results.get("discrepancies", []):
+                                action_items.append(f"Resolve conflicting entity: {d}")
                         if state.final_status == ClaimStatus.INVALID_CLAIM_DATES.value:
                             reasons = state.validity_result.get("reasons", []) if state.validity_result else []
                             action_items.extend(reasons or ["Incident or treatment date falls outside the policy coverage period."])
-                        elif state.final_status == ClaimStatus.ACTION_REQUIRED_INVALID_DOCUMENTS.value:
+                        elif state.final_status == ClaimStatus.ACTION_REQUIRED_INVALID_DOCUMENTS.value and not action_items:
                             reasons = state.validation_result.get("reasons", []) if state.validation_result else []
                             if reasons:
                                 action_items.extend(reasons)

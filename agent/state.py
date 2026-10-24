@@ -16,6 +16,7 @@ class ClaimStatus(str, Enum):
     CLAIM_READY_FOR_SUBMISSION = "CLAIM_READY_FOR_SUBMISSION"
     ACTION_REQUIRED_MISSING_EVIDENCE = "ACTION_REQUIRED_MISSING_EVIDENCE"
     ACTION_REQUIRED_INVALID_DOCUMENTS = "ACTION_REQUIRED_INVALID_DOCUMENTS"
+    ACTION_REQUIRED_DISCREPANCY = "ACTION_REQUIRED_DISCREPANCY"
     INVALID_CLAIM_DATES = "INVALID_CLAIM_DATES"
     INSUFFICIENT_INFORMATION = "INSUFFICIENT_INFORMATION"
     FAILED = "FAILED"
@@ -247,6 +248,14 @@ class ClaimState:
         elif tool_name in ("missing_document_tool", "missing_document_detector"):
             self.missing_documents = payload
             self.current_step = "missing_document_analysis_completed"
+
+        elif tool_name in ("cross_document_consistency_tool", "cross_document_consistency_check"):
+            self.consistency_results = payload
+            if payload.get("consistent") is False:
+                for disc in payload.get("discrepancies", []):
+                    if disc not in self.unresolved_questions:
+                        self.unresolved_questions.append(disc)
+            self.current_step = "cross_document_consistency_completed"
 
     def __getitem__(self, key: str) -> Any:
         if not isinstance(key, str):

@@ -211,7 +211,10 @@ def test_acceptance_normal_document_upload_processes_all_27_pages():
     """
     Acceptance Test 2: Upload Policy into Policy slot and Claim into Claim slot.
     All 11 policy pages + 16 claim pages = 27 pages MUST be extracted and audited.
-    Final status MUST be CLAIM_READY_FOR_SUBMISSION.
+    Because the test claim document reports a conflicting insurer on Page 2
+    ('XXXXX Verified Direct Contact Other Health Insurance' vs 'Sunrise Shield'),
+    the dynamic cross-document consistency engine correctly blocks submission readiness,
+    transitions status to ACTION_REQUIRED_INVALID_DOCUMENTS, and provides actionable discrepancy items.
     """
     state = ClaimState(
         claim_id="TEST-NORMAL-002",
@@ -234,9 +237,15 @@ def test_acceptance_normal_document_upload_processes_all_27_pages():
     assert final_state.validity_result is not None
     assert final_state.validity_result.get("valid") is True
 
-    # Final verdict
-    assert final_state.final_status == ClaimStatus.CLAIM_READY_FOR_SUBMISSION.value
-    assert final_state.final_report.get("is_ready") is True
+    # Cross-document consistency verification
+    assert final_state.consistency_results is not None
+    assert final_state.consistency_results.get("consistent") is False
+    assert final_state.consistency_results.get("severity") == "CRITICAL"
+
+    # Final verdict correctly blocked due to entity contradiction
+    assert final_state.final_status == ClaimStatus.ACTION_REQUIRED_INVALID_DOCUMENTS.value
+    assert final_state.final_report.get("is_ready") is False
+    assert any("Conflicting insurance companies" in item for item in final_state.final_report.get("action_items", []))
 
 
 def test_semantic_field_extraction_accuracy():

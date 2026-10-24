@@ -24,6 +24,7 @@ class ClaimState:
         validation_results: Optional[Dict[str, Any]] = None,
         validity_results: Optional[Dict[str, Any]] = None,
         missing_documents: Optional[List[Dict[str, Any]]] = None,
+        consistency_results: Optional[Dict[str, Any]] = None,
         tool_history: Optional[List[Dict[str, Any]]] = None,
         current_step: Optional[str] = None,
         final_result: Optional[Dict[str, Any]] = None,
@@ -35,6 +36,7 @@ class ClaimState:
         self.validation_results: Dict[str, Any] = dict(validation_results or {})
         self.validity_results: Dict[str, Any] = dict(validity_results or {})
         self.missing_documents: List[Dict[str, Any]] = list(missing_documents or [])
+        self.consistency_results: Optional[Dict[str, Any]] = consistency_results
         self.tool_history: List[Dict[str, Any]] = list(tool_history or [])
         self.current_step: Optional[str] = current_step
         self.final_result: Optional[Dict[str, Any]] = final_result
@@ -49,6 +51,7 @@ class ClaimState:
             "validation_results": self.validation_results,
             "validity_results": self.validity_results,
             "missing_documents": self.missing_documents,
+            "consistency_results": self.consistency_results,
             "tool_history": self.tool_history,
             "current_step": self.current_step,
             "final_result": self.final_result,
@@ -65,6 +68,7 @@ class ClaimState:
             validation_results=data.get("validation_results"),
             validity_results=data.get("validity_results"),
             missing_documents=data.get("missing_documents"),
+            consistency_results=data.get("consistency_results"),
             tool_history=data.get("tool_history"),
             current_step=data.get("current_step"),
             final_result=data.get("final_result"),
@@ -126,12 +130,22 @@ class ClaimState:
                 }
             self.current_step = "validity_check_completed"
 
-        elif tool_name == "missing_document_tool":
+        elif tool_name in ("missing_document_tool", "missing_document_detector"):
             if "missing_documents" in payload:
                 self.missing_documents = payload["missing_documents"]
             elif "document_results" in payload:
                 self.missing_documents = payload["document_results"]
             self.current_step = "missing_document_analysis_completed"
+
+        elif tool_name in ("cross_document_consistency_tool", "cross_document_consistency_check"):
+            self.consistency_results = payload
+            if payload.get("consistent") is False:
+                if not hasattr(self, "unresolved_questions") or self.unresolved_questions is None:
+                    self.unresolved_questions = []
+                for disc in payload.get("discrepancies", []):
+                    if disc not in self.unresolved_questions:
+                        self.unresolved_questions.append(disc)
+            self.current_step = "cross_document_consistency_completed"
 
     @property
     def validation_result(self) -> Dict[str, Any]:

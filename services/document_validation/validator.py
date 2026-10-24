@@ -229,11 +229,15 @@ class DocumentValidator:
             nums = [int(p) for p in parts if p.isdigit()]
             if len(nums) < 3:
                 return False
-            # Check range
-            day_or_month_1 = nums[0]
-            day_or_month_2 = nums[1]
-            year = nums[2] if nums[2] > 100 else nums[0]
-            return 1 <= day_or_month_1 <= 31 and 1 <= day_or_month_2 <= 31 and 1900 <= year <= 2100
+            if nums[0] > 1000:  # YYYY-MM-DD
+                year, m_or_d1, m_or_d2 = nums[0], nums[1], nums[2]
+                return 1 <= m_or_d1 <= 31 and 1 <= m_or_d2 <= 31 and 1900 <= year <= 2100
+            elif nums[2] > 1000:  # DD-MM-YYYY or MM-DD-YYYY
+                m_or_d1, m_or_d2, year = nums[0], nums[1], nums[2]
+                return 1 <= m_or_d1 <= 31 and 1 <= m_or_d2 <= 31 and 1900 <= year <= 2100
+            else:
+                year = nums[2] if nums[2] > 100 else nums[0]
+                return 1 <= nums[0] <= 31 and 1 <= nums[1] <= 31 and 1900 <= year <= 2100
         except Exception:
             return False
 

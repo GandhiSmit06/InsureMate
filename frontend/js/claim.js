@@ -167,7 +167,7 @@ This assessment is an autonomous AI preparation audit. Final approval remains su
     this.renderKPIMetrics(bundle);
 
     // 3. Executive Summary & Action Items
-    this.renderExecutiveSummary(report, verdict);
+    this.renderExecutiveSummary(report, verdict, latestState);
 
     // 4. Module 3: Interactive Evidence & Document Remediation Center
     this.renderRemediationCenter(latestState, report);
@@ -193,10 +193,13 @@ This assessment is an autonomous AI preparation audit. Final approval remains su
    */
   getVerdictDisplayInfo(verdictRaw, workerStatusRaw, report) {
     const v = String(verdictRaw || '').toUpperCase();
-    const rawMissingList = Array.isArray(report?.missing_documents)
-      ? report.missing_documents.filter(d => typeof d === 'string' || d.missing === true || String(d.status || '').toLowerCase() === 'missing')
-      : [];
-    const missingCount = report?.missing_count ?? rawMissingList.length;
+    const w = String(workerStatusRaw || '').toUpperCase();
+    let missingCount = 0;
+    if (typeof report?.missing_count === 'number' && !isNaN(report.missing_count)) {
+      missingCount = report.missing_count;
+    } else if (Array.isArray(report?.missing_documents)) {
+      missingCount = report.missing_documents.filter(d => this.isDocMissing(d)).length;
+    }
 
     const isRunning = w.includes('RUNNING') || w.includes('IN_PROGRESS');
 
@@ -208,6 +211,17 @@ This assessment is an autonomous AI preparation audit. Final approval remains su
         headline: 'Agent Execution In Progress',
         summary: 'Multimodal vision parsing and cross-document validation are actively executing.',
         icon: 'clock'
+      };
+    }
+
+    if (v.includes('DISCREPANCY') || v.includes('CONFLICT') || report?.consistency_status === 'FAIL' || (report?.decision_summary && (report.decision_summary.includes('Conflicting insurance') || report.decision_summary.includes('Cross-document integrity')))) {
+      return {
+        theme: 'rose',
+        pillText: 'CRITICAL ENTITY DISCREPANCY',
+        workerText: 'Worker Engine: Finished',
+        headline: 'Cross-Document Entity Contradiction Detected',
+        summary: report?.decision_summary || 'Conflicting insurance companies, policy identifiers, or patient details detected across submitted documents.',
+        icon: 'alertTriangle'
       };
     }
 
@@ -359,24 +373,23 @@ This assessment is an autonomous AI preparation audit. Final approval remains su
 
     // 2. Extraction & Validation Integrity
     const invalidCount = latestState.validation_result?.invalid_count || 0;
+    const consistencyDiscrepancies = latestState.consistency_results?.discrepancies || report.discrepancies || [];
+    const hasDiscrepancy = (latestState.consistency_results?.consistent === false) || report.consistency_status === 'FAIL';
     const passedPages = latestState.validation_result?.valid_documents !== undefined
       ? latestState.validation_result.valid_documents
       : Math.max(0, pageCount - invalidCount);
-    const isIntegrityPass = invalidCount === 0 && pageCount > 0;
+    const isIntegrityPass = invalidCount === 0 && pageCount > 0 && !hasDiscrepancy;
 
     // 3. Missing Evidence Count
     let missingCount = 0;
     if (typeof report.missing_count === 'number' && !isNaN(report.missing_count)) {
       missingCount = report.missing_count;
-    } else if (latestState.missing_documents?.summary?.missing !== undefined) {
+    } else if (latestState.missing_documents?.summary?.missing !== undefined && typeof latestState.missing_documents.summary.missing === 'number') {
       missingCount = latestState.missing_documents.summary.missing;
     } else {
-      const allReqs = latestState.missing_documents?.missing_documents || latestState.missing_documents?.document_results || report.missing_documents || [];
-      missingCount = allReqs.filter(d => {
-        if (typeof d === 'string') return true;
-        if (d.missing === true) return true;
-        return String(d.status || '').toLowerCase() === 'missing';
-      }).length;
+      const missingData = latestState.missing_documents || report.missing_documents_analysis || {};
+      const allReqs = missingData.document_results || missingData.missing_documents || missingData.items || report.missing_documents || [];
+      missingCount = Array.isArray(allReqs) ? allReqs.filter(d => this.isDocMissing(d)).length : 0;
     }
 
     // 4. Coverage Period Validity
@@ -403,20 +416,20 @@ This assessment is an autonomous AI preparation audit. Final approval remains su
           </div>
         </div>
 
-        <!-- Card 2: Extraction Integrity -->
+        <!-- Card 2: Entity & Document Integrity -->
         <div class="kpi-modern-card">
           <div class="kpi-card-header">
-            <span class="kpi-card-title">Extraction Integrity</span>
+            <span class="kpi-card-title">Entity & Field Integrity</span>
             <div class="kpi-card-icon-wrap" style="background: ${isIntegrityPass ? 'rgba(16, 185, 129, 0.1)' : 'rgba(244, 63, 94, 0.1)'}; color: ${isIntegrityPass ? 'var(--emerald)' : 'var(--rose)'};">
               ${Utils.svgIcon(isIntegrityPass ? 'shieldCheck' : 'alertTriangle', 16)}
             </div>
           </div>
           <div class="kpi-card-val" style="color: ${isIntegrityPass ? 'var(--emerald)' : 'var(--rose)'};">
-            ${passedPages} / ${pageCount || 1}
-            <span style="font-size: 0.8rem; font-weight: 500;">Valid</span>
+            ${hasDiscrepancy ? `${consistencyDiscrepancies.length} Conflict${consistencyDiscrepancies.length > 1 ? 's' : ''}` : `${passedPages} / ${pageCount || 1}`}
+            <span style="font-size: 0.8rem; font-weight: 500;">${hasDiscrepancy ? 'Critical' : 'Valid'}</span>
           </div>
           <div class="kpi-card-subtext">
-            <span>${invalidCount === 0 ? '100% structural fields verified' : `${invalidCount} page(s) flagged for review`}</span>
+            <span>${hasDiscrepancy ? 'Entity contradiction across docs' : (invalidCount === 0 ? '100% structural fields & entities verified' : `${invalidCount} page(s) flagged for review`)}</span>
           </div>
         </div>
 
@@ -459,19 +472,25 @@ This assessment is an autonomous AI preparation audit. Final approval remains su
   /**
    * Executive Summary & Action Items Pane
    */
-  renderExecutiveSummary(report, verdict) {
+  renderExecutiveSummary(report, verdict, latestState) {
+    const discrepancies = report?.discrepancies || latestState?.consistency_results?.discrepancies || [];
+    const hasDiscrepancy = discrepancies.length > 0 || latestState?.consistency_results?.consistent === false || report?.consistency_status === 'FAIL';
+
     const overviewEl = document.getElementById('results-overview-summary-text');
     if (overviewEl) {
       overviewEl.textContent = report?.decision_summary || (
         String(verdict).toUpperCase().includes('READY')
           ? 'All required evidence documents have been validated and coverage dates confirmed. Claim is ready for submission.'
-          : 'Claim assessment completed. Action is required due to missing mandatory documentation or date mismatches.'
+          : (hasDiscrepancy ? 'Cross-document integrity check failed: Conflicting insurance entities or policy details detected across submitted documents.' : 'Claim assessment completed. Action is required due to missing mandatory documentation or date mismatches.')
       );
     }
 
     const actionItemsEl = document.getElementById('results-action-items-list');
     if (actionItemsEl) {
-      const items = report?.action_items || [];
+      let items = report?.action_items || [];
+      if (items.length === 0 && discrepancies.length > 0) {
+        items = discrepancies.map(d => `Resolve conflicting entity: ${d}`);
+      }
       if (items.length === 0) {
         actionItemsEl.innerHTML = `
           <li style="color: var(--emerald); display: flex; align-items: center; gap: 8px;">
@@ -482,7 +501,9 @@ This assessment is an autonomous AI preparation audit. Final approval remains su
       } else {
         actionItemsEl.innerHTML = items.map(item => `
           <li style="display: flex; align-items: flex-start; gap: 10px; margin-bottom: 8px;">
-            <div style="color: var(--amber); margin-top: 2px;">${Utils.svgIcon('arrowRight', 14)}</div>
+            <div style="color: ${item.toLowerCase().includes('conflict') || item.toLowerCase().includes('mismatch') ? 'var(--rose)' : 'var(--amber)'}; margin-top: 2px;">
+              ${Utils.svgIcon(item.toLowerCase().includes('conflict') || item.toLowerCase().includes('mismatch') ? 'alertTriangle' : 'arrowRight', 14)}
+            </div>
             <span style="color: var(--text-primary); line-height: 1.5;">${Utils.escapeHtml(item)}</span>
           </li>
         `).join('');
@@ -491,32 +512,74 @@ This assessment is an autonomous AI preparation audit. Final approval remains su
   },
 
   /**
+   * Helper to evaluate whether an evidence item is genuinely missing.
+   * Returns true only for items confirmed missing (e.g. status MISSING, NOT_FOUND, missing: true)
+   * and false for items that are received, verified, available, or linked to a document page.
+   */
+  isDocMissing(doc) {
+    if (!doc) return false;
+    if (typeof doc === 'string') return doc.trim().length > 0;
+    if (typeof doc !== 'object') return false;
+
+    const statusRaw = String(doc.status || '').toLowerCase().trim();
+
+    // Explicitly marked as not missing or received/verified/available
+    if (doc.missing === false || String(doc.missing).toLowerCase() === 'false') return false;
+    if (['received', 'found', 'available', 'present', 'verified', 'valid', 'uploaded'].includes(statusRaw)) return false;
+    if (doc.page_number != null && doc.page_number !== '' && doc.page_number !== 'null' && Number(doc.page_number) > 0) return false;
+    if (doc.page_no != null && doc.page_no !== '' && doc.page_no !== 'null' && Number(doc.page_no) > 0) return false;
+
+    // Confirmed missing
+    if (doc.missing === true || String(doc.missing).toLowerCase() === 'true') return true;
+    if (['missing', 'not_found', 'unfulfilled', 'pending', 'required', 'action_required'].includes(statusRaw)) return true;
+
+    // If page_number is absent and status is not received, treat as missing
+    if ((doc.page_number == null || doc.page_number === 'null' || doc.page_number === '') &&
+        (doc.page_no == null || doc.page_no === 'null' || doc.page_no === '')) {
+      return true;
+    }
+
+    return false;
+  },
+
+  /**
    * MODULE 3: Interactive Evidence & Document Remediation Center (Replaces Flat Table)
+   * Displays ONLY genuinely missing documents that the user still needs to provide.
    */
   renderRemediationCenter(latestState, report) {
     const container = document.getElementById('remediation-cards-container');
     if (!container) return;
 
     const missingData = latestState?.missing_documents || report?.missing_documents_analysis || {};
-    const rawItems = missingData?.missing_documents || missingData?.document_results || missingData?.items || report?.missing_documents || [];
+    let candidateItems = [];
 
-    // Filter strictly to documents that are missing (do not list already submitted/verified documents)
-    const missingItems = (rawItems || []).filter(doc => {
-      if (typeof doc === 'string') return true;
-      if (doc.missing === true) return true;
-      const statusRaw = String(doc.status || '').toLowerCase();
-      return statusRaw === 'missing' || statusRaw === 'unfulfilled' || statusRaw === 'required';
-    });
+    if (Array.isArray(missingData?.document_results) && missingData.document_results.length > 0) {
+      candidateItems = missingData.document_results;
+    } else if (Array.isArray(missingData?.missing_documents) && missingData.missing_documents.length > 0) {
+      candidateItems = missingData.missing_documents;
+    } else if (Array.isArray(report?.missing_documents) && report.missing_documents.length > 0) {
+      candidateItems = report.missing_documents;
+    } else if (Array.isArray(missingData?.items) && missingData.items.length > 0) {
+      candidateItems = missingData.items;
+    }
+
+    // Filter dynamically for ONLY genuinely missing items
+    let missingItems = (candidateItems || []).filter(doc => this.isDocMissing(doc));
+
+    // Fallback: If candidateItems had no missing items, but report.missing_documents has strings, check that
+    if (missingItems.length === 0 && Array.isArray(report?.missing_documents) && report.missing_documents.length > 0) {
+      missingItems = report.missing_documents.filter(doc => this.isDocMissing(doc));
+    }
 
     if (!missingItems || missingItems.length === 0) {
       container.innerHTML = `
-        <div style="background: rgba(16, 185, 129, 0.08); border: 1px solid rgba(16, 185, 129, 0.25); border-radius: var(--radius-md); padding: 36px 24px; text-align: center; color: var(--emerald);">
-          <div style="display: inline-flex; align-items: center; justify-content: center; width: 48px; height: 48px; border-radius: 50%; background: rgba(16, 185, 129, 0.15); margin-bottom: 14px;">
-            ${Utils.svgIcon('checkCircle', 26)}
+        <div style="background: rgba(16, 185, 129, 0.08); border: 1px solid rgba(16, 185, 129, 0.25); border-radius: var(--radius-md); padding: 32px 24px; text-align: center; color: var(--emerald);">
+          <div style="display: inline-flex; align-items: center; justify-content: center; width: 48px; height: 48px; border-radius: 50%; background: rgba(16, 185, 129, 0.15); margin-bottom: 12px;">
+            ${Utils.svgIcon('checkCircle', 24)}
           </div>
-          <h4 style="font-size: 1.05rem; font-weight: 700; margin: 0 0 6px 0; color: var(--text-heading);">All Required Evidence Satisfied</h4>
-          <p style="font-size: 0.85rem; color: var(--text-secondary); margin: 0; max-width: 540px; margin-inline: auto; line-height: 1.5;">
-            Zero missing documents detected. Every mandatory evidence item stipulated by the insurance policy schedule has been submitted and verified.
+          <h4 style="font-size: 1.05rem; font-weight: 700; margin: 0 0 6px 0; color: var(--text-heading);">All Required Documents Available</h4>
+          <p style="font-size: 0.85rem; color: var(--text-secondary); margin: 0; max-width: 520px; margin-inline: auto; line-height: 1.5;">
+            All required documents are available. No missing evidence found.
           </p>
         </div>
       `;
@@ -524,11 +587,14 @@ This assessment is an autonomous AI preparation audit. Final approval remains su
     }
 
     container.innerHTML = missingItems.map((doc, idx) => {
-      // Normalize missing item
+      // Normalize item
       const isString = typeof doc === 'string';
       const docName = isString ? doc : (doc.document_title || doc.required_document || doc.document_name || doc.title || doc.name || 'Required Evidence');
-      const clauseCitation = doc.clause || doc.clause_reference || doc.source || (isString ? 'Mandatory Policy Evidence' : 'Clause 4.1 - Claim Documentation');
-      const reasonText = doc.reason || doc.matching_reason || 'Mandatory document required under policy terms was not found in the submitted claim bundle.';
+      const clauseCitation = (!isString && (doc.clause || doc.clause_reference || doc.source)) ? (doc.clause || doc.clause_reference || doc.source) : 'Clause 4.1 - Claim Documentation';
+      const reasonText = (!isString && (doc.reason || doc.matching_reason)) ? (doc.reason || doc.matching_reason) : 'Mandatory document required under policy terms was not found in the submitted claim bundle.';
+
+      const statusTagHtml = `<span class="req-status-tag tag-missing">${Utils.svgIcon('alertTriangle', 12, 2.5)} Missing — Mandatory</span>`;
+      const severityHtml = `<span class="severity-pill">${Utils.svgIcon('alertTriangle', 10, 2.5)} Blocks Claim Payout</span>`;
 
       const dropzoneId = `remediation-dropzone-${idx}`;
       const fileInputId = `remediation-input-${idx}`;
@@ -539,10 +605,10 @@ This assessment is an autonomous AI preparation audit. Final approval remains su
             <div class="req-title-group">
               <h4 class="req-doc-title">${Utils.escapeHtml(docName)}</h4>
               <span class="clause-badge">${Utils.svgIcon('fileText', 11)} ${Utils.escapeHtml(clauseCitation)}</span>
-              <span class="severity-pill">${Utils.svgIcon('alertTriangle', 10, 2.5)} Blocks Claim Payout</span>
+              ${severityHtml}
             </div>
             <div>
-              <span class="req-status-tag tag-missing">${Utils.svgIcon('alertTriangle', 12, 2.5)} Missing — Mandatory</span>
+              ${statusTagHtml}
             </div>
           </div>
 
@@ -601,7 +667,8 @@ This assessment is an autonomous AI preparation audit. Final approval remains su
 
       dropzone.addEventListener('drop', (e) => {
         if (e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0]) {
-          this.uploadRemediationFile(e.dataTransfer.files[0], idx, doc.document_title || doc.name || 'Document');
+          const name = typeof doc === 'string' ? doc : (doc.document_title || doc.name || 'Document');
+          this.uploadRemediationFile(e.dataTransfer.files[0], idx, name);
         }
       });
     });

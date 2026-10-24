@@ -402,14 +402,22 @@ class ClaimPreparationAdapter(BaseAgentTool):
     """
     name: str = "claim_preparation"
     description: str = (
-        "Synthesizes intermediate observations from validation, validity checking, and missing evidence "
-        "detection into a structured claim readiness package and actionable checklist."
+        "Synthesizes intermediate observations from validation, validity checking, missing evidence "
+        "detection, and cross-document consistency checks into a structured claim readiness package and actionable checklist."
     )
-    required_inputs: List[str] = ["validation_result", "validity_result", "missing_documents"]
+    required_inputs: List[str] = ["validation_result", "validity_result", "missing_documents", "consistency_results"]
 
     def run(self, state: ClaimState, **kwargs: Any) -> ToolExecutionResult:
         is_valid_dates = state.validity_result.get("valid", False) if state.validity_result else None
         validation_valid = state.validation_result.get("valid", False) if state.validation_result else None
+
+        is_consistent = None
+        consistency_discrepancies: List[str] = []
+        consistency_severity = "NONE"
+        if state.consistency_results:
+            is_consistent = state.consistency_results.get("consistent", True)
+            consistency_discrepancies = state.consistency_results.get("discrepancies", [])
+            consistency_severity = state.consistency_results.get("severity", "NONE")
 
         missing_docs: List[str] = []
         if state.missing_documents:
@@ -446,6 +454,16 @@ class ClaimPreparationAdapter(BaseAgentTool):
                 reasons = ["Ensure all uploaded documents contain valid, legible claim details."]
             action_items.extend(reasons)
 
+        # BLOCKING RULE: Cross-document entity contradictions (competing insurers, unassociated policy numbers, mismatched patients)
+        elif is_consistent is False or consistency_severity == "CRITICAL":
+            final_status = ClaimStatus.ACTION_REQUIRED_INVALID_DOCUMENTS.value
+            decision_summary = "Cross-document integrity check failed: Conflicting insurance entities or policy details detected across submitted documents."
+            if consistency_discrepancies:
+                for d in consistency_discrepancies:
+                    action_items.append(f"Resolve conflicting entity: {d}")
+            else:
+                action_items.append("Resolve cross-document entity contradictions between submitted files.")
+
         # If only policy was uploaded and no bills/claim documents are attached,
         # the primary requirement is submitting the missing evidence, not date failure.
         elif not any(d.get("document_type") not in ("insurance_policy", "unknown") for d in state.extracted_data) and missing_docs:
@@ -467,9 +485,9 @@ class ClaimPreparationAdapter(BaseAgentTool):
             for m in missing_docs:
                 action_items.append(f"Upload required document: {m}")
 
-        elif validation_valid is True and is_valid_dates is True and not missing_docs:
+        elif validation_valid is True and is_valid_dates is True and not missing_docs and (is_consistent is not False):
             final_status = ClaimStatus.CLAIM_READY_FOR_SUBMISSION.value
-            decision_summary = "All documents validated, coverage dates verified, and all required evidence present."
+            decision_summary = "All documents validated, coverage dates verified, entities consistent, and all required evidence present."
             action_items.append("Ready to assemble final claim package and submit to insurer.")
 
         elif validation_valid is None or is_valid_dates is None:
@@ -490,6 +508,9 @@ class ClaimPreparationAdapter(BaseAgentTool):
             "total_documents_processed": len(state.extracted_data),
             "validation_status": "PASS" if validation_valid else "FAIL",
             "coverage_validity_status": "PASS" if is_valid_dates else ("FAIL" if is_valid_dates is False else "NOT_CHECKED"),
+            "consistency_status": "PASS" if (is_consistent is True) else ("FAIL" if is_consistent is False else "NOT_CHECKED"),
+            "consistency_severity": consistency_severity,
+            "discrepancies": consistency_discrepancies,
             "missing_documents": missing_docs,
             "action_items": action_items
         }
@@ -503,6 +524,10 @@ class ClaimPreparationAdapter(BaseAgentTool):
             summary=f"Claim readiness package synthesized. Status: {final_status}.",
             data=report
         )
+
+
+ClaimReadinessSynthesizer = ClaimPreparationAdapter
+
 
 
 class PolicyClauseSearchAdapter(BaseAgentTool):

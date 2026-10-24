@@ -144,10 +144,10 @@ class InsureMateDecisionEngine:
             },
             {
                 "name": "claim_preparation",
-                "description": "Synthesizes final claim readiness determination, action checklist, and verdict. Prerequisite: validity_checker and missing_document_detector must be completed first.",
+                "description": "Synthesizes final claim readiness determination, action checklist, and verdict. Prerequisite: validity_checker, missing_document_detector, and cross_document_consistency_check must be completed first.",
                 "parameters": {},
                 "expected_output": "Comprehensive readiness report.",
-                "prerequisites": ["validity_checker", "missing_document_detector"]
+                "prerequisites": ["validity_checker", "missing_document_detector", "cross_document_consistency_check"]
             }
         ]
 
@@ -161,7 +161,7 @@ class InsureMateDecisionEngine:
             "3. If missing user input or document files prevent progress, choose action 'request_user_info'.\n"
             "4. If unrecoverable errors prevent progress, choose action 'abort'.\n"
             "5. Pass appropriate parameters matching the tool's schema in 'action_input'.\n"
-            "6. PREREQUISITES: 'claim_preparation' CANNOT be called until both 'validity_checker' and 'missing_document_detector' have completed. Call 'validity_checker' or 'missing_document_detector' first before preparing the claim.\n"
+            "6. PREREQUISITES: 'claim_preparation' CANNOT be called until 'validity_checker', 'missing_document_detector', AND 'cross_document_consistency_check' have all completed. Call 'validity_checker', 'missing_document_detector', and 'cross_document_consistency_check' first before preparing the claim.\n"
             "7. Never limit or truncate document extraction with artificial max_pages. Multi-page claim bundles contain critical evidence on later pages (e.g. bills, receipts, discharge notes) that must all be extracted.\n\n"
             "Output strictly valid JSON with this format:\n"
             "{\n"
@@ -197,6 +197,8 @@ class InsureMateDecisionEngine:
                 "page": doc.get("page_number"),
                 "type": doc.get("document_type"),
                 "title": doc.get("document_title"),
+                "insurer": doc.get("insurer_name") or doc.get("insurer"),
+                "policy_number": doc.get("policy_number"),
                 "dates": f"{doc.get('policy_start_date')}-{doc.get('policy_end_date')}" if doc.get("policy_start_date") else doc.get("document_date"),
                 "patient": doc.get("patient_name") or doc.get("policy_holder_name"),
                 "hospital": doc.get("hospital_name"),
@@ -215,11 +217,13 @@ class InsureMateDecisionEngine:
             "validation_status": "COMPLETED" if state.validation_result is not None else "PENDING",
             "validity_status": "COMPLETED" if state.validity_result is not None else "PENDING",
             "missing_evidence_status": "COMPLETED" if state.missing_documents is not None else "PENDING",
+            "consistency_status": "COMPLETED" if state.consistency_results is not None else "PENDING",
             "pending_mandatory_checks": [
                 c for c, done in [
                     ("document_validation", state.validation_result is not None),
                     ("validity_checker", state.validity_result is not None),
-                    ("missing_document_detector", state.missing_documents is not None)
+                    ("missing_document_detector", state.missing_documents is not None),
+                    ("cross_document_consistency_check", state.consistency_results is not None)
                 ] if not done
             ],
             "remaining_budget": state.remaining_budget,
@@ -339,6 +343,8 @@ class InsureMateDecisionEngine:
                     return False, "Prerequisite 'validity_checker' must be executed before 'claim_preparation' to verify policy coverage dates."
                 if state.missing_documents is None:
                     return False, "Prerequisite 'missing_document_detector' must be executed before 'claim_preparation' to audit required policy evidence."
+                if state.consistency_results is None and len(state.extracted_data) > 1:
+                    return False, "Prerequisite 'cross_document_consistency_check' must be executed before 'claim_preparation' to cross-audit entity consistency."
 
         # Prevent infinite repetitions: same tool called 3 or more times consecutively
         history_actions = [h.get("tool_name") for h in state.tool_history[-3:]]
@@ -511,10 +517,10 @@ class InsureMateDecisionEngine:
             )
 
         # Cross-Document Consistency Check
-        if len(state.extracted_data) > 1 and "cross_document_consistency_check" not in state.completed_steps:
+        if state.consistency_results is None and "cross_document_consistency_check" not in state.completed_steps:
             return AgentDecision(
                 action="cross_document_consistency_check",
-                reason="Cross-checking patient identity, facilities, and amounts across all submitted documents.",
+                reason="Cross-checking insurer identities, policy numbers, patient names, and facilities across all submitted documents.",
                 decision_type="TOOL_CALL"
             )
 
