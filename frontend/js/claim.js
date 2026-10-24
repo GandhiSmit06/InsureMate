@@ -55,7 +55,6 @@ const ClaimView = {
   bindActionToolbar() {
     // Export Official Report (PDF / Print)
     const btnExportPdf = document.getElementById('btn-export-claim-pdf');
-    const btnDownloadReport = document.getElementById('btn-download-claim-report');
     const handleExport = () => {
       if (!this.activeBundle) {
         Utils.showToast('No active claim report to export.', 'warning');
@@ -64,7 +63,6 @@ const ClaimView = {
       window.print();
     };
     if (btnExportPdf) btnExportPdf.addEventListener('click', handleExport);
-    if (btnDownloadReport) btnDownloadReport.addEventListener('click', handleExport);
 
     // Copy Executive Summary
     const btnCopySummary = document.getElementById('btn-copy-claim-summary');
