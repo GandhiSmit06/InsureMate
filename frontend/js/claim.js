@@ -193,8 +193,10 @@ This assessment is an autonomous AI preparation audit. Final approval remains su
    */
   getVerdictDisplayInfo(verdictRaw, workerStatusRaw, report) {
     const v = String(verdictRaw || '').toUpperCase();
-    const w = String(workerStatusRaw || '').toUpperCase();
-    const missingCount = report?.missing_count ?? report?.missing_documents?.length ?? 0;
+    const rawMissingList = Array.isArray(report?.missing_documents)
+      ? report.missing_documents.filter(d => typeof d === 'string' || d.missing === true || String(d.status || '').toLowerCase() === 'missing')
+      : [];
+    const missingCount = report?.missing_count ?? rawMissingList.length;
 
     const isRunning = w.includes('RUNNING') || w.includes('IN_PROGRESS');
 
@@ -498,54 +500,49 @@ This assessment is an autonomous AI preparation audit. Final approval remains su
     const missingData = latestState?.missing_documents || report?.missing_documents_analysis || {};
     const rawItems = missingData?.missing_documents || missingData?.document_results || missingData?.items || report?.missing_documents || [];
 
-    if (!rawItems || rawItems.length === 0) {
+    // Filter strictly to documents that are missing (do not list already submitted/verified documents)
+    const missingItems = (rawItems || []).filter(doc => {
+      if (typeof doc === 'string') return true;
+      if (doc.missing === true) return true;
+      const statusRaw = String(doc.status || '').toLowerCase();
+      return statusRaw === 'missing' || statusRaw === 'unfulfilled' || statusRaw === 'required';
+    });
+
+    if (!missingItems || missingItems.length === 0) {
       container.innerHTML = `
-        <div style="background: rgba(16, 185, 129, 0.08); border: 1px solid rgba(16, 185, 129, 0.25); border-radius: var(--radius-md); padding: 28px; text-align: center; color: var(--emerald);">
-          <div style="display: inline-flex; align-items: center; justify-content: center; width: 44px; height: 44px; border-radius: 50%; background: rgba(16, 185, 129, 0.15); margin-bottom: 12px;">
-            ${Utils.svgIcon('checkCircle', 24)}
+        <div style="background: rgba(16, 185, 129, 0.08); border: 1px solid rgba(16, 185, 129, 0.25); border-radius: var(--radius-md); padding: 36px 24px; text-align: center; color: var(--emerald);">
+          <div style="display: inline-flex; align-items: center; justify-content: center; width: 48px; height: 48px; border-radius: 50%; background: rgba(16, 185, 129, 0.15); margin-bottom: 14px;">
+            ${Utils.svgIcon('checkCircle', 26)}
           </div>
-          <h4 style="font-size: 1rem; font-weight: 700; margin: 0 0 6px 0; color: var(--text-heading);">All Required Evidence Satisfied</h4>
-          <p style="font-size: 0.82rem; color: var(--text-secondary); margin: 0; max-width: 500px; margin-inline: auto;">
-            Zero missing documents detected. Every mandatory evidence item stipulated by the insurance policy schedule has been verified.
+          <h4 style="font-size: 1.05rem; font-weight: 700; margin: 0 0 6px 0; color: var(--text-heading);">All Required Evidence Satisfied</h4>
+          <p style="font-size: 0.85rem; color: var(--text-secondary); margin: 0; max-width: 540px; margin-inline: auto; line-height: 1.5;">
+            Zero missing documents detected. Every mandatory evidence item stipulated by the insurance policy schedule has been submitted and verified.
           </p>
         </div>
       `;
       return;
     }
 
-    container.innerHTML = rawItems.map((doc, idx) => {
-      // Normalize item
+    container.innerHTML = missingItems.map((doc, idx) => {
+      // Normalize missing item
       const isString = typeof doc === 'string';
       const docName = isString ? doc : (doc.document_title || doc.required_document || doc.document_name || doc.title || doc.name || 'Required Evidence');
-      const statusRaw = String(doc.status || '').toLowerCase();
-      const isMissing = isString ? true : (doc.missing === true || statusRaw === 'missing');
-      const isReceived = !isMissing && (statusRaw === 'received' || statusRaw === 'found' || statusRaw === 'available' || statusRaw === 'present' || doc.page_number != null);
-
       const clauseCitation = doc.clause || doc.clause_reference || doc.source || (isString ? 'Mandatory Policy Evidence' : 'Clause 4.1 - Claim Documentation');
-      const reasonText = doc.reason || doc.matching_reason || (isReceived ? 'Matching evidence identified and validated in submitted claim bundle.' : 'Mandatory document required under policy terms was not found in the submitted claim bundle.');
-      const pageInfo = doc.page_number != null ? `Page ${doc.page_number}` : (doc.source_page ? `Page ${doc.source_page}` : null);
-
-      const statusTagHtml = isReceived
-        ? `<span class="req-status-tag tag-verified">${Utils.svgIcon('check', 12, 2.5)} Received & Verified</span>`
-        : `<span class="req-status-tag tag-missing">${Utils.svgIcon('alertTriangle', 12, 2.5)} Missing — Mandatory</span>`;
-
-      const severityHtml = isMissing
-        ? `<span class="severity-pill">${Utils.svgIcon('alertTriangle', 10, 2.5)} Blocks Claim Payout</span>`
-        : '';
+      const reasonText = doc.reason || doc.matching_reason || 'Mandatory document required under policy terms was not found in the submitted claim bundle.';
 
       const dropzoneId = `remediation-dropzone-${idx}`;
       const fileInputId = `remediation-input-${idx}`;
 
       return `
-        <div class="requirement-card ${isReceived ? 'status-verified' : 'status-missing'}" id="req-card-${idx}">
+        <div class="requirement-card status-missing" id="req-card-${idx}">
           <div class="req-card-top">
             <div class="req-title-group">
               <h4 class="req-doc-title">${Utils.escapeHtml(docName)}</h4>
               <span class="clause-badge">${Utils.svgIcon('fileText', 11)} ${Utils.escapeHtml(clauseCitation)}</span>
-              ${severityHtml}
+              <span class="severity-pill">${Utils.svgIcon('alertTriangle', 10, 2.5)} Blocks Claim Payout</span>
             </div>
             <div>
-              ${statusTagHtml}
+              <span class="req-status-tag tag-missing">${Utils.svgIcon('alertTriangle', 12, 2.5)} Missing — Mandatory</span>
             </div>
           </div>
 
@@ -555,40 +552,33 @@ This assessment is an autonomous AI preparation audit. Final approval remains su
 
           <div class="req-meta-row">
             <div style="color: var(--text-muted); display: flex; align-items: center; gap: 8px;">
-              ${pageInfo ? `<span>Verified Source: <strong style="color: var(--accent); font-family: var(--font-mono);">${pageInfo}</strong></span>` : '<span>Awaiting upload & verification</span>'}
+              <span>Awaiting upload & verification</span>
             </div>
-            ${pageInfo && doc.page_number != null ? `
-              <button class="btn btn-secondary btn-sm" onclick="DocumentsView.openDetailModal(${doc.page_number - 1})" style="padding: 2px 8px; font-size: 0.72rem;">
-                ${Utils.svgIcon('search', 11)} Inspect Page
-              </button>
-            ` : ''}
           </div>
 
-          ${isMissing ? `
-            <div class="inline-remediation-dropzone" id="${dropzoneId}" onclick="document.getElementById('${fileInputId}').click()">
-              <div class="remediation-drop-left">
-                <div class="remediation-drop-icon">
-                  ${Utils.svgIcon('upload', 16)}
-                </div>
-                <div class="remediation-drop-text">
-                  <span class="remediation-drop-title">Upload Missing Document: ${Utils.escapeHtml(docName)}</span>
-                  <span class="remediation-drop-hint">Drag & drop PDF here, or click to browse</span>
-                </div>
+          <div class="inline-remediation-dropzone" id="${dropzoneId}" onclick="document.getElementById('${fileInputId}').click()">
+            <div class="remediation-drop-left">
+              <div class="remediation-drop-icon">
+                ${Utils.svgIcon('upload', 16)}
               </div>
-              <div>
-                <button type="button" class="btn btn-secondary btn-sm" style="pointer-events: none;">
-                  Select File
-                </button>
+              <div class="remediation-drop-text">
+                <span class="remediation-drop-title">Upload Missing Document: ${Utils.escapeHtml(docName)}</span>
+                <span class="remediation-drop-hint">Drag & drop PDF here, or click to browse</span>
               </div>
-              <input type="file" id="${fileInputId}" class="remediation-file-input" accept=".pdf,.png,.jpg,.jpeg" onchange="ClaimView.handleInlineRemediation(event, '${idx}', '${Utils.escapeHtml(docName)}')">
             </div>
-          ` : ''}
+            <div>
+              <button type="button" class="btn btn-secondary btn-sm" style="pointer-events: none;">
+                Select File
+              </button>
+            </div>
+            <input type="file" id="${fileInputId}" class="remediation-file-input" accept=".pdf,.png,.jpg,.jpeg" onchange="ClaimView.handleInlineRemediation(event, '${idx}', '${Utils.escapeHtml(docName)}')">
+          </div>
         </div>
       `;
     }).join('');
 
     // Setup drag events on dropzones
-    rawItems.forEach((doc, idx) => {
+    missingItems.forEach((doc, idx) => {
       const dropzone = document.getElementById(`remediation-dropzone-${idx}`);
       const fileInput = document.getElementById(`remediation-input-${idx}`);
       if (!dropzone || !fileInput) return;
@@ -853,29 +843,125 @@ This assessment is an autonomous AI preparation audit. Final approval remains su
       return;
     }
 
-    container.innerHTML = extractedPages.map((page, idx) => `
-      <div class="card" style="margin-bottom: 0;">
-        <div class="card-header" style="margin-bottom: 10px;">
-          <div style="font-weight: 600; font-size: 0.84rem; color: var(--accent); display: flex; align-items: center; gap: 7px;">
-            ${Utils.svgIcon('fileText', 14)}
-            <span>Page ${page.page_number} (${Utils.escapeHtml((page.document_type || 'Document').replace(/_/g, ' '))})</span>
+    container.innerHTML = extractedPages.map((page, idx) => {
+      const isPolicy = page.document_type === 'insurance_policy';
+      const isBill = page.document_type === 'medical_bill' || page.document_type === 'invoice';
+      const isReport = page.document_type === 'medical_report';
+      const rawTitle = (page.document_title || '').replace(/\s*\(Page\s*\d+\)$/i, '').trim();
+
+      // Determine clean, meaningful financial representation
+      let financialHtml = '';
+      if (isPolicy) {
+        if (page.sum_insured) {
+          financialHtml += `<div><span style="color: var(--text-muted);">Sum Insured:</span> <strong style="color: var(--emerald); font-weight: 700;">₹${Utils.escapeHtml(String(page.sum_insured))}</strong></div>`;
+        }
+        if (page.premium_amount) {
+          financialHtml += `<div><span style="color: var(--text-muted);">Total Premium:</span> <strong style="color: var(--text-heading);">₹${Utils.escapeHtml(String(page.premium_amount))}</strong></div>`;
+        }
+      } else if (isBill) {
+        const isReceipt = rawTitle.toLowerCase().includes('receipt') || !!page.receipt_number;
+        const isPharmacy = rawTitle.toLowerCase().includes('pharmacy');
+        if (isReceipt) {
+          financialHtml += `<div><span style="color: var(--text-muted);">Paid / Receipt Amount:</span> <strong style="color: var(--emerald); font-weight: 700;">₹${Utils.escapeHtml(String(page.paid_amount || page.bill_amount))}</strong></div>`;
+        } else if (isPharmacy) {
+          financialHtml += `<div><span style="color: var(--text-muted);">Pharmacy Bill Amount:</span> <strong style="color: var(--emerald); font-weight: 700;">₹${Utils.escapeHtml(String(page.bill_amount))}</strong></div>`;
+        } else {
+          financialHtml += `<div><span style="color: var(--text-muted);">Total Bill Amount:</span> <strong style="color: var(--emerald); font-weight: 700;">₹${Utils.escapeHtml(String(page.bill_amount))}</strong></div>`;
+          if (page.paid_amount && page.paid_amount !== page.bill_amount) {
+            financialHtml += `<div><span style="color: var(--text-muted);">Amount Settled:</span> <strong style="color: var(--text-heading);">₹${Utils.escapeHtml(String(page.paid_amount))}</strong></div>`;
+          }
+        }
+      } else if (isReport) {
+        if (page.bill_amount) {
+          financialHtml += `<div><span style="color: var(--text-muted);">Investigation Fee:</span> <strong style="color: var(--emerald);">₹${Utils.escapeHtml(String(page.bill_amount))}</strong></div>`;
+        }
+      } else {
+        if (page.bill_amount) {
+          const isCoverLetter = rawTitle.toLowerCase().includes('cover letter');
+          const amtLabel = isCoverLetter ? 'Settled Inpatient Expenses:' : 'Disclosed Amount:';
+          financialHtml += `<div><span style="color: var(--text-muted);">${amtLabel}</span> <strong style="color: var(--emerald);">₹${Utils.escapeHtml(String(page.bill_amount))}</strong></div>`;
+        }
+      }
+
+      // Person identity: Policyholder for policy, Patient for hospital/claim
+      let personHtml = '';
+      if (isPolicy) {
+        if (page.policy_holder_name) {
+          personHtml += `<div><span style="color: var(--text-muted);">Policyholder:</span> <strong style="color: var(--text-heading);">${Utils.escapeHtml(page.policy_holder_name)}</strong></div>`;
+        }
+        if (page.insured_names && page.insured_names.length > 0) {
+          const insJoined = page.insured_names.join(', ');
+          if (insJoined !== page.policy_holder_name) {
+            personHtml += `<div><span style="color: var(--text-muted);">Insured Member:</span> <strong style="color: var(--text-secondary);">${Utils.escapeHtml(insJoined)}</strong></div>`;
+          }
+        }
+      } else {
+        if (page.patient_name) {
+          personHtml += `<div><span style="color: var(--text-muted);">Patient:</span> <strong style="color: var(--text-heading);">${Utils.escapeHtml(page.patient_name)}</strong></div>`;
+        }
+      }
+
+      // Reference / Number
+      let refHtml = '';
+      if (page.policy_number) {
+        refHtml += `<div><span style="color: var(--text-muted);">Policy #:</span> <strong style="font-family: var(--font-mono); color: var(--accent);">${Utils.escapeHtml(page.policy_number)}</strong></div>`;
+      }
+      if (!isPolicy) {
+        if (page.receipt_number || (rawTitle.toLowerCase().includes('receipt') && page.bill_number)) {
+          refHtml += `<div><span style="color: var(--text-muted);">Receipt #:</span> <strong style="font-family: var(--font-mono);">${Utils.escapeHtml(page.receipt_number || page.bill_number)}</strong></div>`;
+        } else if (page.bill_number) {
+          const numLabel = rawTitle.toLowerCase().includes('pharmacy') ? 'Invoice #:' : 'Bill #:';
+          refHtml += `<div><span style="color: var(--text-muted);">${numLabel}</span> <strong style="font-family: var(--font-mono);">${Utils.escapeHtml(page.bill_number)}</strong></div>`;
+        }
+      }
+
+      // Clinical / Facility Details
+      let detailsHtml = '';
+      if (page.hospital_name) {
+        detailsHtml += `<div><span style="color: var(--text-muted);">Facility:</span> <strong style="color: var(--text-secondary);">${Utils.escapeHtml(page.hospital_name)}</strong></div>`;
+      }
+      if (page.doctor_name) {
+        detailsHtml += `<div><span style="color: var(--text-muted);">Doctor:</span> <strong>${Utils.escapeHtml(page.doctor_name)}</strong></div>`;
+      }
+      if (page.diagnosis) {
+        detailsHtml += `<div><span style="color: var(--text-muted);">Diagnosis:</span> <strong style="color: var(--accent);">${Utils.escapeHtml(page.diagnosis)}</strong></div>`;
+      }
+
+      // Dates
+      let dateHtml = '';
+      if (isPolicy && page.policy_start_date && page.policy_end_date) {
+        dateHtml = `<div><span style="color: var(--text-muted);">Coverage Window:</span> <strong>${Utils.escapeHtml(page.policy_start_date)} ⟶ ${Utils.escapeHtml(page.policy_end_date)}</strong></div>`;
+      } else if (page.document_date) {
+        const dLabel = isBill ? 'Bill Date:' : (isReport ? 'Report Date:' : 'Date:');
+        dateHtml = `<div><span style="color: var(--text-muted);">${dLabel}</span> <strong>${Utils.escapeHtml(page.document_date)}</strong></div>`;
+      }
+
+      return `
+        <div class="card" style="margin-bottom: 0;">
+          <div class="card-header" style="margin-bottom: 10px; align-items: flex-start;">
+            <div style="flex: 1; min-width: 0; padding-right: 8px;">
+              <div style="font-weight: 600; font-size: 0.84rem; color: var(--accent); display: flex; align-items: center; gap: 7px;">
+                ${Utils.svgIcon(isPolicy ? 'shield' : (isBill ? 'fileText' : 'activity'), 14)}
+                <span>Page ${page.page_number} (${Utils.escapeHtml((page.document_type || 'Document').replace(/_/g, ' '))})</span>
+              </div>
+              ${rawTitle ? `<div style="font-size: 0.72rem; color: var(--text-muted); margin-top: 3px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="${Utils.escapeHtml(rawTitle)}">${Utils.escapeHtml(rawTitle)}</div>` : ''}
+            </div>
+            <span class="badge badge-ready" style="flex-shrink: 0;">${Utils.svgIcon('check', 10, 2.5)} Extracted</span>
           </div>
-          <span class="badge badge-ready">${Utils.svgIcon('check', 10, 2.5)} Extracted</span>
+          <div style="display: flex; flex-direction: column; gap: 6px; font-size: 0.78rem; margin-bottom: 12px;">
+            ${page.insurer_name ? `<div><span style="color: var(--text-muted);">Insurer:</span> <strong style="color: var(--text-heading);">${Utils.escapeHtml(page.insurer_name)}</strong></div>` : ''}
+            ${refHtml}
+            ${personHtml}
+            ${detailsHtml}
+            ${financialHtml}
+            ${dateHtml}
+          </div>
+          <button class="btn btn-secondary btn-sm" style="width: 100%; justify-content: center;" onclick="DocumentsView.openDetailModal(${idx})">
+            ${Utils.svgIcon('search', 12)} Inspect Page Details
+          </button>
         </div>
-        <div style="display: flex; flex-direction: column; gap: 6px; font-size: 0.78rem; margin-bottom: 12px;">
-          ${page.insurer_name ? `<div><span style="color: var(--text-muted);">Insurer:</span> <strong style="color: var(--text-heading);">${Utils.escapeHtml(page.insurer_name)}</strong></div>` : ''}
-          ${page.policy_number ? `<div><span style="color: var(--text-muted);">Policy #:</span> <strong style="font-family: var(--font-mono); color: var(--accent);">${Utils.escapeHtml(page.policy_number)}</strong></div>` : ''}
-          ${page.policy_holder_name ? `<div><span style="color: var(--text-muted);">Policy Holder:</span> <strong>${Utils.escapeHtml(page.policy_holder_name)}</strong></div>` : ''}
-          ${page.patient_name ? `<div><span style="color: var(--text-muted);">Patient:</span> <strong>${Utils.escapeHtml(page.patient_name)}</strong></div>` : ''}
-          ${page.bill_number ? `<div><span style="color: var(--text-muted);">Bill #:</span> <strong style="font-family: var(--font-mono);">${Utils.escapeHtml(page.bill_number)}</strong></div>` : ''}
-          ${page.bill_amount ? `<div><span style="color: var(--text-muted);">Bill Amount:</span> <strong style="color: var(--emerald);">₹${Utils.escapeHtml(String(page.bill_amount))}</strong></div>` : ''}
-          ${page.policy_start_date && page.policy_end_date ? `<div><span style="color: var(--text-muted);">Period:</span> <strong>${Utils.escapeHtml(page.policy_start_date)} ⟶ ${Utils.escapeHtml(page.policy_end_date)}</strong></div>` : ''}
-        </div>
-        <button class="btn btn-secondary btn-sm" style="width: 100%; justify-content: center;" onclick="DocumentsView.openDetailModal(${idx})">
-          ${Utils.svgIcon('search', 12)} Inspect Page Details
-        </button>
-      </div>
-    `).join('');
+      `;
+    }).join('');
   },
 
   /**

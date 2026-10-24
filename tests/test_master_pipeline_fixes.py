@@ -237,3 +237,55 @@ def test_acceptance_normal_document_upload_processes_all_27_pages():
     # Final verdict
     assert final_state.final_status == ClaimStatus.CLAIM_READY_FOR_SUBMISSION.value
     assert final_state.final_report.get("is_ready") is True
+
+
+def test_semantic_field_extraction_accuracy():
+    """
+    Ensure OCR extraction accurately differentiates financial and person entities:
+    1. Insurance Policy pages extract sum_insured and policyholder without false bill_amount or false patient_name.
+    2. Medical Bills extract bill_number and bill_amount (e.g. 85,000 for final bill, 9,000 for pharmacy).
+    3. Receipts extract receipt_number and paid_amount.
+    4. Diagnostic reports do NOT extract leukocyte/lab test numbers as bill amounts.
+    """
+    policy_pages = extract_document(POLICY_PDF)
+    claim_pages = extract_document(CLAIM_PDF)
+
+    # 1. Policy assertions
+    p1 = policy_pages[0]
+    assert p1["document_type"] == "insurance_policy"
+    assert p1.get("policy_holder_name") == "Aarav Mehta"
+    assert p1.get("patient_name") is None  # Policies do not have patients
+    assert p1.get("sum_insured") == "5,00,000"
+    assert p1.get("bill_amount") is None  # Policies do not have hospital bills
+    assert p1.get("premium_amount") is not None
+
+    for page in policy_pages:
+        assert page["document_type"] == "insurance_policy"
+        assert page.get("bill_amount") is None
+        assert page.get("patient_name") is None
+
+    # 2. Claim Bills & Receipts assertions
+    final_bill_page = claim_pages[9]  # Page 10 (HMH-BILL-2026-8842)
+    assert final_bill_page["document_type"] == "medical_bill"
+    assert final_bill_page.get("patient_name") == "Aarav Mehta"
+    assert "8842" in str(final_bill_page.get("bill_number"))
+    assert final_bill_page.get("bill_amount") == "85,000.00"
+
+    receipt_page = claim_pages[10]  # Page 11 (HMH-REC-2026-9931)
+    assert receipt_page["document_type"] == "medical_bill"
+    assert "9931" in str(receipt_page.get("bill_number"))
+    assert receipt_page.get("paid_amount") == "85,000.00"
+
+    pharmacy_page = claim_pages[11]  # Page 12 (HMH-PHARM-2026-4421)
+    assert pharmacy_page["document_type"] == "medical_bill"
+    assert "4421" in str(pharmacy_page.get("bill_number"))
+    assert pharmacy_page.get("bill_amount") == "9,000.00"
+
+    # 3. Diagnostic reports do not have phantom bill amounts (e.g. WBC 14,800 is not a bill)
+    pathology_page = claim_pages[6]  # Page 7
+    assert pathology_page["document_type"] == "medical_report"
+    assert pathology_page.get("bill_amount") is None
+
+    ultrasound_page = claim_pages[7]  # Page 8
+    assert ultrasound_page["document_type"] == "medical_report"
+    assert ultrasound_page.get("bill_amount") is None

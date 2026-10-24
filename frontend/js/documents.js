@@ -61,8 +61,13 @@ const DocumentsView = {
         const docTitle = page.document_title || (isPolicy ? 'Insurance Policy Contract' : 'Hospital / Claim Document');
         const sourceFile = (isPolicy && claim.policy_filename) ? claim.policy_filename : (claim.claim_filenames?.[idx] || claim.policy_filename || `Document Page ${page.page_number}`);
         
-        const refNo = page.policy_number || page.bill_number || '--';
-        const person = page.policy_holder_name || page.patient_name || '--';
+        const refNo = isPolicy
+          ? (page.policy_number || '--')
+          : (page.receipt_number || page.bill_number || page.invoice_number || '--');
+
+        const person = isPolicy
+          ? (page.policy_holder_name || page.insured_names?.[0] || '--')
+          : (page.patient_name || '--');
         
         let dateStr = '--';
         if (page.policy_start_date && page.policy_end_date) {
@@ -71,7 +76,11 @@ const DocumentsView = {
           dateStr = page.document_date || page.admission_date;
         }
 
-        const amountStr = page.bill_amount ? `₹${page.bill_amount}` : (page.total_amount ? Utils.formatCurrency(page.total_amount) : (page.sum_insured ? `₹${page.sum_insured}` : '--'));
+        const amountStr = isPolicy
+          ? (page.sum_insured ? `₹${page.sum_insured} (Coverage)` : '--')
+          : (page.paid_amount && (page.document_title || '').toLowerCase().includes('receipt')
+              ? `₹${page.paid_amount} (Paid)`
+              : (page.bill_amount ? `₹${page.bill_amount}` : '--'));
 
         return `
           <tr>

@@ -402,6 +402,10 @@ class DocumentValidator:
             if dtype:
                 ctx = type_contexts.setdefault(dtype, {})
                 for k, v in doc.items():
+                    if k in {"page_number", "document_title", "raw_response", "extracted_text_summary"}:
+                        continue
+                    if dtype == "insurance_policy" and k in {"bill_amount", "patient_name"}:
+                        continue
                     if v is not None and str(v).strip() != "" and k not in ctx:
                         ctx[k] = v
 
@@ -410,6 +414,8 @@ class DocumentValidator:
             merged_doc = dict(doc)
             if dtype in type_contexts:
                 for k, v in type_contexts[dtype].items():
+                    if dtype == "insurance_policy" and k in {"bill_amount", "patient_name"}:
+                        continue
                     if merged_doc.get(k) is None or str(merged_doc.get(k)).strip() == "":
                         merged_doc[k] = v
             custom_rules = requirements.get(dtype) if requirements else None
