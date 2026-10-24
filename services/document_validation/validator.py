@@ -5,9 +5,9 @@ Validates extracted document metadata against required claim schema rules
 without calling an LLM, ensuring fast, predictable, agent-ready execution.
 """
 
-from dataclasses import asdict, dataclass, field
+from dataclasses import dataclass, field
 import re
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional, Set, Tuple, Union
 
 from utils.logger import logger
 
@@ -242,17 +242,17 @@ class DocumentValidator:
         extracted_documents: List[Dict[str, Any]],
         policy_file: Optional[Union[str, List[str]]] = None,
         claim_file: Optional[Union[str, List[str]]] = None,
-    ) -> (bool, Optional[str]):
+    ) -> Tuple[bool, List[str]]:
         """
         Check that documents uploaded to policy slot vs claim slot contain the expected
         document types, detecting role mismatches and inverted uploads.
         """
         if not extracted_documents:
-            return True, None
+            return True, []
 
         from pathlib import Path
 
-        def _to_names_and_paths(target: Optional[Union[str, List[str]]]) -> (set, set):
+        def _to_names_and_paths(target: Optional[Union[str, List[str]]]) -> Tuple[Set[str], Set[str]]:
             names = set()
             paths = set()
             if not target:
