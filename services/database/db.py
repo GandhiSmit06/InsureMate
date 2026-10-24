@@ -138,11 +138,11 @@ class ClaimDatabase:
         conn = self._get_connection()
 
         if isinstance(claim_filenames, list):
-            stored_claim_filenames = json.dumps(claim_filenames)
+            stored_claim_filenames = json.dumps(list(dict.fromkeys([f for f in claim_filenames if f])))
             if not claim_filename and claim_filenames:
                 claim_filename = claim_filenames[0]
         elif isinstance(claim_filenames, str):
-            stored_claim_filenames = json.dumps([claim_filenames])
+            stored_claim_filenames = json.dumps([claim_filenames] if claim_filenames else [])
             if not claim_filename:
                 claim_filename = claim_filenames
         else:
@@ -180,9 +180,15 @@ class ClaimDatabase:
             res["offline_mode"] = bool(res.get("offline_mode", 0))
             if res.get("claim_filenames"):
                 try:
-                    res["claim_filenames"] = json.loads(res["claim_filenames"])
+                    loaded = json.loads(res["claim_filenames"])
+                    if isinstance(loaded, list):
+                        res["claim_filenames"] = list(dict.fromkeys([f for f in loaded if f]))
+                    elif loaded:
+                        res["claim_filenames"] = [loaded]
+                    else:
+                        res["claim_filenames"] = []
                 except Exception:
-                    res["claim_filenames"] = [res["claim_filenames"]]
+                    res["claim_filenames"] = [res["claim_filenames"]] if res["claim_filenames"] else []
             else:
                 res["claim_filenames"] = [res["claim_filename"]] if res.get("claim_filename") else []
             return res

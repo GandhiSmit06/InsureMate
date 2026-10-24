@@ -273,7 +273,6 @@ const Upload = {
         }
         if (this.claimFiles.length > 0) {
           this.claimFiles.forEach(f => formData.append('claim_files', f));
-          formData.append('claim_file', this.claimFiles[0]);
         }
 
         const incidentDate = document.getElementById('input-incident-date')?.value?.trim();
@@ -300,7 +299,9 @@ const Upload = {
 
         formData.append('goal', finalGoal);
         formData.append('claim_type', claimTypeSelect ? (claimTypeSelect.value || 'health') : 'health');
-        formData.append('offline_mode', true);
+        // Do not force offline mode when Ollama is running; let user toggle or backend auto-detect
+        const isOffline = checkOffline ? Boolean(checkOffline.checked) : false;
+        formData.append('offline_mode', isOffline);
         formData.append('auto_run', false);
 
         this.updateWizardSteps(4);

@@ -32,8 +32,30 @@ const App = {
       this.updateActiveClaimHeader(claimId);
     });
 
+    // Restore active claim from localStorage or auto-load latest claim from backend
+    const savedClaimId = localStorage.getItem('insuremate_active_claim_id');
+    let loadedBundle = null;
+    if (savedClaimId) {
+      try {
+        loadedBundle = await AppState.setActiveClaim(savedClaimId);
+      } catch (_) {}
+    }
+
+    if (!loadedBundle) {
+      try {
+        const claimsRes = await API.listClaims(1, 0);
+        const list = claimsRes?.claims || (Array.isArray(claimsRes) ? claimsRes : []);
+        if (list.length > 0 && list[0].claim_id) {
+          loadedBundle = await AppState.setActiveClaim(list[0].claim_id);
+        }
+      } catch (err) {
+        console.warn('Initial claims list fallback failed:', err);
+      }
+    }
+
     // Hash-based initial route or default to dashboard
-    const initialHash = window.location.hash.replace(/^#\/?/, '');
+    const rawInitial = window.location.hash.replace(/^#\/?/, '');
+    const initialHash = (rawInitial === 'archive' || rawInitial === 'history') ? 'claims' : rawInitial;
     if (this.views.includes(initialHash)) {
       this.navigateTo(initialHash, false);
     } else {
@@ -42,7 +64,8 @@ const App = {
 
     // Handle browser back/forward
     window.addEventListener('popstate', () => {
-      const hash = window.location.hash.replace(/^#\/?/, '');
+      const rawHash = window.location.hash.replace(/^#\/?/, '');
+      const hash = (rawHash === 'archive' || rawHash === 'history') ? 'claims' : rawHash;
       if (this.views.includes(hash) && hash !== this.currentView) {
         this.navigateTo(hash, false);
       }
@@ -121,6 +144,9 @@ const App = {
   },
 
   navigateTo(viewName, updateHistory = true) {
+    if (viewName === 'archive' || viewName === 'history') {
+      viewName = 'claims';
+    }
     if (!this.views.includes(viewName)) return;
 
     this.currentView = viewName;
@@ -170,6 +196,52 @@ const App = {
       window.AgentView.fetchAndRenderToolRegistry();
     } else if (viewName === 'claims' && window.Dashboard) {
       window.Dashboard.refresh();
+    } else if (viewName === 'documents' && window.DocumentsView) {
+      const activeBundle = AppState.get().activeClaimBundle;
+      if (activeBundle) {
+        window.DocumentsView.renderDocumentsTable(activeBundle);
+      }
+    } else if (viewName === 'results' && window.ClaimView) {
+      const activeBundle = AppState.get().activeClaimBundle;
+      if (activeBundle) {
+        window.ClaimView.renderClaimResults(activeBundle);
+      } else {
+        const activeId = AppState.get().activeClaimId || localStorage.getItem('insuremate_active_claim_id');
+        if (activeId) {
+          AppState.setActiveClaim(activeId).then(b => {
+            if (b && window.ClaimView) {
+              window.ClaimView.renderClaimResults(b);
+            } else {
+              // Stale claim fallback to latest existing claim in DB
+              API.listClaims(1, 0).then(cr => {
+                const l = cr?.claims || (Array.isArray(cr) ? cr : []);
+                if (l.length > 0) {
+                  AppState.setActiveClaim(l[0].claim_id).then(nb => {
+                    if (nb && window.ClaimView) window.ClaimView.renderClaimResults(nb);
+                  });
+                } else if (window.ClaimView) {
+                  window.ClaimView.renderEmptyState();
+                }
+              });
+            }
+          }).catch(() => {
+            if (window.ClaimView) window.ClaimView.renderEmptyState();
+          });
+        } else {
+          API.listClaims(1, 0).then(cr => {
+            const l = cr?.claims || (Array.isArray(cr) ? cr : []);
+            if (l.length > 0 && l[0].claim_id) {
+              AppState.setActiveClaim(l[0].claim_id).then(nb => {
+                if (nb && window.ClaimView) window.ClaimView.renderClaimResults(nb);
+              });
+            } else if (window.ClaimView) {
+              window.ClaimView.renderEmptyState();
+            }
+          }).catch(() => {
+            if (window.ClaimView) window.ClaimView.renderEmptyState();
+          });
+        }
+      }
     }
 
     window.scrollTo({ top: 0, behavior: 'smooth' });

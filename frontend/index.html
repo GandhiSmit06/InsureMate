@@ -11,12 +11,12 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 
   <!-- Core Design System & Component Stylesheets -->
-  <link rel="stylesheet" href="css/style.css">
-  <link rel="stylesheet" href="css/dashboard.css">
-  <link rel="stylesheet" href="css/upload.css">
-  <link rel="stylesheet" href="css/agent.css">
-  <link rel="stylesheet" href="css/claim.css">
-  <link rel="stylesheet" href="css/responsive.css">
+  <link rel="stylesheet" href="css/style.css?v=3.6.0">
+  <link rel="stylesheet" href="css/dashboard.css?v=3.6.0">
+  <link rel="stylesheet" href="css/upload.css?v=3.6.0">
+  <link rel="stylesheet" href="css/agent.css?v=3.6.0">
+  <link rel="stylesheet" href="css/claim.css?v=3.6.0">
+  <link rel="stylesheet" href="css/responsive.css?v=3.6.0">
 </head>
 <body>
   <div class="app-layout">
@@ -180,7 +180,7 @@
             <div class="hero-text">
               <div class="hero-subtitle-tag">Autonomous Claim Intelligence</div>
               <h3>Insurance Claim Operations Console</h3>
-              <p>Orchestrate multimodal vision extraction, deterministic clause verification, and dynamic missing evidence audits across health and travel claims.</p>
+              <p>Orchestrate multimodal vision extraction, deterministic clause verification, and dynamic missing evidence audits across health and hospital claim files.</p>
               <div class="hero-actions">
                 <button class="btn btn-primary" id="btn-hero-new-claim" data-action="new-claim">
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
@@ -225,7 +225,7 @@
                 <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
                 <span>Health Claim Demo (Policy A)</span>
               </button>
-              <button class="btn btn-secondary btn-sm" id="btn-dash-demo-travel">
+              <button class="btn btn-secondary btn-sm" id="btn-dash-demo-travel" style="display: none;" aria-hidden="true">
                 <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
                 <span>Travel Claim Demo (Policy B)</span>
               </button>
@@ -463,7 +463,6 @@
               </div>
 
               <!-- Execution Settings -->
-              <input type="hidden" id="check-offline-mode" value="true">
               <div class="advanced-settings-box" style="margin-top: 14px;">
                 <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 14px;">
                   <label class="setting-toggle-item">
@@ -734,7 +733,12 @@
         <section class="view-section" id="view-results">
           <!-- Module 1: The Adjudication Verdict Hero Banner -->
           <div id="results-verdict-banner-container">
-            <!-- Populated dynamically via claim.js -->
+            <!-- Initial fallback action buttons for compatibility -->
+            <div style="display: none;" aria-hidden="true">
+              <button id="btn-copy-claim-summary"></button>
+              <button id="btn-copy-raw-json"></button>
+              <button id="btn-download-claim-report"></button>
+            </div>
           </div>
 
           <!-- Module 2: High-Impact KPI Metrics Bar (4 Cards) -->
@@ -784,6 +788,9 @@
               <div class="requirement-cards-grid" id="remediation-cards-container">
                 <!-- Populated dynamically via claim.js -->
               </div>
+              <table style="display: none;" aria-hidden="true">
+                <tbody id="missing-evidence-tbody"></tbody>
+              </table>
             </div>
 
             <!-- Tab 3: Coverage & Timeline Visualizer (Validity & Dates) -->
@@ -917,14 +924,14 @@
   <div class="toast-container" id="toast-container"></div>
 
   <!-- Application Logic Modules -->
-  <script src="js/utils.js?v=2.1"></script>
-  <script src="js/api.js?v=2.1"></script>
-  <script src="js/state.js?v=2.1"></script>
-  <script src="js/dashboard.js?v=2.1"></script>
-  <script src="js/upload.js?v=2.1"></script>
-  <script src="js/agent.js?v=2.1"></script>
-  <script src="js/documents.js?v=2.1"></script>
-  <script src="js/claim.js?v=2.1"></script>
-  <script src="js/app.js?v=2.1"></script>
+  <script src="js/utils.js?v=3.7.0"></script>
+  <script src="js/api.js?v=3.7.0"></script>
+  <script src="js/state.js?v=3.7.0"></script>
+  <script src="js/dashboard.js?v=3.7.0"></script>
+  <script src="js/upload.js?v=3.7.0"></script>
+  <script src="js/agent.js?v=3.7.0"></script>
+  <script src="js/documents.js?v=3.7.0"></script>
+  <script src="js/claim.js?v=3.7.0"></script>
+  <script src="js/app.js?v=3.7.0"></script>
 </body>
 </html>

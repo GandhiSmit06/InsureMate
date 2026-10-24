@@ -70,7 +70,16 @@ const API = {
    * List historical claim sessions.
    */
   async listClaims(limit = 50, offset = 0) {
-    return this.request(`/api/claims?limit=${limit}&offset=${offset}`);
+    let lim = 50;
+    let off = 0;
+    if (typeof limit === 'object' && limit !== null) {
+      lim = limit.limit !== undefined ? limit.limit : 50;
+      off = limit.offset !== undefined ? limit.offset : 0;
+    } else {
+      lim = limit !== undefined ? limit : 50;
+      off = offset !== undefined ? offset : 0;
+    }
+    return this.request(`/api/claims?limit=${lim}&offset=${off}`);
   },
 
   /**

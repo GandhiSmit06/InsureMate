@@ -755,8 +755,8 @@ const AgentView = {
       Utils.showToast(`Launching InsureMate Agent for claim ${claimId}...`, 'info');
       AppState.setClaimRunning(claimId, true);
 
-      // Trigger backend agent execution
-      await API.startAgent(claimId, { background: true, offlineMode: true });
+      // Trigger backend agent execution with active Ollama LLM
+      await API.startAgent(claimId, { background: true, offlineMode: false });
 
       // Connect SSE stream for instant real-time Antigravity events
       this.connectEventStream(claimId);

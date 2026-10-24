@@ -84,7 +84,8 @@ const AppState = {
   async setActiveClaim(claimId) {
     if (!claimId) {
       this.set({ activeClaimId: null, activeClaimBundle: null });
-      return;
+      try { localStorage.removeItem('insuremate_active_claim_id'); } catch (_) {}
+      return null;
     }
 
     try {
@@ -93,11 +94,13 @@ const AppState = {
         activeClaimId: claimId,
         activeClaimBundle: bundle
       });
+      try { localStorage.setItem('insuremate_active_claim_id', claimId); } catch (_) {}
       return bundle;
     } catch (err) {
-      console.error(`Failed to load claim ${claimId}:`, err);
-      Utils.showToast(`Failed to load claim ${claimId}`, 'error');
-      throw err;
+      console.warn(`Claim ${claimId} not found or failed to load:`, err);
+      try { localStorage.removeItem('insuremate_active_claim_id'); } catch (_) {}
+      this.set({ activeClaimId: null, activeClaimBundle: null });
+      return null;
     }
   },
 

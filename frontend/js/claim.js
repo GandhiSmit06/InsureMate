@@ -21,6 +21,14 @@ const ClaimView = {
       this.activeClaimId = bundle?.claim?.claim_id || null;
       this.renderClaimResults(bundle);
     });
+
+    // Check if AppState already holds an active bundle on initialization
+    const initialBundle = AppState.get().activeClaimBundle;
+    if (initialBundle) {
+      this.activeBundle = initialBundle;
+      this.activeClaimId = initialBundle?.claim?.claim_id || null;
+      this.renderClaimResults(initialBundle);
+    }
   },
 
   bindEvents() {
@@ -47,15 +55,16 @@ const ClaimView = {
   bindActionToolbar() {
     // Export Official Report (PDF / Print)
     const btnExportPdf = document.getElementById('btn-export-claim-pdf');
-    if (btnExportPdf) {
-      btnExportPdf.addEventListener('click', () => {
-        if (!this.activeBundle) {
-          Utils.showToast('No active claim report to export.', 'warning');
-          return;
-        }
-        window.print();
-      });
-    }
+    const btnDownloadReport = document.getElementById('btn-download-claim-report');
+    const handleExport = () => {
+      if (!this.activeBundle) {
+        Utils.showToast('No active claim report to export.', 'warning');
+        return;
+      }
+      window.print();
+    };
+    if (btnExportPdf) btnExportPdf.addEventListener('click', handleExport);
+    if (btnDownloadReport) btnDownloadReport.addEventListener('click', handleExport);
 
     // Copy Executive Summary
     const btnCopySummary = document.getElementById('btn-copy-claim-summary');
@@ -342,14 +351,17 @@ This assessment is an autonomous AI preparation audit. Final approval remains su
     const extracted = latestState.extracted_data || [];
     const claim = bundle.claim || {};
 
-    // 1. Total Submitted Docs & Pages
-    const docFiles = [claim.policy_filename, ...(claim.claim_filenames || (claim.claim_filename ? [claim.claim_filename] : []))].filter(Boolean);
-    const docCount = docFiles.length || (claim.policy_filename ? 2 : 1);
-    const pageCount = extracted.length || 0;
+    // 1. Total Submitted Docs & Pages (deduplicate filenames)
+    const rawFiles = [claim.policy_filename, ...(claim.claim_filenames || (claim.claim_filename ? [claim.claim_filename] : []))].filter(Boolean);
+    const uniqueFiles = Array.from(new Set(rawFiles));
+    const docCount = uniqueFiles.length || (claim.policy_filename ? 2 : (extracted.length > 0 ? 2 : 1));
+    const pageCount = extracted.length || report.total_documents_processed || (latestState.validation_result?.total_documents) || (latestState.validation_result?.valid_documents) || 0;
 
     // 2. Extraction & Validation Integrity
     const invalidCount = latestState.validation_result?.invalid_count || 0;
-    const passedPages = Math.max(0, pageCount - invalidCount);
+    const passedPages = latestState.validation_result?.valid_documents !== undefined
+      ? latestState.validation_result.valid_documents
+      : Math.max(0, pageCount - invalidCount);
     const isIntegrityPass = invalidCount === 0 && pageCount > 0;
 
     // 3. Missing Evidence Count

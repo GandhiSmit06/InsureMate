@@ -43,6 +43,18 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Cache Control Middleware for fresh frontend delivery
+@app.middleware("http")
+async def add_cache_control_headers(request, call_next):
+    response = await call_next(request)
+    # Never cache html, js, or css files during active development
+    path = request.url.path
+    if path == "/" or path.endswith((".html", ".js", ".css")):
+        response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+        response.headers["Pragma"] = "no-cache"
+        response.headers["Expires"] = "0"
+    return response
+
 # Initialize Service & Database
 agent_service = AgentService()
 frontend_dir = ROOT_DIR / "frontend"
@@ -84,7 +96,11 @@ async def serve_index():
     index_file = frontend_dir / "index.html"
     if not index_file.exists():
         raise HTTPException(status_code=404, detail="Frontend index.html not found.")
-    return FileResponse(str(index_file))
+    res = FileResponse(str(index_file))
+    res.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+    res.headers["Pragma"] = "no-cache"
+    res.headers["Expires"] = "0"
+    return res
 
 
 # ==============================================================================
@@ -144,19 +160,13 @@ async def upload_and_create_claim(
 
     c_paths = []
     c_names = []
-    # Single claim_file
-    if claim_file and claim_file.filename:
-        content = await claim_file.read()
-        c_names.append(claim_file.filename)
-        c_paths.append(agent_service.save_uploaded_file(claim_id, claim_file.filename, content))
-
-    # Multiple claim_files
-    if claim_files:
-        for cf in claim_files:
-            if cf.filename:
-                content = await cf.read()
-                c_names.append(cf.filename)
-                c_paths.append(agent_service.save_uploaded_file(claim_id, cf.filename, content))
+    # Process claim files without duplicate registration
+    raw_claim_list = list(claim_files) if claim_files else ([claim_file] if claim_file else [])
+    for cf in raw_claim_list:
+        if cf and cf.filename and cf.filename not in c_names:
+            content = await cf.read()
+            c_names.append(cf.filename)
+            c_paths.append(agent_service.save_uploaded_file(claim_id, cf.filename, content))
 
     # If neither file uploaded, raise error
     if not p_path and not c_paths:
