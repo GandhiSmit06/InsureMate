@@ -243,11 +243,19 @@ class AgentService:
         # Instantiate agent
         agent = InsureMateAgent(offline_mode=effective_offline)
 
-        # Initial ClaimState with claim_id preserved
+        # Initial ClaimState with claim_id preserved and explicit slot mappings
+        policy_docs = [claim.get("policy_path")] if claim.get("policy_path") else []
+        claim_docs = [claim.get("claim_path")] if claim.get("claim_path") else []
+        for d in docs:
+            if d not in policy_docs and d not in claim_docs:
+                claim_docs.append(d)
+
         init_state = ClaimState(
             claim_id=claim_id,
             goal=claim.get("goal") or "Determine claim readiness.",
-            documents=docs
+            documents=docs,
+            policy_documents=policy_docs,
+            claim_documents=claim_docs
         )
 
         with self._lock:

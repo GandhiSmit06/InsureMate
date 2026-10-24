@@ -52,6 +52,8 @@ class PageExtractionResult:
     policy_clauses: List[str] = field(default_factory=list)
     policy_relevant_text: Optional[str] = None
     extracted_text_summary: Optional[str] = None
+    source_file: Optional[str] = None
+    file_path: Optional[str] = None
     raw_response: Optional[str] = None
 
     def to_dict(self) -> Dict[str, Any]:
@@ -148,10 +150,15 @@ class QwenVLExtractor:
         results: List[Dict[str, Any]] = []
         for page in pages:
             extraction = self.extract_page(page, filename_hint=path.name)
+            extraction.source_file = path.name
+            extraction.file_path = str(path)
             logger.classifier(
                 f"Page {extraction.page_number}: Classified as '{extraction.document_type}' | Title: '{extraction.document_title}'"
             )
-            results.append(extraction.to_dict())
+            d = extraction.to_dict()
+            d["source_file"] = path.name
+            d["file_path"] = str(path)
+            results.append(d)
 
         logger.result(f"Extraction completed for {len(results)} pages of {path.name}")
         return results
@@ -308,7 +315,10 @@ class QwenVLExtractor:
             else:
                 title = f"Insurance Policy Schedule (Page {page.page_number})"
         elif doc_type == "medical_bill":
-            title = f"Hospital Medical Bill (Page {page.page_number})"
+            if any(k in text_lower for k in ["room rent", "room charges", "boarding", "cov-002"]):
+                title = f"Hospital Medical Bill & Room Rent Boarding Folio (Page {page.page_number})"
+            else:
+                title = f"Hospital Medical Bill (Page {page.page_number})"
         elif doc_type == "medical_report":
             if any(k in text_lower for k in ["scan", "ultrasound", "radiology", "x-ray", "mri", "ct", "sonography"]):
                 title = f"Medical Diagnostic Scan Report (Page {page.page_number})"

@@ -251,7 +251,7 @@ const Dashboard = {
       const isRunning = claim.is_running || AppState.isClaimRunning(cid) || String(claim.status).toLowerCase() === 'in_progress';
       const statusText = isRunning ? 'IN PROGRESS' : (claim.status || 'PENDING');
       const badgeClass = isRunning ? 'badge-processing' : this.getStatusBadgeClass(statusText);
-      const icon = isRunning ? '●' : this.getStatusIcon(statusText);
+      const icon = isRunning ? '<span class="agent-pulse-dot" style="width: 6px; height: 6px;"></span>' : this.getStatusIcon(statusText);
 
       const policyName = claim.policy_filename || null;
       const cFiles = claim.claim_filenames || (claim.claim_filename ? [claim.claim_filename] : []);
@@ -335,11 +335,11 @@ const Dashboard = {
 
   getStatusIcon(status) {
     const s = String(status).toUpperCase();
-    if (s.includes('READY')) return '✓';
-    if (s.includes('MISSING')) return '⚠';
-    if (s.includes('INVALID') || s.includes('FAILED')) return '✕';
-    if (s.includes('PROGRESS') || s.includes('RUNNING')) return '●';
-    return '○';
+    if (s.includes('READY')) return Utils.svgIcon('check', 12, 2.5);
+    if (s.includes('MISSING')) return Utils.svgIcon('alertTriangle', 12, 2.5);
+    if (s.includes('INVALID') || s.includes('FAILED')) return Utils.svgIcon('x', 12, 2.5);
+    if (s.includes('PROGRESS') || s.includes('RUNNING')) return '<span class="agent-pulse-dot" style="width: 6px; height: 6px;"></span>';
+    return '<span style="width: 6px; height: 6px; border-radius: 50%; background: currentColor; opacity: 0.6; display: inline-block;"></span>';
   },
 
   async openClaim(claimId) {

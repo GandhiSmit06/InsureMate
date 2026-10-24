@@ -104,10 +104,15 @@ class DocumentValidationTool(AgentTool):
             # Fall back to checking if input_data has any document lists
             extracted_docs = []
 
+        policy_file = input_data.get("policy_file") or input_data.get("policy_documents")
+        claim_file = input_data.get("claim_file") or input_data.get("claim_documents")
+
         try:
             validation_result = self.validator.validate_batch(
                 extracted_documents=extracted_docs,
                 requirements=requirements,
+                policy_file=policy_file,
+                claim_file=claim_file,
             )
             data = validation_result.to_dict()
             is_valid = data.get("valid", False)
@@ -149,14 +154,22 @@ class DocumentValidationTool(AgentTool):
         self,
         extracted_documents: Union[List[Dict[str, Any]], Dict[str, Any]],
         requirements: Optional[Dict[str, Any]] = None,
+        policy_file: Optional[Union[str, List[str]]] = None,
+        claim_file: Optional[Union[str, List[str]]] = None,
+        policy_documents: Optional[Union[str, List[str]]] = None,
+        claim_documents: Optional[Union[str, List[str]]] = None,
     ) -> Dict[str, Any]:
         """
         Legacy interface preserving full backward compatibility for Phase 1-4 callers.
         """
+        pol = policy_file or policy_documents
+        clm = claim_file or claim_documents
         try:
             validation_result = self.validator.validate_batch(
                 extracted_documents=extracted_documents,
                 requirements=requirements,
+                policy_file=pol,
+                claim_file=clm,
             )
             data = validation_result.to_dict()
             is_valid = data.get("valid", False)

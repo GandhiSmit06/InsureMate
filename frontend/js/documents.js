@@ -101,7 +101,7 @@ const DocumentsView = {
             </td>
             <td>
               <span class="badge ${validationResult.valid !== false ? 'badge-ready' : 'badge-warning'}">
-                ${validationResult.valid !== false ? '✓ Valid' : '⚠ Review'}
+                ${validationResult.valid !== false ? `${Utils.svgIcon('check', 10, 2.5)} Valid` : `${Utils.svgIcon('alertTriangle', 10, 2.5)} Review`}
               </span>
             </td>
             <td>

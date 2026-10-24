@@ -55,6 +55,8 @@ class ClaimState:
     claim_id: str = field(default_factory=lambda: f"claim-{uuid.uuid4().hex[:8]}")
     goal: str = "Analyze this insurance claim and determine whether the submitted documents are valid and whether any required evidence is missing."
     documents: List[str] = field(default_factory=list)
+    policy_documents: List[str] = field(default_factory=list)
+    claim_documents: List[str] = field(default_factory=list)
     document_classifications: Dict[int, str] = field(default_factory=dict)
     page_numbers: List[int] = field(default_factory=list)
     extracted_data: List[Dict[str, Any]] = field(default_factory=list)
@@ -161,6 +163,8 @@ class ClaimState:
             "claim_id": self.claim_id,
             "goal": self.goal,
             "documents": self.documents,
+            "policy_documents": self.policy_documents,
+            "claim_documents": self.claim_documents,
             "document_classifications": self.document_classifications,
             "page_numbers": self.page_numbers,
             "extracted_data": self.extracted_data,

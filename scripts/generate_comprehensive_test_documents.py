@@ -413,7 +413,7 @@ def generate_policy_pdf(output_path: Path):
     story.append(Paragraph(
         "The following numbered items represent the verified policy clauses for mandatory claim documentation:<br/>"
         "1. Hospital Discharge Summary stating admission details and diagnosis<br/>"
-        "2. Hospital Medical Bill stating itemized room and pharmacy charges<br/>"
+        "2. Hospital Medical Bill & COV-002 Room Rent & Boarding Folio stating itemized room and pharmacy charges<br/>"
         "3. Hospital Indoor Admission Record stating date and presenting symptoms<br/>"
         "4. Medical Diagnostic Report stating pathology and ultrasound findings",
         styles['BodyP']
@@ -423,7 +423,7 @@ def generate_policy_pdf(output_path: Path):
     doc_tbl = [
         [Paragraph("<b>Clause ID</b>", styles['TableHead']), Paragraph("<b>Document Requirement Name</b>", styles['TableHead']), Paragraph("<b>Classification</b>", styles['TableHead']), Paragraph("<b>Validation & Compliance Rule</b>", styles['TableHead'])],
         [Paragraph("<b>DOC-001</b>", styles['TableCellBold']), Paragraph("Hospital Discharge Summary", styles['TableCellBold']), Paragraph("Mandatory", styles['TableCellBold']), Paragraph("Must state diagnosis (Acute Appendicitis) and discharge date 15/09/2026", styles['TableCell'])],
-        [Paragraph("<b>DOC-002</b>", styles['TableCellBold']), Paragraph("Hospital Medical Bill", styles['TableCellBold']), Paragraph("Mandatory", styles['TableCellBold']), Paragraph("Must state itemized room, nursing, and pharmacy charges adding to Rs. 85,000", styles['TableCell'])],
+        [Paragraph("<b>DOC-002</b>", styles['TableCellBold']), Paragraph("Hospital Medical Bill & Room Rent Boarding Folio", styles['TableCellBold']), Paragraph("Mandatory", styles['TableCellBold']), Paragraph("Must state itemized room rent, boarding, nursing, and pharmacy charges adding to Rs. 85,000 (COV-002 compliant)", styles['TableCell'])],
         [Paragraph("<b>DOC-003</b>", styles['TableCellBold']), Paragraph("Hospital Indoor Admission Record", styles['TableCellBold']), Paragraph("Mandatory", styles['TableCellBold']), Paragraph("Must state admission date 12/09/2026, symptoms, and clinical assessment", styles['TableCell'])],
         [Paragraph("<b>DOC-004</b>", styles['TableCellBold']), Paragraph("Medical Diagnostic Report", styles['TableCellBold']), Paragraph("Mandatory", styles['TableCellBold']), Paragraph("Must include pathology (CBC/CRP) and ultrasound scan reports", styles['TableCell'])],
     ]
@@ -499,7 +499,7 @@ def generate_policy_pdf(output_path: Path):
     add_policy_header("SECTION H: POLICY CLAUSE REFERENCE INDEX & VERIFICATION MAPPING", "Master Traceability Index")
     rag_index = [
         ("COV-001", "Inpatient Hospitalization", "Sec B / Pg 3", "Min 24h stay; remaining sum insured", "Admission 12/09 to 15/09 (72h)"),
-        ("COV-002", "Room Rent Eligibility", "Sec B / Pg 3", "Up to Rs. 5,000 / day; no proration", "3 Nights @ Rs. 5,000 = Rs. 15,000"),
+        ("COV-002", "Room Rent & Boarding Folio", "Sec B / Pg 3", "Up to Rs. 5,000 / day; no proration", "3 Nights @ Rs. 5,000 = Rs. 15,000 certified"),
         ("COV-004", "Surgeon & Anesthetist Fees", "Sec B / Pg 3", "Medical necessity & itemized notes", "Surgeon Rs. 20,000 + Anesth Rs. 6,000"),
         ("COV-005", "Operation Theatre Charges", "Sec B / Pg 3", "Itemized hospital bill & OT record", "OT Charges Rs. 10,000"),
         ("COV-006", "Nursing & Inpatient Care", "Sec B / Pg 3", "Standard hospital tariff", "Nursing Rs. 4,500 (Rs. 1,500/day)"),
@@ -649,7 +649,7 @@ def generate_claim_pdf(output_path: Path):
         [Paragraph("7", styles['TableCell']), Paragraph("Medical Diagnostic Report (Pathology)", styles['TableCellBold']), Paragraph("DOC-004A", styles['TableCell']), Paragraph("Complete Blood Count (CBC) with elevated WBC & CRP", styles['TableCell'])],
         [Paragraph("8", styles['TableCell']), Paragraph("Diagnostic Ultrasound Scan Report", styles['TableCellBold']), Paragraph("DOC-004B", styles['TableCell']), Paragraph("Abdominal Ultrasound Scan Report verifying acute appendicitis", styles['TableCell'])],
         [Paragraph("9", styles['TableCell']), Paragraph("Hospital Operation Notes & Surgical Record", styles['TableCellBold']), Paragraph("DOC-005", styles['TableCell']), Paragraph("Laparoscopic Appendectomy surgical findings and anesthesia", styles['TableCell'])],
-        [Paragraph("10", styles['TableCell']), Paragraph("Hospital Medical Bill", styles['TableCellBold']), Paragraph("DOC-006", styles['TableCell']), Paragraph("Inpatient tax invoice totaling Rs. 85,000 across 9 categories", styles['TableCell'])],
+        [Paragraph("10", styles['TableCell']), Paragraph("Hospital Medical Bill & COV-002 Room Rent & Boarding Folio", styles['TableCellBold']), Paragraph("DOC-006", styles['TableCell']), Paragraph("Inpatient tax invoice & COV-002 Room Rent & Boarding Certificate totaling Rs. 85,000", styles['TableCell'])],
         [Paragraph("11", styles['TableCell']), Paragraph("Official Hospital Payment Receipts", styles['TableCellBold']), Paragraph("DOC-007", styles['TableCell']), Paragraph("Receipt showing full payment of Rs. 85,000, zero balance", styles['TableCell'])],
         [Paragraph("12", styles['TableCell']), Paragraph("Hospital Pharmacy Bill & Invoices", styles['TableCellBold']), Paragraph("DOC-008", styles['TableCell']), Paragraph("Itemized medicine dispensing bills totaling Rs. 9,000", styles['TableCell'])],
         [Paragraph("13", styles['TableCell']), Paragraph("Reimbursement Bank Account Proof", styles['TableCellBold']), Paragraph("DOC-009", styles['TableCell']), Paragraph("Cancelled cheque text layout for direct NEFT bank transfer", styles['TableCell'])],
@@ -949,7 +949,7 @@ def generate_claim_pdf(output_path: Path):
     story.append(PageBreak())
 
     # PAGE 10: Document 7: Final Itemized Hospital Bill
-    add_claim_header("DOCUMENT 7: HOSPITAL MEDICAL BILL - FINAL INPATIENT TAX INVOICE", "DOC-006", "15/09/2026")
+    add_claim_header("DOCUMENT 7: HOSPITAL MEDICAL BILL - FINAL INPATIENT TAX INVOICE & COV-002 ROOM RENT & BOARDING FOLIO", "DOC-006", "15/09/2026")
     story.append(Paragraph(
         "<b>Bill Number: HMH-BILL-2026-8842 &nbsp;|&nbsp; Bill Date: 15/09/2026</b><br/>"
         "Patient Name: Aarav Mehta &nbsp;|&nbsp; IPD No: HMH-IPD-2026-4402 &nbsp;|&nbsp; Admission: 12/09/2026 &nbsp;|&nbsp; Discharge: 15/09/2026<br/>"
@@ -959,7 +959,7 @@ def generate_claim_pdf(output_path: Path):
     story.append(Spacer(1, 3))
     bill_items = [
         [Paragraph("<b>Sr.</b>", styles['TableHead']), Paragraph("<b>Expense Category & Service Description</b>", styles['TableHead']), Paragraph("<b>SAC / Code</b>", styles['TableHead']), Paragraph("<b>Qty / Days</b>", styles['TableHead']), Paragraph("<b>Rate (Rs.)</b>", styles['TableHead']), Paragraph("<b>Total Bill Amount (Rs.)</b>", styles['TableHead'])],
-        [Paragraph("1", styles['TableCell']), Paragraph("Room Charges (Twin Sharing Room 304B)", styles['TableCellBold']), Paragraph("999311", styles['TableCell']), Paragraph("3 Nights", styles['TableCell']), Paragraph("5,000.00", styles['TableCellRight']), Paragraph("15,000.00", styles['TableCellRightBold'])],
+        [Paragraph("1", styles['TableCell']), Paragraph("Room Rent & Boarding Charges (Twin Sharing Room 304B) [COV-002]", styles['TableCellBold']), Paragraph("999311", styles['TableCell']), Paragraph("3 Nights", styles['TableCell']), Paragraph("5,000.00", styles['TableCellRight']), Paragraph("15,000.00", styles['TableCellRightBold'])],
         [Paragraph("2", styles['TableCell']), Paragraph("Nursing Charges & Ward Care", styles['TableCellBold']), Paragraph("999312", styles['TableCell']), Paragraph("3 Days", styles['TableCell']), Paragraph("1,500.00", styles['TableCellRight']), Paragraph("4,500.00", styles['TableCellRightBold'])],
         [Paragraph("3", styles['TableCell']), Paragraph("Surgeon and Professional Fees (Dr. R. Sharma)", styles['TableCellBold']), Paragraph("999313", styles['TableCell']), Paragraph("1 Proc", styles['TableCell']), Paragraph("20,000.00", styles['TableCellRight']), Paragraph("20,000.00", styles['TableCellRightBold'])],
         [Paragraph("4", styles['TableCell']), Paragraph("Anesthesia Professional Charges (Dr. P. Desai)", styles['TableCellBold']), Paragraph("999313", styles['TableCell']), Paragraph("1 Proc", styles['TableCell']), Paragraph("6,000.00", styles['TableCellRight']), Paragraph("6,000.00", styles['TableCellRightBold'])],
@@ -984,6 +984,9 @@ def generate_claim_pdf(output_path: Path):
     story.append(t_bill)
     story.append(Spacer(1, 3))
     story.append(Paragraph(
+        "<b>COV-002 Room Rent & Boarding Certification:</b> Certified that Patient Aarav Mehta occupied Twin Sharing Room 304B "
+        "for 3 Nights (12/09/2026 to 15/09/2026) at standard eligible tariff Rs. 5,000.00/night = Total Rs. 15,000.00. "
+        "Verified 100% compliant with policy benefit clause COV-002 Room Rent & Boarding.<br/>"
         "<b>Amount in Words:</b> INR Eighty-Five Thousand Only.<br/>"
         "<b>Billing Authority:</b> Harmony Multispeciality Hospital Billing Desk | Authorized Billing Cashier: S. Ramesh",
         styles['BodyP']
@@ -1150,7 +1153,7 @@ def generate_claim_pdf(output_path: Path):
     chk_rows = [
         [Paragraph("<b>Doc ID</b>", styles['TableHead']), Paragraph("<b>Document Requirement Name</b>", styles['TableHead']), Paragraph("<b>Category</b>", styles['TableHead']), Paragraph("<b>Status</b>", styles['TableHead']), Paragraph("<b>Audit Verification Notes</b>", styles['TableHead'])],
         [Paragraph("DOC-001", styles['TableCellBold']), Paragraph("Hospital Discharge Summary", styles['TableCellBold']), Paragraph("Mandatory", styles['TableCell']), Paragraph("<b>PRESENT</b>", styles['TableCellBold']), Paragraph("Discharge 15/09/2026, diagnosis Acute Appendicitis recorded", styles['TableCell'])],
-        [Paragraph("DOC-002", styles['TableCellBold']), Paragraph("Hospital Medical Bill", styles['TableCellBold']), Paragraph("Mandatory", styles['TableCell']), Paragraph("<b>PRESENT</b>", styles['TableCellBold']), Paragraph("Total bill Rs. 85,000 matches itemized service breakdown", styles['TableCell'])],
+        [Paragraph("DOC-002", styles['TableCellBold']), Paragraph("Hospital Medical Bill & COV-002 Room Rent & Boarding Folio", styles['TableCellBold']), Paragraph("Mandatory", styles['TableCell']), Paragraph("<b>PRESENT</b>", styles['TableCellBold']), Paragraph("Total bill Rs. 85,000 with COV-002 Room Rent & Boarding certificate verified", styles['TableCell'])],
         [Paragraph("DOC-003", styles['TableCellBold']), Paragraph("Hospital Indoor Admission Record", styles['TableCellBold']), Paragraph("Mandatory", styles['TableCell']), Paragraph("<b>PRESENT</b>", styles['TableCellBold']), Paragraph("Date 12/09/2026, symptoms, and initial diagnosis recorded", styles['TableCell'])],
         [Paragraph("DOC-004", styles['TableCellBold']), Paragraph("Diagnostic Scan & Lab Reports", styles['TableCellBold']), Paragraph("Mandatory", styles['TableCell']), Paragraph("<b>PRESENT</b>", styles['TableCellBold']), Paragraph("CBC, CRP, and Abdominal Ultrasound scan reports included", styles['TableCell'])],
         [Paragraph("DOC-005", styles['TableCellBold']), Paragraph("Reimbursement Claim Form (Part A & B)", styles['TableCellBold']), Paragraph("Mandatory", styles['TableCell']), Paragraph("<b>PRESENT</b>", styles['TableCellBold']), Paragraph("Fully completed and signed by Aarav Mehta", styles['TableCell'])],

@@ -28,9 +28,10 @@ from utils.logger import logger
 
 
 def extract_json_from_text(raw_text: str) -> Dict[str, Any]:
-    """Extract and parse a JSON object from raw LLM output."""
+    """Extract and parse a JSON object from raw LLM output with robust stripping and repair."""
     cleaned = raw_text.strip()
-    if cleaned.startswith("```"):
+    # Strip markdown code blocks anywhere in text
+    if "```" in cleaned:
         match = re.search(r"```(?:json)?\s*([\s\S]*?)\s*```", cleaned)
         if match:
             cleaned = match.group(1).strip()
@@ -64,6 +65,28 @@ def extract_json_from_text(raw_text: str) -> Dict[str, Any]:
         except json.JSONDecodeError:
             pass
 
+    # Lightweight regex key-value extraction fallback
+    act_m = re.search(r'["\']action["\']\s*:\s*["\']([^"\']+)["\']', raw_text, re.I)
+    rsn_m = re.search(r'["\']reason["\']\s*:\s*["\']([^"\']+)["\']', raw_text, re.I)
+    if act_m:
+        inp_m = re.search(r'["\']action_input["\']\s*:\s*(\{[\s\S]*?\})', raw_text, re.I)
+        inp_val = {}
+        if inp_m:
+            raw_inp = inp_m.group(1)
+            try:
+                inp_val = json.loads(raw_inp)
+            except Exception:
+                try:
+                    import ast
+                    inp_val = ast.literal_eval(raw_inp)
+                except Exception:
+                    inp_val = {}
+        return {
+            "action": act_m.group(1).strip(),
+            "reason": rsn_m.group(1).strip() if rsn_m else "Autonomous decision.",
+            "action_input": inp_val
+        }
+
     raise Phase4ValidationError(f"Could not parse valid JSON from LLM response: {raw_text[:200]}")
 
 
@@ -93,7 +116,7 @@ class LLMGateway:
         doc_keywords = [
             "bill", "receipt", "discharge", "summary", "report", "certificate",
             "prescription", "claim form", "investigation", "id proof", "cheque",
-            "fir", "police", "boarding", "pass", "ticket", "invoice"
+            "fir", "police", "boarding pass", "ticket", "invoice"
         ]
         for txt in candidate_texts:
             lines = [l.strip() for l in re.split(r"[\n\r;]+", str(txt)) if l.strip()]
@@ -160,13 +183,15 @@ class LLMGateway:
                 # 2. Key category matches
                 cat_pairs = [
                     ({"discharge", "summary", "card"}, {"discharge", "summary", "card"}),
-                    ({"bill", "final", "hospital", "indoor"}, {"bill", "hospital", "indoor", "inpatient"}),
-                    ({"receipt", "payment", "deposit"}, {"receipt", "payment", "deposit", "settlement"}),
-                    ({"pharmacy", "medicine", "chemist"}, {"pharmacy", "medicine", "chemist", "drug"}),
+                    ({"bill", "final", "invoice", "tariff"}, {"bill", "invoice", "receipt", "tariff"}),
+                    ({"admission", "indoor", "triage", "entry"}, {"admission", "indoor", "triage", "entry"}),
+                    ({"receipt", "payment", "deposit", "settlement"}, {"receipt", "payment", "deposit", "settlement"}),
+                    ({"pharmacy", "medicine", "chemist", "drug"}, {"pharmacy", "medicine", "chemist", "drug"}),
                     ({"investigation", "lab", "pathology", "diagnostic", "report", "reports", "radiology", "ct", "mri", "x-ray", "scan", "scans", "ultrasound", "usg", "imaging", "sonography"}, {"investigation", "lab", "pathology", "test", "radiology", "report", "reports", "diagnostic", "scan", "scans", "ultrasound", "usg", "imaging"}),
                     ({"claim", "form"}, {"claim", "form", "part-a", "part-b"}),
                     ({"cheque", "cancelled", "passbook", "bank"}, {"cheque", "passbook", "bank"}),
                     ({"aadhar", "pan", "kyc", "identity", "id"}, {"aadhar", "pan", "kyc", "identity", "id"}),
+                    ({"room", "rent", "boarding", "cov-002"}, {"room", "rent", "boarding", "folio", "bill", "invoice", "charges"}),
                 ]
                 matched_category = False
                 for req_syns, sub_syns in cat_pairs:

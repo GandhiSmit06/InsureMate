@@ -237,10 +237,140 @@ class DocumentValidator:
         except Exception:
             return False
 
+    def _validate_document_slot_alignment(
+        self,
+        extracted_documents: List[Dict[str, Any]],
+        policy_file: Optional[Union[str, List[str]]] = None,
+        claim_file: Optional[Union[str, List[str]]] = None,
+    ) -> (bool, Optional[str]):
+        """
+        Check that documents uploaded to policy slot vs claim slot contain the expected
+        document types, detecting role mismatches and inverted uploads.
+        """
+        if not extracted_documents:
+            return True, None
+
+        from pathlib import Path
+
+        def _to_names_and_paths(target: Optional[Union[str, List[str]]]) -> (set, set):
+            names = set()
+            paths = set()
+            if not target:
+                return names, paths
+            items = target if isinstance(target, (list, tuple, set)) else [target]
+            for item in items:
+                if not item:
+                    continue
+                p = Path(str(item))
+                names.add(p.name.lower())
+                try:
+                    paths.add(str(p.resolve()).lower())
+                except Exception:
+                    paths.add(str(p).lower())
+            return names, paths
+
+        pol_names, pol_paths = _to_names_and_paths(policy_file)
+        clm_names, clm_paths = _to_names_and_paths(claim_file)
+
+        policy_pages: List[Dict[str, Any]] = []
+        claim_pages: List[Dict[str, Any]] = []
+
+        for doc in extracted_documents:
+            slot = doc.get("slot")
+            src_name = (doc.get("source_file") or "").lower()
+            file_p = (doc.get("file_path") or "").lower()
+
+            is_policy_slot = (
+                slot == "policy"
+                or (pol_names and src_name in pol_names)
+                or (pol_paths and file_p in pol_paths)
+            )
+            is_claim_slot = (
+                slot == "claim"
+                or (clm_names and src_name in clm_names)
+                or (clm_paths and file_p in clm_paths)
+            )
+
+            if is_policy_slot and not is_claim_slot:
+                policy_pages.append(doc)
+            elif is_claim_slot and not is_policy_slot:
+                claim_pages.append(doc)
+            elif is_policy_slot and is_claim_slot:
+                if slot == "policy":
+                    policy_pages.append(doc)
+                else:
+                    claim_pages.append(doc)
+
+        medical_types = {"hospital_document", "medical_bill", "invoice", "medical_report"}
+
+        policy_slot_has_claim = False
+        policy_filename = "Uploaded Policy Document"
+        if policy_pages:
+            p_types = [p.get("document_type") for p in policy_pages]
+            num_pol = sum(1 for t in p_types if t == "insurance_policy")
+            all_medical = len(p_types) > 0 and all(t in medical_types for t in p_types)
+            if num_pol == 0 and all_medical:
+                policy_slot_has_claim = True
+                policy_filename = policy_pages[0].get("source_file") or (
+                    Path(policy_file[0] if isinstance(policy_file, list) else str(policy_file)).name
+                    if policy_file else "Insurance Policy Document"
+                )
+
+        claim_slot_has_policy = False
+        claim_filename = "Uploaded Claim Document"
+        if claim_pages:
+            c_types = [p.get("document_type") for p in claim_pages]
+            num_med = sum(1 for t in c_types if t in medical_types)
+            all_policy = len(c_types) > 0 and all(t == "insurance_policy" for t in c_types)
+            if num_med == 0 and all_policy:
+                claim_slot_has_policy = True
+                claim_filename = claim_pages[0].get("source_file") or (
+                    Path(claim_file[0] if isinstance(claim_file, list) else str(claim_file)).name
+                    if claim_file else "Claim Document"
+                )
+
+        # Inversion Detection: Both slots swapped
+        reasons: List[str] = []
+        if policy_slot_has_claim and claim_slot_has_policy:
+            reasons.append(
+                "Document Inversion Detected: Your Insurance Policy and Claim Documents appear to be swapped. "
+                "Please re-upload with the Policy Contract in the Policy field and Hospital Bills/Discharge Summary in the Claim field."
+            )
+            reasons.append(
+                f"Invalid document format: The document uploaded in the 'Insurance Policy' field ('{policy_filename}') "
+                f"is a Hospital/Medical Claim document, not an Insurance Policy Contract. "
+                f"Please upload the files in their correct corresponding fields."
+            )
+            reasons.append(
+                f"Invalid document format: The document uploaded in the 'Claim Documents' field ('{claim_filename}') "
+                f"is an Insurance Policy Schedule, not a Medical Claim Document."
+            )
+            return False, reasons
+
+        # Individual slot failures
+        if policy_slot_has_claim:
+            reasons.append(
+                f"Invalid document format: The document uploaded in the 'Insurance Policy' field ('{policy_filename}') "
+                f"is a Hospital/Medical Claim document, not an Insurance Policy Contract. "
+                f"Please upload the files in their correct corresponding fields."
+            )
+            return False, reasons
+
+        if claim_slot_has_policy:
+            reasons.append(
+                f"Invalid document format: The document uploaded in the 'Claim Documents' field ('{claim_filename}') "
+                f"is an Insurance Policy Schedule, not a Medical Claim Document."
+            )
+            return False, reasons
+
+        return True, []
+
     def validate_batch(
         self,
         extracted_documents: Union[List[Dict[str, Any]], Dict[str, Any]],
-        requirements: Optional[Dict[str, Any]] = None
+        requirements: Optional[Dict[str, Any]] = None,
+        policy_file: Optional[Union[str, List[str]]] = None,
+        claim_file: Optional[Union[str, List[str]]] = None,
     ) -> DocumentValidationBatchResult:
         """
         Validate a batch of extracted documents or a single document.
@@ -292,6 +422,25 @@ class DocumentValidator:
         invalid_count = len(results) - valid_count
         overall_valid = invalid_count == 0 and len(results) > 0
 
+        # Validate slot-level semantic role alignment & inversion
+        slot_valid, slot_reasons = self._validate_document_slot_alignment(
+            extracted_documents=extracted_documents,
+            policy_file=policy_file,
+            claim_file=claim_file
+        )
+        if not slot_valid and slot_reasons:
+            overall_valid = False
+            for sr in reversed(slot_reasons):
+                overall_reasons.insert(0, sr)
+            # Mark all document results as invalid due to slot mismatch
+            for r in results:
+                r.valid = False
+                for sr in reversed(slot_reasons):
+                    if sr not in r.reasons:
+                        r.reasons.insert(0, sr)
+            valid_count = 0
+            invalid_count = len(results)
+
         if overall_valid:
             overall_reasons.append(f"All {len(results)} submitted documents passed required field validation.")
 
@@ -311,11 +460,18 @@ class DocumentValidator:
 
 def document_validation(
     extracted_documents: Union[List[Dict[str, Any]], Dict[str, Any]],
-    requirements: Optional[Dict[str, Any]] = None
+    requirements: Optional[Dict[str, Any]] = None,
+    policy_file: Optional[Union[str, List[str]]] = None,
+    claim_file: Optional[Union[str, List[str]]] = None,
 ) -> Dict[str, Any]:
     """
     Callable functional interface for Document Validation.
     """
     validator = DocumentValidator()
-    result = validator.validate_batch(extracted_documents, requirements=requirements)
+    result = validator.validate_batch(
+        extracted_documents,
+        requirements=requirements,
+        policy_file=policy_file,
+        claim_file=claim_file
+    )
     return result.to_dict()

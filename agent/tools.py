@@ -125,7 +125,19 @@ class DocumentExtractionAdapter(BaseAgentTool):
             path_obj = Path(doc_path)
             res = self.underlying_tool.run(path_obj, max_pages=max_pages)
             if res.get("status") == "success":
-                all_pages.extend(res.get("extracted_documents", []))
+                pages = res.get("extracted_documents", [])
+                p_norm = str(path_obj.resolve()).lower()
+                pol_norms = [str(Path(p).resolve()).lower() for p in (state.policy_documents or []) if p]
+                clm_norms = [str(Path(c).resolve()).lower() for c in (state.claim_documents or []) if c]
+                slot = "policy" if (p_norm in pol_norms or any(Path(p).name.lower() == path_obj.name.lower() for p in (state.policy_documents or []) if p)) else (
+                    "claim" if (p_norm in clm_norms or any(Path(c).name.lower() == path_obj.name.lower() for c in (state.claim_documents or []) if c)) else None
+                )
+                for p in pages:
+                    p["source_file"] = p.get("source_file") or path_obj.name
+                    p["file_path"] = p.get("file_path") or str(path_obj.resolve())
+                    if slot:
+                        p["slot"] = slot
+                all_pages.extend(pages)
             else:
                 err = res.get("error") or f"Extraction failed for {path_obj.name}"
                 errors.append(err)
@@ -191,7 +203,11 @@ class DocumentValidationAdapter(BaseAgentTool):
                 error="No extracted data provided."
             )
 
-        res = self.underlying_tool.run(extracted_documents=state.extracted_data)
+        res = self.underlying_tool.run(
+            extracted_documents=state.extracted_data,
+            policy_file=state.policy_documents or None,
+            claim_file=state.claim_documents or None
+        )
         if res.get("status") == "error":
             return ToolExecutionResult(
                 tool_name=self.name,

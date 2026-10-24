@@ -221,7 +221,7 @@ const AgentView = {
       if (isToolRunning) {
         statusBadge = `<span class="tool-status-badge running"><span class="agent-pulse-dot" style="width:6px; height:6px;"></span> Running</span>`;
       } else if (count > 0) {
-        statusBadge = `<span class="tool-status-badge completed">✓ Executed (${count}x)</span>`;
+        statusBadge = `<span class="tool-status-badge completed">${Utils.svgIcon('check', 10, 2.5)} Executed (${count}x)</span>`;
       }
 
       const meta = this.getAntigravityMetadata(name);
@@ -426,13 +426,14 @@ const AgentView = {
       const meta = this.getAntigravityMetadata(tool.tool_name);
       const isFailed = tool.status === 'failed' || Boolean(tool.error);
       const statusClass = isFailed ? 'failed' : 'completed';
-      const statusText = isFailed ? 'Failed' : 'Completed ✓';
+      const statusText = isFailed ? 'Failed' : 'Completed';
+      const statusIcon = isFailed ? Utils.svgIcon('x', 10, 2.5) : Utils.svgIcon('check', 10, 2.5);
 
       cardsHtml.push(`
         <div class="dynamic-step-card ${statusClass}">
           <div class="step-card-top">
             <span class="step-card-num">${stepNum}</span>
-            <span class="tool-status-badge ${statusClass}">${statusText}</span>
+            <span class="tool-status-badge ${statusClass}">${statusIcon} ${statusText}</span>
           </div>
           <div class="step-card-name">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
@@ -610,12 +611,14 @@ const AgentView = {
     const cardsHtml = tools.map((tool, idx) => {
       const isFailed = tool.status === 'failed' || Boolean(tool.error);
       const statusClass = isFailed ? 'failed' : 'completed';
-      const statusBadge = isFailed ? '<span class="badge badge-error">Failed</span>' : '<span class="badge badge-ready">Completed ✓</span>';
+      const statusBadge = isFailed
+        ? `<span class="badge badge-error">${Utils.svgIcon('x', 10, 2.5)} Failed</span>`
+        : `<span class="badge badge-ready">${Utils.svgIcon('check', 10, 2.5)} Completed</span>`;
       const meta = this.getAntigravityMetadata(tool.tool_name);
       const timeStr = tool.timestamp ? Utils.formatDate(tool.timestamp) : `Step ${idx + 1}`;
       const drawerId = `timeline-drawer-${idx}`;
       const durationBadge = tool.duration_ms !== undefined && tool.duration_ms !== null
-        ? `<span class="ag-duration-badge" title="Execution Duration">⏱ ${this.formatDuration(tool.duration_ms)}</span>`
+        ? `<span class="ag-duration-badge" title="Execution Duration">${Utils.svgIcon('clock', 11)} ${this.formatDuration(tool.duration_ms)}</span>`
         : '';
 
       // Check if trace has thought for this tool

@@ -15,6 +15,7 @@
   <link rel="stylesheet" href="css/dashboard.css">
   <link rel="stylesheet" href="css/upload.css">
   <link rel="stylesheet" href="css/agent.css">
+  <link rel="stylesheet" href="css/claim.css">
   <link rel="stylesheet" href="css/responsive.css">
 </head>
 <body>
@@ -731,78 +732,14 @@
         <!-- VIEW 6: CLAIM RESULTS (FINAL READINESS ASSESSMENT) -->
         <!-- ================================================================ -->
         <section class="view-section" id="view-results">
-          <!-- Assessment Verdict Banner -->
-          <div class="card" id="results-verdict-banner" style="margin-bottom: 20px;">
-            <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 16px;">
-              <div style="display: flex; align-items: center; gap: 16px;">
-                <div id="results-verdict-icon" style="font-size: 2rem; font-weight: 700; color: var(--emerald);">✓</div>
-                <div>
-                  <div style="font-size: 0.68rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-muted);">
-                    CLAIM READINESS ASSESSMENT
-                  </div>
-                  <h2 id="results-verdict-title" style="font-size: 1.35rem; font-weight: 800; color: var(--text-heading); margin: 2px 0 4px;">
-                    CLAIM READY
-                  </h2>
-                  <p id="results-verdict-desc" style="font-size: 0.82rem; color: var(--text-muted); max-width: 680px;">
-                    All required evidence has been submitted and verified.
-                  </p>
-                </div>
-              </div>
-
-              <div style="display: flex; gap: 8px; flex-wrap: wrap;">
-                <button class="btn btn-secondary btn-sm" id="btn-copy-claim-summary">Copy Report</button>
-                <button class="btn btn-secondary btn-sm" id="btn-copy-raw-json">Copy JSON</button>
-                <button class="btn btn-secondary btn-sm" id="btn-download-claim-report">Download Report</button>
-                <button class="btn btn-primary btn-sm" data-action="new-claim">+ New Claim</button>
-              </div>
-            </div>
+          <!-- Module 1: The Adjudication Verdict Hero Banner -->
+          <div id="results-verdict-banner-container">
+            <!-- Populated dynamically via claim.js -->
           </div>
 
-          <!-- Summary Metrics Grid -->
-          <div class="kpi-grid" style="margin-bottom: 20px;">
-            <div class="kpi-card kpi-blue">
-              <div class="kpi-content">
-                <div class="kpi-title">Total Documents</div>
-                <div class="kpi-value" id="metric-results-docs">0</div>
-                <div class="kpi-subtext">Submitted files</div>
-              </div>
-              <div class="kpi-icon-badge">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
-              </div>
-            </div>
-
-            <div class="kpi-card kpi-emerald">
-              <div class="kpi-content">
-                <div class="kpi-title">Valid Documents</div>
-                <div class="kpi-value text-emerald" id="metric-results-valid">0</div>
-                <div class="kpi-subtext">Passed structure check</div>
-              </div>
-              <div class="kpi-icon-badge">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
-              </div>
-            </div>
-
-            <div class="kpi-card kpi-amber">
-              <div class="kpi-content">
-                <div class="kpi-title">Missing Evidence</div>
-                <div class="kpi-value text-amber" id="metric-results-missing">0</div>
-                <div class="kpi-subtext">Unfulfilled policy clauses</div>
-              </div>
-              <div class="kpi-icon-badge">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
-              </div>
-            </div>
-
-            <div class="kpi-card kpi-indigo">
-              <div class="kpi-content">
-                <div class="kpi-title">Validity Status</div>
-                <div class="kpi-value" id="metric-results-validity">PASS</div>
-                <div class="kpi-subtext">Coverage window audit</div>
-              </div>
-              <div class="kpi-icon-badge">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
-              </div>
-            </div>
+          <!-- Module 2: High-Impact KPI Metrics Bar (4 Cards) -->
+          <div id="results-kpi-metrics-container">
+            <!-- Populated dynamically via claim.js -->
           </div>
 
           <!-- Tabbed Deep-Dive Results -->
@@ -833,41 +770,46 @@
               </div>
             </div>
 
-            <!-- Tab 2: Missing Evidence -->
+            <!-- Tab 2: Interactive Evidence & Document Remediation Center -->
             <div class="results-tab-pane" id="tab-missing-evidence">
-              <div class="table-responsive">
-                <table class="data-table">
-                  <thead>
-                    <tr>
-                      <th>Sr No.</th>
-                      <th>Required Document</th>
-                      <th>Status</th>
-                      <th>Reason / Policy Finding</th>
-                      <th>Page</th>
-                    </tr>
-                  </thead>
-                  <tbody id="missing-evidence-tbody">
-                    <!-- Populated dynamically via claim.js -->
-                  </tbody>
-                </table>
+              <div class="remediation-section-header">
+                <div class="remediation-header-title">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+                  <h3>Mandatory Evidence & Policy Clause Fulfillment</h3>
+                </div>
+                <span style="font-size: 0.76rem; color: var(--text-muted);">
+                  Attach missing documents directly to fulfill policy clauses and trigger autonomous re-adjudication
+                </span>
+              </div>
+              <div class="requirement-cards-grid" id="remediation-cards-container">
+                <!-- Populated dynamically via claim.js -->
               </div>
             </div>
 
-            <!-- Tab 3: Validity & Dates -->
+            <!-- Tab 3: Coverage & Timeline Visualizer (Validity & Dates) -->
             <div class="results-tab-pane" id="tab-validity-math">
-              <div style="background: var(--bg-elevated); padding: 16px 18px; border-radius: var(--radius-sm); border: 1px solid var(--border-subtle); margin-bottom: 16px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px;">
-                <div>
-                  <div style="font-size: 0.68rem; text-transform: uppercase; color: var(--text-muted); font-weight: 600;">Active Policy Period</div>
-                  <div style="font-size: 0.95rem; font-weight: 700; color: var(--accent); font-family: var(--font-mono);" id="validity-policy-dates">
-                    -- ⟶ --
+              <div class="coverage-timeline-card">
+                <div class="coverage-timeline-header">
+                  <div>
+                    <div style="font-size: 0.68rem; text-transform: uppercase; color: var(--text-muted); font-weight: 700; letter-spacing: 0.06em;">Policy Coverage Horizon</div>
+                    <div style="font-size: 1.05rem; font-weight: 800; color: var(--text-heading); font-family: var(--font-mono); margin-top: 2px;" id="validity-policy-dates">
+                      -- ⟶ --
+                    </div>
+                  </div>
+                  <div>
+                    <span class="badge badge-ready" id="validity-math-status">VALID</span>
                   </div>
                 </div>
-                <div>
-                  <span class="badge badge-ready" id="validity-math-status">VALID</span>
+                <div id="coverage-gantt-chart-container">
+                  <!-- Populated dynamically via claim.js -->
                 </div>
               </div>
 
-              <div id="validity-checks-list" style="display: flex; flex-direction: column; gap: 10px;">
+              <div class="remediation-header-title" style="margin-bottom: 12px;">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+                <h4 style="font-size: 0.9rem; font-weight: 700; color: var(--text-heading); margin: 0;">Date & Chronology Audit Verification</h4>
+              </div>
+              <div id="validity-checks-list" class="date-audit-checklist">
                 <!-- Populated dynamically via claim.js -->
               </div>
             </div>
@@ -914,7 +856,9 @@
     <div class="modal-card">
       <div class="modal-header">
         <h3 id="doc-modal-title">Document Inspection</h3>
-        <button class="btn btn-icon btn-sm" id="btn-close-doc-modal" aria-label="Close modal">✕</button>
+        <button class="btn btn-icon btn-sm" id="btn-close-doc-modal" aria-label="Close modal">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
       </div>
       <div class="modal-body" id="doc-modal-body">
         <!-- Injected via documents.js -->
@@ -932,7 +876,9 @@
     <div class="modal-card">
       <div class="modal-header">
         <h3 id="tool-schema-modal-title">Tool Schema & Parameters</h3>
-        <button class="btn btn-icon btn-sm" id="btn-close-schema-modal" aria-label="Close modal">✕</button>
+        <button class="btn btn-icon btn-sm" id="btn-close-schema-modal" aria-label="Close modal">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
       </div>
       <div class="modal-body" id="tool-schema-modal-body">
         <!-- Injected via agent.js -->
@@ -950,7 +896,9 @@
     <div class="modal-card" style="max-width: 440px;">
       <div class="modal-header">
         <h3>Delete Claim Session</h3>
-        <button class="btn btn-icon btn-sm" id="btn-close-delete-modal" aria-label="Close modal">✕</button>
+        <button class="btn btn-icon btn-sm" id="btn-close-delete-modal" aria-label="Close modal">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
       </div>
       <div class="modal-body">
         <p style="color: var(--text-secondary); font-size: 0.84rem; line-height: 1.5;">

@@ -235,7 +235,11 @@ class InsureMateAgent:
                             reasons = state.validity_result.get("reasons", []) if state.validity_result else []
                             action_items.extend(reasons or ["Incident or treatment date falls outside the policy coverage period."])
                         elif state.final_status == ClaimStatus.ACTION_REQUIRED_INVALID_DOCUMENTS.value:
-                            action_items.append("Provide valid, legible claim documents containing all mandatory fields.")
+                            reasons = state.validation_result.get("reasons", []) if state.validation_result else []
+                            if reasons:
+                                action_items.extend(reasons)
+                            else:
+                                action_items.append("Provide valid, legible claim documents containing all mandatory fields.")
                         elif state.final_status == ClaimStatus.ACTION_REQUIRED_MISSING_EVIDENCE.value:
                             action_items.append("Upload all missing mandatory claim evidence.")
                         elif state.final_status == ClaimStatus.INSUFFICIENT_INFORMATION.value:
@@ -353,7 +357,9 @@ class InsureMateAgent:
             })
 
             exec_kwargs = dict(tool_args) if isinstance(tool_args, dict) else {}
-            if max_pages is not None and "max_pages" not in exec_kwargs:
+            if max_pages is None:
+                exec_kwargs.pop("max_pages", None)
+            else:
                 exec_kwargs["max_pages"] = max_pages
 
             tool_res = self.tool_registry.execute_tool(
@@ -420,9 +426,10 @@ class InsureMateAgent:
                         provenance="validity_checker"
                     )
                 elif tool_name == "document_validation" and state.validation_result:
+                    is_val = state.validation_result.get("valid", False)
                     state.record_verified_fact(
                         "document_validation",
-                        state.validation_result.get("valid", False),
+                        is_val,
                         provenance="document_validation"
                     )
                 elif tool_name == "policy_clause_search" and state.clause_search_results:

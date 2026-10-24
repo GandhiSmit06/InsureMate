@@ -65,8 +65,8 @@ class InsureMateDecisionEngine:
                 decision_type="TERMINATE"
             )
 
-        # If LLM client is unavailable or local daemon offline, use grounded decision engine
-        if not self.llm_client or not self.llm_client.is_available():
+        # If offline_mode is set or LLM client is unavailable or local daemon offline, use grounded decision engine
+        if self.offline_mode or not self.llm_client or not self.llm_client.is_available():
             return self._evaluate_grounded_decision(state, tool_registry)
 
         # LLM-driven decision with bounded recovery
@@ -97,14 +97,13 @@ class InsureMateDecisionEngine:
             reason=f"Failed to obtain valid LLM decision after bounded retries: {last_error}",
             decision_type="TERMINATE"
         )
+
     def _build_tools_manifest(self, tool_registry: Optional[Any] = None) -> List[Dict[str, Any]]:
-        if tool_registry and hasattr(tool_registry, "list_tools"):
-            return tool_registry.list_tools()
         return [
             {
                 "name": "document_extraction",
                 "description": "Extracts text, entities, and classifications from documents.",
-                "parameters": {"documents": {"type": "array"}, "max_pages": {"type": "integer"}},
+                "parameters": {"documents": {"type": "array"}},
                 "expected_output": "Extracted list of document pages with entities.",
                 "prerequisites": []
             },
@@ -161,7 +160,9 @@ class InsureMateDecisionEngine:
             "2. If the goal is answered or sufficient evidence gathered, choose action 'complete'.\n"
             "3. If missing user input or document files prevent progress, choose action 'request_user_info'.\n"
             "4. If unrecoverable errors prevent progress, choose action 'abort'.\n"
-            "5. Pass appropriate parameters matching the tool's schema in 'action_input'.\n\n"
+            "5. Pass appropriate parameters matching the tool's schema in 'action_input'.\n"
+            "6. PREREQUISITES: 'claim_preparation' CANNOT be called until both 'validity_checker' and 'missing_document_detector' have completed. Call 'validity_checker' or 'missing_document_detector' first before preparing the claim.\n"
+            "7. Never limit or truncate document extraction with artificial max_pages. Multi-page claim bundles contain critical evidence on later pages (e.g. bills, receipts, discharge notes) that must all be extracted.\n\n"
             "Output strictly valid JSON with this format:\n"
             "{\n"
             '  "thought": "Analysis of current observations, what has been established, and why this action is needed next",\n'
@@ -211,6 +212,16 @@ class InsureMateDecisionEngine:
             "unresolved_questions": state.unresolved_questions,
             "recent_tool_observations": recent_observations,
             "completed_steps": state.completed_steps,
+            "validation_status": "COMPLETED" if state.validation_result is not None else "PENDING",
+            "validity_status": "COMPLETED" if state.validity_result is not None else "PENDING",
+            "missing_evidence_status": "COMPLETED" if state.missing_documents is not None else "PENDING",
+            "pending_mandatory_checks": [
+                c for c, done in [
+                    ("document_validation", state.validation_result is not None),
+                    ("validity_checker", state.validity_result is not None),
+                    ("missing_document_detector", state.missing_documents is not None)
+                ] if not done
+            ],
             "remaining_budget": state.remaining_budget,
             "iteration_count": state.iteration_count
         }
@@ -221,7 +232,11 @@ class InsureMateDecisionEngine:
             f"CURRENT CONTEXT & EVIDENCE:\n{json.dumps(context_payload, indent=2)}\n\n"
         )
         if error_feedback:
-            user_content += f"CORRECTION REQUIRED: {error_feedback}\n\n"
+            user_content += (
+                f"CORRECTION REQUIRED: Your previous decision failed validation: {error_feedback}\n"
+                f"DO NOT select 'claim_preparation' while any prerequisite check is PENDING. "
+                f"You MUST select one of the pending checks: {context_payload['pending_mandatory_checks']}.\n\n"
+            )
         user_content += "Decide the next action:"
         return user_content
 
@@ -243,18 +258,47 @@ class InsureMateDecisionEngine:
             format_type="json"
         )
 
-        # Parse JSON
+        # Parse JSON with robust stripping and regex repair
         cleaned = resp.strip()
         if "```" in cleaned:
             m = re.search(r"```(?:json)?\s*([\s\S]*?)\s*```", cleaned)
             if m:
                 cleaned = m.group(1).strip()
+
+        data: Optional[Dict[str, Any]] = None
         try:
             data = json.loads(cleaned)
         except Exception:
             m = re.search(r"\{[\s\S]*\}", resp)
             if m:
-                data = json.loads(m.group(0))
+                try:
+                    data = json.loads(m.group(0))
+                except Exception:
+                    data = None
+
+        if not isinstance(data, dict):
+            # Run lightweight regex-based key-value extraction
+            act_m = re.search(r'["\']action["\']\s*:\s*["\']([^"\']+)["\']', resp, re.I)
+            rsn_m = re.search(r'["\']reason["\']\s*:\s*["\']([^"\']+)["\']', resp, re.I)
+            tht_m = re.search(r'["\']thought["\']\s*:\s*["\']([^"\']+)["\']', resp, re.I)
+            inp_m = re.search(r'["\']action_input["\']\s*:\s*(\{[\s\S]*?\})', resp, re.I)
+
+            act_val = act_m.group(1).strip() if act_m else ""
+            rsn_val = rsn_m.group(1).strip() if rsn_m else "Autonomous decision."
+            tht_val = tht_m.group(1).strip() if tht_m else ""
+            inp_val = {}
+            if inp_m:
+                try:
+                    inp_val = json.loads(inp_m.group(1))
+                except Exception:
+                    inp_val = {}
+            if act_val:
+                data = {
+                    "action": act_val,
+                    "reason": rsn_val,
+                    "thought": tht_val,
+                    "action_input": inp_val
+                }
             else:
                 raise ValueError(f"Could not parse valid JSON from response: {resp[:200]}")
 
