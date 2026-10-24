@@ -135,6 +135,53 @@ class ValidityChecker:
 
         return None, None
 
+    START_DATE_CANDIDATES = [
+        "policy_start_date",
+        "policy_inception_date",
+        "inception_date",
+        "coverage_start_date",
+        "effective_date",
+        "start_date",
+        "from_date",
+    ]
+
+    END_DATE_CANDIDATES = [
+        "policy_end_date",
+        "policy_expiry_date",
+        "expiry_date",
+        "coverage_end_date",
+        "expiration_date",
+        "end_date",
+        "to_date",
+    ]
+
+    @classmethod
+    def _find_date_candidate(cls, data: Any, candidates: List[str]) -> Optional[str]:
+        """Find non-empty date value among candidate keys, including nested containers."""
+        if not isinstance(data, dict):
+            return None
+        for k in candidates:
+            v = data.get(k)
+            if v and isinstance(v, (str, int)) and str(v).strip():
+                return str(v).strip()
+        # Also check nested policy_period, period, coverage_period
+        for container_key in ("policy_period", "period", "coverage_period", "validity_period"):
+            container = data.get(container_key)
+            if isinstance(container, dict):
+                for k in candidates:
+                    v = container.get(k)
+                    if v and isinstance(v, (str, int)) and str(v).strip():
+                        return str(v).strip()
+                if "start" in container and candidates == cls.START_DATE_CANDIDATES:
+                    v = container.get("start")
+                    if v and str(v).strip():
+                        return str(v).strip()
+                if "end" in container and candidates == cls.END_DATE_CANDIDATES:
+                    v = container.get("end")
+                    if v and str(v).strip():
+                        return str(v).strip()
+        return None
+
     def check_validity(
         self,
         policy_data: Union[Dict[str, Any], List[Dict[str, Any]]],
@@ -150,9 +197,9 @@ class ValidityChecker:
 
         # 1. Resolve policy metadata
         policy_info = self._extract_policy_info(policy_data)
-        raw_start = policy_info.get("policy_start_date")
-        raw_end = policy_info.get("policy_end_date")
-        policy_number = policy_info.get("policy_number")
+        raw_start = self._find_date_candidate(policy_info, self.START_DATE_CANDIDATES)
+        raw_end = self._find_date_candidate(policy_info, self.END_DATE_CANDIDATES)
+        policy_number = policy_info.get("policy_number") or policy_info.get("policy_id") or policy_info.get("policy_no")
 
         start_dt, norm_start = self.parse_and_normalize_date(raw_start)
         end_dt, norm_end = self.parse_and_normalize_date(raw_end)
@@ -160,6 +207,8 @@ class ValidityChecker:
         policy_period_dict = {
             "policy_start_date": norm_start or raw_start,
             "policy_end_date": norm_end or raw_end,
+            "start": norm_start or raw_start,
+            "end": norm_end or raw_end,
             "policy_number": policy_number,
         }
 
@@ -336,19 +385,50 @@ class ValidityChecker:
         )
 
     def _extract_policy_info(self, policy_data: Union[Dict[str, Any], List[Dict[str, Any]]]) -> Dict[str, Any]:
-        """Extract policy fields whether passed as dict or list of pages."""
+        """Extract policy fields whether passed as dict or list of pages, searching candidate keys."""
+        if not policy_data:
+            return {}
+
+        pages: List[Dict[str, Any]] = []
         if isinstance(policy_data, dict):
-            return policy_data
+            pages = [policy_data]
+        elif isinstance(policy_data, list):
+            pages = [p for p in policy_data if isinstance(p, dict)]
 
-        if isinstance(policy_data, list):
-            # Look for page containing policy dates
-            for p in policy_data:
-                if p.get("policy_start_date") and p.get("policy_end_date"):
-                    return p
-            # Return first page or empty dict if none
-            return policy_data[0] if policy_data else {}
+        if not pages:
+            return {}
 
-        return {}
+        # Merge fields across all pages (preserving first found)
+        merged_policy: Dict[str, Any] = {}
+        for p in pages:
+            for k, v in p.items():
+                if v is not None and k not in merged_policy:
+                    merged_policy[k] = v
+
+        # Resolve start date candidate across all pages
+        start_val = self._find_date_candidate(merged_policy, self.START_DATE_CANDIDATES)
+        if not start_val:
+            for p in pages:
+                start_val = self._find_date_candidate(p, self.START_DATE_CANDIDATES)
+                if start_val:
+                    break
+
+        # Resolve end date candidate across all pages
+        end_val = self._find_date_candidate(merged_policy, self.END_DATE_CANDIDATES)
+        if not end_val:
+            for p in pages:
+                end_val = self._find_date_candidate(p, self.END_DATE_CANDIDATES)
+                if end_val:
+                    break
+
+        if start_val:
+            merged_policy["policy_start_date"] = start_val
+            merged_policy["start"] = start_val
+        if end_val:
+            merged_policy["policy_end_date"] = end_val
+            merged_policy["end"] = end_val
+
+        return merged_policy
 
     def _verify_identity(
         self,

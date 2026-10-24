@@ -512,7 +512,9 @@ class ClaimPreparationAdapter(BaseAgentTool):
             "consistency_severity": consistency_severity,
             "discrepancies": consistency_discrepancies,
             "missing_documents": missing_docs,
-            "action_items": action_items
+            "action_items": action_items,
+            "policy_period": (state.validity_result.get("policy_period", {}) if state.validity_result else {}),
+            "validity_check": state.validity_result or {}
         }
 
         state.final_status = final_status

@@ -395,9 +395,21 @@ This assessment is an autonomous AI preparation audit. Final approval remains su
     // 4. Coverage Period Validity
     const validity = latestState.validity_result || report.validity_check || {};
     const isCoveragePass = validity.valid !== false && report.coverage_validity_status !== 'FAIL';
-    const policyPeriod = validity.policy_period || {};
+    const policyPeriod = validity.policy_period || report.policy_period || {};
+    let pStart = policyPeriod.start || policyPeriod.policy_start_date || policyPeriod.policy_inception_date || policyPeriod.inception_date || policyPeriod.coverage_start_date || policyPeriod.effective_date || policyPeriod.from_date;
+    let pEnd = policyPeriod.end || policyPeriod.policy_end_date || policyPeriod.policy_expiry_date || policyPeriod.expiry_date || policyPeriod.coverage_end_date || policyPeriod.expiration_date || policyPeriod.to_date;
+
+    if (!pStart || !pEnd) {
+      const extractedPages = latestState.extracted_data || [];
+      for (const p of extractedPages) {
+        if (!pStart) pStart = p.policy_start_date || p.policy_inception_date || p.inception_date || p.coverage_start_date || p.effective_date || p.start_date || p.from_date;
+        if (!pEnd) pEnd = p.policy_end_date || p.policy_expiry_date || p.expiry_date || p.coverage_end_date || p.expiration_date || p.end_date || p.to_date;
+        if (pStart && pEnd) break;
+      }
+    }
+
     const coverageDetail = isCoveragePass
-      ? (policyPeriod.start && policyPeriod.end ? `${policyPeriod.start} ⟶ ${policyPeriod.end}` : 'Within active policy window')
+      ? (pStart && pEnd ? `${pStart} ⟶ ${pEnd}` : 'Within active policy window')
       : (validity.reasons?.[0] || 'Incident date out of coverage window');
 
     container.innerHTML = `
@@ -755,11 +767,25 @@ This assessment is an autonomous AI preparation audit. Final approval remains su
     const ganttContainer = document.getElementById('coverage-gantt-chart-container');
 
     const isValid = validityData?.valid !== false && report?.coverage_validity_status !== 'FAIL';
-    const policyPeriod = validityData?.policy_period || {};
+    const policyPeriod = validityData?.policy_period || report?.policy_period || {};
+
+    let pStart = policyPeriod.start || policyPeriod.policy_start_date || policyPeriod.policy_inception_date || policyPeriod.inception_date || policyPeriod.coverage_start_date || policyPeriod.effective_date || policyPeriod.from_date;
+    let pEnd = policyPeriod.end || policyPeriod.policy_end_date || policyPeriod.policy_expiry_date || policyPeriod.expiry_date || policyPeriod.coverage_end_date || policyPeriod.expiration_date || policyPeriod.to_date;
+
+    if (!pStart || !pEnd) {
+      const extractedPages = latestState.extracted_data || [];
+      for (const p of extractedPages) {
+        if (!pStart) pStart = p.policy_start_date || p.policy_inception_date || p.inception_date || p.coverage_start_date || p.effective_date || p.start_date || p.from_date;
+        if (!pEnd) pEnd = p.policy_end_date || p.policy_expiry_date || p.expiry_date || p.coverage_end_date || p.expiration_date || p.end_date || p.to_date;
+        if (pStart && pEnd) break;
+      }
+    }
 
     if (policyDatesEl) {
-      if (policyPeriod.start && policyPeriod.end) {
-        policyDatesEl.textContent = `${policyPeriod.start} ⟶ ${policyPeriod.end}`;
+      if (pStart && pEnd) {
+        policyDatesEl.textContent = `${pStart} ⟶ ${pEnd}`;
+      } else if (pStart) {
+        policyDatesEl.textContent = `From ${pStart}`;
       } else {
         policyDatesEl.textContent = 'Active Policy Window Verified';
       }
@@ -772,22 +798,61 @@ This assessment is an autonomous AI preparation audit. Final approval remains su
 
     // Render Visual Gantt / Timeline Bar
     if (ganttContainer) {
-      const startDate = policyPeriod.start || '2024-01-01';
-      const endDate = policyPeriod.end || '2025-01-01';
-      const incidentDate = validityData.incident_date || latestState.extracted_data?.[0]?.incident_date || 'Within Period';
+      const startDate = pStart || '--';
+      const endDate = pEnd || '--';
+
+      // Dynamic incident date resolution
+      let incidentDate = validityData.incident_date || null;
+      if (!incidentDate && Array.isArray(validityData.checks) && validityData.checks.length > 0) {
+        const firstWithDate = validityData.checks.find(c => c.normalized_date || c.raw_date);
+        if (firstWithDate) {
+          incidentDate = firstWithDate.normalized_date || firstWithDate.raw_date;
+        }
+      }
+      if (!incidentDate && Array.isArray(latestState.extracted_data)) {
+        for (const doc of latestState.extracted_data) {
+          if (doc.document_type !== 'insurance_policy') {
+            incidentDate = doc.document_date || doc.bill_date || doc.admission_date || doc.invoice_date || doc.report_date;
+            if (incidentDate) break;
+          }
+        }
+      }
+      const displayIncident = incidentDate || 'Within Period';
+
+      // Calculate duration dynamically if dates parseable
+      let durationLabel = 'Active Coverage Window';
+      if (pStart && pEnd) {
+        const parseD = (s) => {
+          if (!s) return null;
+          const parts = String(s).split(/[\/\-.]/);
+          if (parts.length === 3) {
+            if (parts[0].length === 4) return new Date(parts[0], parts[1] - 1, parts[2]);
+            return new Date(parts[2], parts[1] - 1, parts[0]);
+          }
+          return null;
+        };
+        const d1 = parseD(pStart);
+        const d2 = parseD(pEnd);
+        if (d1 && d2 && !isNaN(d1) && !isNaN(d2)) {
+          const diffDays = Math.round(Math.abs(d2 - d1) / (1000 * 60 * 60 * 24)) + 1;
+          if (diffDays > 0) {
+            durationLabel = `Active Coverage Window (${diffDays} Days)`;
+          }
+        }
+      }
 
       ganttContainer.innerHTML = `
         <div class="gantt-container">
           <div class="gantt-track-bg">
             <div class="gantt-coverage-window" style="left: 10%; width: 75%;"></div>
             <div class="gantt-marker marker-incident ${isValid ? '' : 'out-of-bounds'}" style="left: ${isValid ? '42%' : '92%'};">
-              <span class="gantt-marker-badge">${Utils.svgIcon('calendar', 10)} Incident: ${Utils.escapeHtml(incidentDate)}</span>
+              <span class="gantt-marker-badge">${Utils.svgIcon('calendar', 10)} Incident: ${Utils.escapeHtml(displayIncident)}</span>
               <div class="gantt-marker-pin"></div>
             </div>
           </div>
           <div class="gantt-legend-row">
             <span>Policy Start: <strong>${Utils.escapeHtml(startDate)}</strong></span>
-            <span style="color: var(--emerald); font-weight: 600;">Active Coverage Window (365 Days)</span>
+            <span style="color: var(--emerald); font-weight: 600;">${Utils.escapeHtml(durationLabel)}</span>
             <span>Policy Expiry: <strong>${Utils.escapeHtml(endDate)}</strong></span>
           </div>
         </div>
