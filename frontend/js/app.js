@@ -72,8 +72,8 @@
   function renderNew() {
     return `<section class="hero page-enter">
       <div class="hero-brand-badge" aria-hidden="true">
-        <img class="hero-icon-img dark-logo" src="assets/insuremate-icon-dark.svg" alt="" width="72" height="76">
-        <img class="hero-icon-img light-logo" src="assets/insuremate-icon-light.svg" alt="" width="72" height="76">
+        <img class="hero-icon-img dark-logo" src="assets/insuremate-icon-dark.svg" alt="InsureMate" width="78" height="82">
+        <img class="hero-icon-img light-logo" src="assets/insuremate-icon-light.svg" alt="InsureMate" width="78" height="82">
       </div>
       <p class="eyebrow">New analysis</p>
       <h1>InsureMate</h1>
@@ -84,7 +84,6 @@
         ${uploadCard("hospital", "Hospital document", "Medical bills and reports")}
       </div>
       <div class="upload-action"><span class="required-note">${state.policyDocument && state.hospitalDocument ? "Both documents are ready." : `Add the ${state.policyDocument ? "hospital" : state.hospitalDocument ? "policy" : "policy and hospital"} document${state.policyDocument || state.hospitalDocument ? "" : "s"} to continue.`}</span><button class="button primary" id="analyze-btn" ${state.policyDocument && state.hospitalDocument && !state.loading ? "" : "disabled"}>Analyze <span aria-hidden="true">→</span></button></div>
-      <div style="margin-top: 18px; text-align: center;"><button class="text-button" id="demo-btn" type="button" style="font-size: 13px; opacity: 0.85;">⚡ Try with sample health claim documents →</button></div>
       <p class="upload-footnote">PDF documents and scanned documents · Up to 25 MB per document</p>
     </section>`;
   }
@@ -97,7 +96,7 @@
       <div class="upload-card-header"><div><span class="eyebrow">${label}</span><h2>${title}</h2><p>${description}</p></div><span class="required-badge">${isValidating ? "Validating…" : file ? "Ready" : "Required"}</span></div>
       <div class="file-drop ${file ? "has-file" : ""} ${isValidating ? "is-loading" : ""}" data-drop="${kind}" tabindex="0">
         ${isValidating ? `<div class="validating-state" style="padding: 14px 0; text-align: center;"><strong style="display:block; margin-bottom: 4px;">Validating ${kind === "policy" ? "policy" : "document"}…</strong><span style="font-size: 12px; opacity: 0.75;">Checking file structure & intelligent content alignment</span></div>` :
-          file ? `<div class="attached-file"><span class="file-symbol">${file.type === "application/pdf" ? "PDF" : "IMG"}</span><div><strong>${escapeHtml(file.name)}</strong><span>${formatSize(file.size)}</span></div><button class="remove-file" type="button" data-remove-document="${kind}" aria-label="Remove ${escapeHtml(file.name)}" title="Remove ${escapeHtml(file.name)}">×</button></div>` :
+        file ? `<div class="attached-file"><span class="file-symbol">${file.type === "application/pdf" ? "PDF" : "IMG"}</span><div><strong>${escapeHtml(file.name)}</strong><span>${formatSize(file.size)}</span></div><button class="remove-file" type="button" data-remove-document="${kind}" aria-label="Remove ${escapeHtml(file.name)}" title="Remove ${escapeHtml(file.name)}">×</button></div>` :
           `<span class="upload-symbol" aria-hidden="true">↑</span><strong>Choose or drop a document</strong><span>PDF, JPG, PNG, or scanned image</span>`}
         <input class="file-input" data-input="${kind}" type="file" accept=".pdf,image/*" aria-label="Choose ${title}" ${file || isValidating ? "disabled" : ""}>
       </div>
@@ -291,11 +290,11 @@
             <span>Policy Clause / Reason</span>
           </div>
           ${missingItems.map((doc, idx) => {
-            const sr = value(doc, ["sr_no"]) || (idx + 1);
-            const title = value(doc, ["title", "document_title", "document_name"]) || "Required Document";
-            const page = value(doc, ["page_number", "page_no", "page"]);
-            const reason = value(doc, ["reason", "details"]) || "Mandated by policy schedule";
-            return `<div class="docs-table-row row-missing">
+      const sr = value(doc, ["sr_no"]) || (idx + 1);
+      const title = value(doc, ["title", "document_title", "document_name"]) || "Required Document";
+      const page = value(doc, ["page_number", "page_no", "page"]);
+      const reason = value(doc, ["reason", "details"]) || "Mandated by policy schedule";
+      return `<div class="docs-table-row row-missing">
               <span class="doc-sr">${escapeHtml(sr)}</span>
               <strong class="doc-title">${escapeHtml(title)}</strong>
               <span>
@@ -306,7 +305,7 @@
               <span class="doc-page">${page ? `Page ${escapeHtml(page)}` : "—"}</span>
               <span class="doc-reason">${escapeHtml(reason)}</span>
             </div>`;
-          }).join("")}
+    }).join("")}
         </div>
       </div>
     </div>`;
@@ -366,19 +365,19 @@
               <span>Details</span>
             </div>
             ${dates.map(item => {
-              const type = value(item, ["type", "document_type", "name"]) || "Document Date";
-              const dateVal = value(item, ["date", "normalized_date", "raw_date"]) || "—";
-              const details = value(item, ["details", "reason"]) || "";
-              let page = value(item, ["page_number", "page", "page_no"]);
-              if (!page || page === "—" || page === 1 || page === "1") {
-                const match = String(details).match(/\b(?:Page|page)\s*(\d+)\b/);
-                if (match && match[1]) {
-                  page = match[1];
-                }
-              }
-              const checkValid = item.valid !== false;
-              const statusText = value(item, ["status"]) || (checkValid ? "Within Coverage" : "Outside Period");
-              return `<div class="docs-table-row dates-table-row">
+      const type = value(item, ["type", "document_type", "name"]) || "Document Date";
+      const dateVal = value(item, ["date", "normalized_date", "raw_date"]) || "—";
+      const details = value(item, ["details", "reason"]) || "";
+      let page = value(item, ["page_number", "page", "page_no"]);
+      if (!page || page === "—" || page === 1 || page === "1") {
+        const match = String(details).match(/\b(?:Page|page)\s*(\d+)\b/);
+        if (match && match[1]) {
+          page = match[1];
+        }
+      }
+      const checkValid = item.valid !== false;
+      const statusText = value(item, ["status"]) || (checkValid ? "Within Coverage" : "Outside Period");
+      return `<div class="docs-table-row dates-table-row">
                 <strong>${escapeHtml(type)}</strong>
                 <span class="date-badge">${escapeHtml(dateVal)}</span>
                 <span>${page ? `Page ${escapeHtml(page)}` : "—"}</span>
@@ -389,7 +388,7 @@
                 </span>
                 <span class="doc-reason">${escapeHtml(details)}</span>
               </div>`;
-            }).join("")}
+    }).join("")}
           </div>
         ` : `<div class="empty-panel">No document dates were extracted from submitted files.</div>`}
       </div>
@@ -450,8 +449,8 @@
       return new Date(rightDate) - new Date(leftDate);
     });
     const filtered = sorted.filter(item => JSON.stringify(item).toLowerCase().includes(state.historyQuery.toLowerCase()));
-    container.innerHTML = !filtered.length 
-      ? `<div class="empty-line">No analyses found. <button class="text-button" data-view="new">Start a new analysis</button></div>` 
+    container.innerHTML = !filtered.length
+      ? `<div class="empty-line">No analyses found. <button class="text-button" data-view="new">Start a new analysis</button></div>`
       : `<div class="history-list">${filtered.map(item => historyRow(item)).join("")}</div>`;
   }
   function historyRow(item) {
@@ -490,7 +489,16 @@
 
 
   function loadingState(text) { return `<section class="loading-state page-enter"><div class="skeleton large"></div><div class="skeleton"></div><div class="skeleton short"></div><p>${escapeHtml(text)}</p></section>`; }
-  function emptyState(text, action, view) { return `<section class="empty-state page-enter"><div class="empty-mark">✦</div><p>${escapeHtml(text)}</p><button class="button primary" data-view="${view}">${escapeHtml(action)} →</button></section>`; }
+  function emptyState(text, action, view) {
+    return `<section class="empty-state page-enter">
+      <div class="empty-brand-badge" aria-hidden="true">
+        <img class="empty-icon-img dark-logo" src="assets/insuremate-icon-dark.svg" alt="InsureMate" width="68" height="72">
+        <img class="empty-icon-img light-logo" src="assets/insuremate-icon-light.svg" alt="InsureMate" width="68" height="72">
+      </div>
+      <p>${escapeHtml(text)}</p>
+      <button class="button primary" data-view="${view}">${escapeHtml(action)} →</button>
+    </section>`;
+  }
   function emptyPanel(text) { return `<div class="empty-panel">${escapeHtml(text)}</div>`; }
   function errorCard(message, retryId) { return `<div class="error-card" role="alert"><strong>Something needs another try.</strong><p>${escapeHtml(message)}</p><button class="text-button" id="${retryId}">Retry</button></div>`; }
 
@@ -502,7 +510,7 @@
     state.error = null;
 
     if (state[`${kind}PreviewUrl`]) {
-      try { URL.revokeObjectURL(state[`${kind}PreviewUrl`]); } catch (_) {}
+      try { URL.revokeObjectURL(state[`${kind}PreviewUrl`]); } catch (_) { }
       state[`${kind}PreviewUrl`] = null;
     }
 
