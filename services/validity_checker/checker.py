@@ -24,7 +24,9 @@ class DateCheckItem:
     reason: str
 
     def to_dict(self) -> Dict[str, Any]:
-        return asdict(self)
+        d = asdict(self)
+        d["page"] = self.page_number
+        return d
 
 
 @dataclass
@@ -259,7 +261,7 @@ class ValidityChecker:
 
         for doc in docs_list:
             doc_type = doc.get("document_type", "unknown")
-            page_num = doc.get("page_number", 0)
+            page_num = doc.get("page_number") or doc.get("page_no") or doc.get("page") or 0
 
             # Skip policy copy itself when checking claim event dates
             if doc_type == "insurance_policy":
@@ -367,10 +369,15 @@ class ValidityChecker:
 
         # 4. Identity & Floater Member Verification
         identity_report = self._verify_identity(policy_info, docs_list)
-        if identity_report and identity_report.get("note"):
-            reasons.append(identity_report["note"])
+        identity_valid = True
+        if identity_report:
+            if identity_report.get("note"):
+                reasons.append(identity_report["note"])
+            if identity_report.get("all_matched") is False:
+                identity_valid = False
+                reasons.append("Patient identity mismatch: Patient does not match covered policy members.")
 
-        overall_valid = policy_dates_valid and all_doc_checks_passed and has_at_least_one_bill_or_report
+        overall_valid = policy_dates_valid and all_doc_checks_passed and has_at_least_one_bill_or_report and identity_valid
 
         logger.result(
             f"Validity evaluation result: valid={overall_valid} | checks={len(checks)} | reasons={len(reasons)}"

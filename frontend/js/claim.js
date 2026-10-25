@@ -885,6 +885,12 @@ This assessment is an autonomous AI preparation audit. Final approval remains su
 
       container.innerHTML = checks.map(c => {
         const isPass = c.valid !== false;
+        let pageNum = c.page_number || c.page_no || c.page;
+        const reasonText = c.reason || c.details || '';
+        const m = String(reasonText).match(/\b(?:Page|page)\s*(\d+)\b/);
+        if (m && (!pageNum || pageNum === 1 || pageNum === '1')) {
+          pageNum = m[1];
+        }
         return `
           <div class="date-audit-item">
             <div class="date-audit-left">
@@ -892,7 +898,7 @@ This assessment is an autonomous AI preparation audit. Final approval remains su
                 ${Utils.svgIcon(isPass ? 'checkCircle' : 'xCircle', 16)}
               </div>
               <div>
-                <div class="date-audit-desc-title">${Utils.escapeHtml(c.document_type || 'Claim Document')} (Page ${c.page || 1})</div>
+                <div class="date-audit-desc-title">${Utils.escapeHtml(c.document_type || 'Claim Document')} (Page ${pageNum || 1})</div>
                 <div class="date-audit-desc-sub">${Utils.escapeHtml(c.reason || 'Verified against policy effective dates.')}</div>
               </div>
             </div>

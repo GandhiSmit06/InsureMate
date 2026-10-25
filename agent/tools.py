@@ -436,10 +436,18 @@ class ClaimPreparationAdapter(BaseAgentTool):
         # Determine final status
         action_items: List[str] = []
 
+        has_policy_doc = any(d.get("document_type") == "insurance_policy" for d in state.extracted_data)
+        has_medical_doc = any(d.get("document_type") != "insurance_policy" for d in state.extracted_data)
+
         if state.errors and not state.extracted_data:
             final_status = ClaimStatus.INSUFFICIENT_INFORMATION.value
             decision_summary = "Claim processing stopped due to unreadable or missing document files."
             action_items.append("Please upload legible PDF documents.")
+
+        elif not state.extracted_data:
+            final_status = ClaimStatus.INSUFFICIENT_INFORMATION.value
+            decision_summary = "No documents available for claim assessment."
+            action_items.append("Please upload policy and medical documents.")
 
         elif validation_valid is False:
             final_status = ClaimStatus.ACTION_REQUIRED_INVALID_DOCUMENTS.value
@@ -455,7 +463,7 @@ class ClaimPreparationAdapter(BaseAgentTool):
             action_items.extend(reasons)
 
         # BLOCKING RULE: Cross-document entity contradictions (competing insurers, unassociated policy numbers, mismatched patients)
-        elif is_consistent is False or consistency_severity == "CRITICAL":
+        elif is_consistent is False or consistency_severity in ("CRITICAL", "WARNING") or len(consistency_discrepancies) > 0:
             final_status = ClaimStatus.ACTION_REQUIRED_INVALID_DOCUMENTS.value
             decision_summary = "Cross-document integrity check failed: Conflicting insurance entities or policy details detected across submitted documents."
             if consistency_discrepancies:
@@ -464,13 +472,17 @@ class ClaimPreparationAdapter(BaseAgentTool):
             else:
                 action_items.append("Resolve cross-document entity contradictions between submitted files.")
 
-        # If only policy was uploaded and no bills/claim documents are attached,
-        # the primary requirement is submitting the missing evidence, not date failure.
-        elif not any(d.get("document_type") not in ("insurance_policy", "unknown") for d in state.extracted_data) and missing_docs:
+        # Require a valid policy document
+        elif not has_policy_doc:
+            final_status = ClaimStatus.ACTION_REQUIRED_INVALID_DOCUMENTS.value
+            decision_summary = "Insurance policy document required: No verified insurance policy schedule found among uploaded documents."
+            action_items.append("Upload a valid insurance policy schedule or certificate of insurance.")
+
+        # If only policy was uploaded and no bills/claim documents are attached
+        elif not has_medical_doc:
             final_status = ClaimStatus.ACTION_REQUIRED_MISSING_EVIDENCE.value
-            decision_summary = f"Policy verified. Supporting claim evidence required: {', '.join(missing_docs)}."
-            for m in missing_docs:
-                action_items.append(f"Upload required document: {m}")
+            decision_summary = "Policy verified. Supporting claim evidence required: Please upload hospital discharge summary, medical bills, or diagnostic reports."
+            action_items.append("Upload supporting medical bills and clinical records.")
 
         elif is_valid_dates is False:
             final_status = ClaimStatus.INVALID_CLAIM_DATES.value
@@ -485,15 +497,24 @@ class ClaimPreparationAdapter(BaseAgentTool):
             for m in missing_docs:
                 action_items.append(f"Upload required document: {m}")
 
-        elif validation_valid is True and is_valid_dates is True and not missing_docs and (is_consistent is not False):
-            final_status = ClaimStatus.CLAIM_READY_FOR_SUBMISSION.value
-            decision_summary = "All documents validated, coverage dates verified, entities consistent, and all required evidence present."
-            action_items.append("Ready to assemble final claim package and submit to insurer.")
-
         elif validation_valid is None or is_valid_dates is None:
             final_status = ClaimStatus.INSUFFICIENT_INFORMATION.value
             decision_summary = "Claim assessment is incomplete: mandatory document validation or validity checks have not been executed."
             action_items.append("Execute complete claim verification before submission.")
+
+        elif (
+            validation_valid is True
+            and is_valid_dates is True
+            and not missing_docs
+            and (is_consistent is not False)
+            and consistency_severity != "CRITICAL"
+            and len(consistency_discrepancies) == 0
+            and has_policy_doc
+            and has_medical_doc
+        ):
+            final_status = ClaimStatus.CLAIM_READY_FOR_SUBMISSION.value
+            decision_summary = "All documents validated, coverage dates verified, entities consistent, and all required evidence present."
+            action_items.append("Ready to assemble final claim package and submit to insurer.")
 
         else:
             final_status = ClaimStatus.ACTION_REQUIRED_MISSING_EVIDENCE.value
@@ -503,6 +524,7 @@ class ClaimPreparationAdapter(BaseAgentTool):
         report = {
             "claim_id": state.claim_id,
             "status": final_status,
+            "verdict": final_status,
             "is_ready": final_status == ClaimStatus.CLAIM_READY_FOR_SUBMISSION.value,
             "decision_summary": decision_summary,
             "total_documents_processed": len(state.extracted_data),

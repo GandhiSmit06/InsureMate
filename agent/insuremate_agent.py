@@ -210,22 +210,48 @@ class InsureMateAgent:
                             elif isinstance(item, dict) and item.get("missing") is True:
                                 missing_list.append(item.get("document_title", "Unknown document"))
 
+                    has_policy = any(d.get("document_type") == "insurance_policy" for d in state.extracted_data)
+                    has_medical = any(d.get("document_type") != "insurance_policy" for d in state.extracted_data)
+                    consistency_clean = (
+                        state.consistency_results is None
+                        or (
+                            state.consistency_results.get("consistent") is True
+                            and state.consistency_results.get("severity") != "CRITICAL"
+                            and len(state.consistency_results.get("discrepancies", [])) == 0
+                        )
+                    )
+
                     if state.errors and not state.extracted_data:
                         state.final_status = ClaimStatus.INSUFFICIENT_INFORMATION.value
-                    elif not state.extracted_data and not state.documents:
-                        state.final_status = ClaimStatus.CLAIM_READY_FOR_SUBMISSION.value
+                    elif not state.extracted_data:
+                        state.final_status = ClaimStatus.INSUFFICIENT_INFORMATION.value
                     elif validation_valid is False:
                         state.final_status = ClaimStatus.ACTION_REQUIRED_INVALID_DOCUMENTS.value
-                    elif state.consistency_results and (state.consistency_results.get("consistent") is False or state.consistency_results.get("severity") == "CRITICAL"):
+                    elif state.consistency_results and (
+                        state.consistency_results.get("consistent") is False
+                        or state.consistency_results.get("severity") in ("CRITICAL", "WARNING")
+                        or len(state.consistency_results.get("discrepancies", [])) > 0
+                    ):
                         state.final_status = ClaimStatus.ACTION_REQUIRED_INVALID_DOCUMENTS.value
+                    elif not has_policy:
+                        state.final_status = ClaimStatus.ACTION_REQUIRED_INVALID_DOCUMENTS.value
+                    elif not has_medical:
+                        state.final_status = ClaimStatus.ACTION_REQUIRED_MISSING_EVIDENCE.value
                     elif is_valid_dates is False:
                         state.final_status = ClaimStatus.INVALID_CLAIM_DATES.value
                     elif missing_list:
                         state.final_status = ClaimStatus.ACTION_REQUIRED_MISSING_EVIDENCE.value
-                    elif validation_valid is True and is_valid_dates is True and not missing_list:
-                        state.final_status = ClaimStatus.CLAIM_READY_FOR_SUBMISSION.value
                     elif validation_valid is None or is_valid_dates is None:
                         state.final_status = ClaimStatus.INSUFFICIENT_INFORMATION.value
+                    elif (
+                        validation_valid is True
+                        and is_valid_dates is True
+                        and not missing_list
+                        and consistency_clean
+                        and has_policy
+                        and has_medical
+                    ):
+                        state.final_status = ClaimStatus.CLAIM_READY_FOR_SUBMISSION.value
                     else:
                         state.final_status = ClaimStatus.INSUFFICIENT_INFORMATION.value
 
@@ -297,10 +323,18 @@ class InsureMateAgent:
             # Case C: Terminal / Interaction - Request information from user
             if decision.action in ("request_user_info", "ask_user"):
                 state.record_trace(decision=decision.reason, tool=None, tool_result=None)
-                if not state.documents and not state.extracted_data:
-                    state.final_status = ClaimStatus.INSUFFICIENT_INFORMATION.value
-                else:
+                has_actual_missing = bool(
+                    state.missing_documents
+                    and (
+                        state.missing_documents.get("summary", {}).get("missing", 0) > 0
+                        or state.missing_documents.get("summary", {}).get("total_missing", 0) > 0
+                        or any(d.get("missing") for d in state.missing_documents.get("document_results", []))
+                    )
+                )
+                if has_actual_missing:
                     state.final_status = ClaimStatus.ACTION_REQUIRED_MISSING_EVIDENCE.value
+                else:
+                    state.final_status = ClaimStatus.INSUFFICIENT_INFORMATION.value
                 question = decision.reason or "Additional user information or document evidence is required."
                 state.record_unresolved_question(question)
                 state.final_report = {

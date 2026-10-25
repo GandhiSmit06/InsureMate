@@ -211,10 +211,9 @@ def test_acceptance_normal_document_upload_processes_all_27_pages():
     """
     Acceptance Test 2: Upload Policy into Policy slot and Claim into Claim slot.
     All 11 policy pages + 16 claim pages = 27 pages MUST be extracted and audited.
-    Because the test claim document reports a conflicting insurer on Page 2
-    ('XXXXX Verified Direct Contact Other Health Insurance' vs 'Sunrise Shield'),
-    the dynamic cross-document consistency engine correctly blocks submission readiness,
-    transitions status to ACTION_REQUIRED_INVALID_DOCUMENTS, and provides actionable discrepancy items.
+    With single-line insurer extraction and noise filtering, both policy and claim
+    consistently identify 'Sunrise Shield Health Insurance Ltd' without false contradictions.
+    Status correctly evaluates to CLAIM_READY_FOR_SUBMISSION with 0 missing evidence.
     """
     state = ClaimState(
         claim_id="TEST-NORMAL-002",
@@ -237,15 +236,48 @@ def test_acceptance_normal_document_upload_processes_all_27_pages():
     assert final_state.validity_result is not None
     assert final_state.validity_result.get("valid") is True
 
-    # Cross-document consistency verification
+    # Cross-document consistency verification (Should PASS - No false discrepancies)
     assert final_state.consistency_results is not None
-    assert final_state.consistency_results.get("consistent") is False
-    assert final_state.consistency_results.get("severity") == "CRITICAL"
+    assert final_state.consistency_results.get("consistent") is True
+    assert final_state.consistency_results.get("severity") == "NONE"
 
-    # Final verdict correctly blocked due to entity contradiction
-    assert final_state.final_status == ClaimStatus.ACTION_REQUIRED_INVALID_DOCUMENTS.value
-    assert final_state.final_report.get("is_ready") is False
-    assert any("Conflicting insurance companies" in item for item in final_state.final_report.get("action_items", []))
+    # Final verdict is ready for submission
+    assert final_state.final_status == ClaimStatus.CLAIM_READY_FOR_SUBMISSION.value
+    assert final_state.final_report.get("is_ready") is True
+
+
+def test_genuine_insurer_discrepancy_is_detected():
+    """
+    Verify that genuine entity contradictions (e.g. Star Health vs Sunrise Shield)
+    are strictly detected, blocking claim submission and transitioning to ACTION_REQUIRED_INVALID_DOCUMENTS.
+    """
+    from tools.cross_document_consistency_tool import CrossDocumentConsistencyTool
+
+    mock_extracted = [
+        {
+            "page_number": 1,
+            "document_type": "insurance_policy",
+            "insurer_name": "Sunrise Shield Health Insurance Ltd",
+            "policy_number": "SSHI-TEST-2026-001",
+            "patient_name": "Aarav Mehta",
+            "hospital_name": "Harmony Multispeciality Hospital"
+        },
+        {
+            "page_number": 1,
+            "document_type": "hospital_document",
+            "insurer_name": "Star Health and Allied Insurance Co",
+            "policy_number": "SSHI-TEST-2026-001",
+            "patient_name": "Aarav Mehta",
+            "hospital_name": "Harmony Multispeciality Hospital"
+        }
+    ]
+
+    tool = CrossDocumentConsistencyTool()
+    res = tool.execute({"extracted_data": mock_extracted})
+
+    assert res["consistent"] is False
+    assert res["severity"] == "CRITICAL"
+    assert any("Conflicting insurance companies" in d for d in res["discrepancies"])
 
 
 def test_semantic_field_extraction_accuracy():

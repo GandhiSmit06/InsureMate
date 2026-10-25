@@ -1,23 +1,35 @@
-# InsureMate - Core Multimodal & Extraction Dependencies
+# =====================================================================
+# InsureMate - Autonomous Insurance Claim Preparation Agent
+# Dependencies Specification (Production, OCR, Web Application & Tests)
+# =====================================================================
+
+# Core Agentic & Multimodal Document Intelligence
 openai>=1.20.0
 pillow>=10.0.0
 python-dotenv>=1.0.0
 pypdfium2>=5.0.0
+pymupdf>=1.24.0
 requests>=2.28.0
 pydantic>=2.6.0
+python-dateutil>=2.8.2
 
-# Windows Native OCR Support (scanned documents fallback)
+# Computer Vision & Numeric Processing
+opencv-python>=4.8.0
+numpy>=1.24.0
+pandas>=2.0.0
+
+# Windows Native OCR Support (Scanned Documents Fallback)
 winocr>=0.0.14; sys_platform == "win32"
 
-# Phase 7 - Application, Web UI & REST API Server
+# Phase 7 - FastAPI REST API & Async Web Server
 fastapi>=0.110.0
 uvicorn>=0.28.0
 python-multipart>=0.0.9
 
-# Testing & TestClient HTTP Dependencies
-pytest>=7.0.0
+# Automated Testing & TestClient HTTP Harness
+pytest>=7.4.0
+pytest-cov>=4.1.0
 httpx>=0.24.0
 
-# PDF Generation & Test Fixtures (scripts/)
+# Publication-Grade PDF Adjudication Report Generator
 reportlab>=3.6.0
-

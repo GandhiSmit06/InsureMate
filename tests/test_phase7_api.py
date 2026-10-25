@@ -76,8 +76,12 @@ def test_create_demo_claim_invalid_preset(client: TestClient):
 
 def test_upload_claim_documents(client: TestClient):
     """Verify uploading policy and claim PDFs to create a new session."""
-    policy_content = b"%PDF-1.4 Mock Policy File Content"
-    claim_content = b"%PDF-1.4 Mock Claim Hospital Bill"
+    root = Path(__file__).resolve().parent.parent
+    policy_pdf_path = root / "sample_policy.pdf"
+    claim_pdf_path = root / "sample_claim.pdf"
+
+    policy_content = policy_pdf_path.read_bytes() if policy_pdf_path.exists() else (root / "policy_A.pdf").read_bytes()
+    claim_content = claim_pdf_path.read_bytes() if claim_pdf_path.exists() else (root / "claim_A.pdf").read_bytes()
 
     files = [
         ("policy_file", ("policy.pdf", io.BytesIO(policy_content), "application/pdf")),

@@ -133,7 +133,7 @@ class AgentService:
         self,
         demo_type: Optional[str] = None,
         preset: Optional[str] = None,
-        offline_mode: bool = True,
+        offline_mode: bool = False,
         **kwargs: Any
     ) -> Dict[str, Any]:
         """Create a preconfigured demonstration session using repository documents."""

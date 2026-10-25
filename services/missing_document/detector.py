@@ -81,10 +81,16 @@ class MissingDocumentDetector:
             phase1_output = kwargs["phase1_output"]
 
         extracted_docs: List[Dict[str, Any]] = []
-        if phase1_output and isinstance(phase1_output, dict):
+        if isinstance(phase1_output, list):
+            extracted_docs = phase1_output
+        elif phase1_output and isinstance(phase1_output, dict):
             extracted_docs = phase1_output.get("extracted_documents", [])
         elif kwargs.get("input_data") and isinstance(kwargs["input_data"], dict):
-            extracted_docs = kwargs["input_data"].get("phase1_output", {}).get("extracted_documents", [])
+            p1_in = kwargs["input_data"].get("phase1_output") or kwargs["input_data"].get("extracted_data")
+            if isinstance(p1_in, list):
+                extracted_docs = p1_in
+            elif isinstance(p1_in, dict):
+                extracted_docs = p1_in.get("extracted_documents", [])
 
         policy_docs: List[Dict[str, Any]] = []
         submitted_docs: List[Dict[str, Any]] = []

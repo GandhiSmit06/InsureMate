@@ -187,3 +187,19 @@ def test_claims_list_and_health_endpoint(client: TestClient):
     assert "claims" in claims_data
     assert "total" in claims_data
 
+
+def test_download_claim_pdf_report(client: TestClient):
+    """Verify /api/claims/{claim_id}/report returns valid PDF binary data."""
+    # Create a demo health claim first
+    create_res = client.post("/api/claims/demo", json={"demo_type": "health"})
+    assert create_res.status_code in (200, 201)
+    claim_id = create_res.json().get("claim_id")
+    assert claim_id
+
+    # Request the PDF report
+    report_res = client.get(f"/api/claims/{claim_id}/report")
+    assert report_res.status_code == 200
+    assert report_res.headers.get("content-type") == "application/pdf"
+    assert "attachment" in report_res.headers.get("content-disposition", "")
+    assert report_res.content.startswith(b"%PDF")
+

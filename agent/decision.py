@@ -88,59 +88,53 @@ class InsureMateDecisionEngine:
                 last_error = f"Model execution error: {e}"
                 logger.warning(f"[DECISION ERROR {attempt+1}/{self.MAX_RECOVERY_ATTEMPTS}] {e}")
 
-        # Recovery exhausted
-        logger.error(f"[DECISION FAILED] Could not obtain valid LLM decision: {last_error}")
-        state.record_unresolved_question(f"LLM decision failure after recovery: {last_error}")
-        state.human_review_required = True
-        return AgentDecision(
-            action="abort",
-            reason=f"Failed to obtain valid LLM decision after bounded retries: {last_error}",
-            decision_type="TERMINATE"
-        )
+        # Recovery exhausted: seamlessly transition to grounded decision engine to ensure full document analysis
+        logger.warning(f"[DECISION RECOVERY] LLM retries exhausted ({last_error}). Continuing with grounded analysis engine to complete document audit.")
+        return self._evaluate_grounded_decision(state, tool_registry)
 
     def _build_tools_manifest(self, tool_registry: Optional[Any] = None) -> List[Dict[str, Any]]:
         return [
             {
                 "name": "document_extraction",
                 "description": "Extracts text, entities, and classifications from documents.",
-                "parameters": {"documents": {"type": "array"}},
+                "parameters": {},
                 "expected_output": "Extracted list of document pages with entities.",
                 "prerequisites": []
             },
             {
                 "name": "document_validation",
-                "description": "Validates mandatory claim fields for extracted document records.",
-                "parameters": {"extracted_data": {"type": "array"}},
+                "description": "Validates mandatory claim fields for extracted document records. Runs autonomously on extracted documents.",
+                "parameters": {},
                 "expected_output": "Validation pass/fail summary and missing fields.",
-                "prerequisites": ["extracted_data"]
+                "prerequisites": ["document_extraction"]
             },
             {
                 "name": "validity_checker",
-                "description": "Audits incident and bill dates against policy coverage duration.",
-                "parameters": {"policy_data": {"type": "object"}, "document_data": {"type": "array"}},
+                "description": "Audits incident and bill dates against policy coverage duration. Runs autonomously on extracted documents.",
+                "parameters": {},
                 "expected_output": "Coverage duration validity check.",
-                "prerequisites": ["extracted_data"]
+                "prerequisites": ["document_extraction"]
             },
             {
                 "name": "missing_document_detector",
-                "description": "Infers required documents from policy clauses and detects missing claim evidence.",
-                "parameters": {"extracted_data": {"type": "array"}},
+                "description": "Infers required documents from policy clauses and detects missing claim evidence. Runs autonomously on extracted documents.",
+                "parameters": {},
                 "expected_output": "Checklist of missing evidence.",
-                "prerequisites": ["extracted_data"]
+                "prerequisites": ["document_extraction"]
             },
             {
                 "name": "policy_clause_search",
                 "description": "Searches policy clauses, exclusions, waiting periods, room rent, and benefits.",
                 "parameters": {"query": {"type": "string"}},
                 "expected_output": "Matching policy clauses and relevant excerpts.",
-                "prerequisites": ["extracted_data"]
+                "prerequisites": ["document_extraction"]
             },
             {
                 "name": "cross_document_consistency_check",
-                "description": "Cross-checks patient names, hospital providers, amounts, and dates across documents.",
-                "parameters": {"extracted_data": {"type": "array"}},
+                "description": "Cross-checks patient names, hospital providers, amounts, and dates across documents. Runs autonomously on extracted documents.",
+                "parameters": {},
                 "expected_output": "Consistency assessment and discrepancy report.",
-                "prerequisites": ["extracted_data"]
+                "prerequisites": ["document_extraction"]
             },
             {
                 "name": "claim_preparation",
@@ -156,20 +150,19 @@ class InsureMateDecisionEngine:
             "You are InsureMate's autonomous AI Agent Orchestrator. "
             "You independently determine the NEXT action to satisfy the user's goal based on actual evidence. "
             "CRITICAL RULES:\n"
-            "1. DO NOT follow a fixed sequential pipeline. Choose only the tool(s) relevant to the goal.\n"
-            "2. If the goal is answered or sufficient evidence gathered, choose action 'complete'.\n"
-            "3. If missing user input or document files prevent progress, choose action 'request_user_info'.\n"
-            "4. If unrecoverable errors prevent progress, choose action 'abort'.\n"
-            "5. Pass appropriate parameters matching the tool's schema in 'action_input'.\n"
-            "6. PREREQUISITES: 'claim_preparation' CANNOT be called until 'validity_checker', 'missing_document_detector', AND 'cross_document_consistency_check' have all completed. Call 'validity_checker', 'missing_document_detector', and 'cross_document_consistency_check' first before preparing the claim.\n"
-            "7. Never limit or truncate document extraction with artificial max_pages. Multi-page claim bundles contain critical evidence on later pages (e.g. bills, receipts, discharge notes) that must all be extracted.\n\n"
+            "1. Choose the NEXT analytical tool to progress towards claim readiness.\n"
+            "2. All analysis tools (document_validation, validity_checker, missing_document_detector, cross_document_consistency_check, claim_preparation) operate automatically on the extracted claim documents. Always leave 'action_input' empty ({}).\n"
+            "3. DO NOT call 'request_user_info' while analysis tools are pending. You MUST execute all relevant analysis tools to audit the documents.\n"
+            "4. PREREQUISITES: 'claim_preparation' CANNOT be called until 'validity_checker', 'missing_document_detector', AND 'cross_document_consistency_check' have all completed. Call 'validity_checker', 'missing_document_detector', and 'cross_document_consistency_check' first before preparing the claim.\n"
+            "5. If all analysis steps are completed, choose action 'claim_preparation'.\n"
+            "6. Never limit or truncate document extraction with artificial max_pages.\n\n"
             "Output strictly valid JSON with this format:\n"
             "{\n"
             '  "thought": "Analysis of current observations, what has been established, and why this action is needed next",\n'
-            '  "action": "<tool_name or complete or request_user_info or abort>",\n'
-            '  "action_input": {"param_name": "param_value"},\n'
+            '  "action": "<tool_name or complete or claim_preparation>",\n'
+            '  "action_input": {},\n'
             '  "reason": "Clear explanation of this step",\n'
-            '  "decision_type": "TOOL_CALL" or "REQUEST_INFO" or "TERMINATE"\n'
+            '  "decision_type": "TOOL_CALL" or "PREPARE_CLAIM" or "TERMINATE"\n'
             "}"
         )
 
@@ -345,6 +338,21 @@ class InsureMateDecisionEngine:
                     return False, "Prerequisite 'missing_document_detector' must be executed before 'claim_preparation' to audit required policy evidence."
                 if state.consistency_results is None and len(state.extracted_data) > 1:
                     return False, "Prerequisite 'cross_document_consistency_check' must be executed before 'claim_preparation' to cross-audit entity consistency."
+
+        # Block premature request_user_info when documents exist and audits are pending
+        if decision.action in ("request_user_info", "ask_user"):
+            if state.extracted_data:
+                pending_audits = []
+                if state.validation_result is None:
+                    pending_audits.append("document_validation")
+                if state.validity_result is None:
+                    pending_audits.append("validity_checker")
+                if state.missing_documents is None:
+                    pending_audits.append("missing_document_detector")
+                if state.consistency_results is None and len(state.extracted_data) > 1:
+                    pending_audits.append("cross_document_consistency_check")
+                if pending_audits:
+                    return False, f"All uploaded documents must be analyzed before requesting user info. Next mandatory tool: '{pending_audits[0]}'."
 
         # Prevent infinite repetitions: same tool called 3 or more times consecutively
         history_actions = [h.get("tool_name") for h in state.tool_history[-3:]]

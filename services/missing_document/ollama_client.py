@@ -23,11 +23,15 @@ class OllamaClient:
         model: Optional[str] = None,
         timeout: Optional[int] = None
     ):
-        self.base_url = (
+        raw_url = (
             base_url
             or os.environ.get("OLLAMA_BASE_URL")
-            or "http://localhost:11434"
+            or "http://127.0.0.1:11434"
         ).rstrip("/")
+        # Avoid Windows localhost IPv6 resolution delay (which causes 2s latency and timeouts)
+        if "localhost:11434" in raw_url:
+            raw_url = raw_url.replace("localhost:11434", "127.0.0.1:11434")
+        self.base_url = raw_url
         self.model = (
             model
             or os.environ.get("OLLAMA_MODEL")
@@ -49,14 +53,15 @@ class OllamaClient:
 
         is_avail = False
         try:
-            resp = requests.get(f"{self.base_url}/api/tags", timeout=1.0)
+            # Check 127.0.0.1 directly to avoid DNS delays; use 3.0s timeout
+            resp = requests.get(f"{self.base_url}/api/tags", timeout=3.0)
             if resp.status_code == 200:
                 is_avail = True
                 data = resp.json()
                 models = [m.get("name") for m in data.get("models", []) if m.get("name")]
                 # If target model is not found in installed models list, select first chat-compatible model
                 if models and self.model not in models:
-                    preferred = ["qwen2.5", "llama3.2", "gemma2", "gemma", "mistral", "llama3", "qwen"]
+                    preferred = ["gemma3", "qwen2.5", "llama3.2", "gemma2", "gemma", "mistral", "llama3", "qwen"]
                     chosen = None
                     for pref in preferred:
                         for m in models:

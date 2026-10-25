@@ -1,11 +1,14 @@
-# InsureMate — Insurance Claim Preparation Agent
-**Track B: Agentic AI Application | End-to-End Autonomous System (Phases 1–7)**
+<p align="center">
+  <img src="frontend/assets/animated-header.svg" alt="InsureMate Autonomous Claim Agent" width="800" style="max-width: 100%; height: auto;" />
+</p>
 
-[![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
-[![FastAPI](https://img.shields.io/badge/FastAPI-0.110+-green.svg)](https://fastapi.tiangolo.com)
-[![Pydantic v2](https://img.shields.io/badge/pydantic-v2-orange.svg)](https://docs.pydantic.dev/)
-[![Tests](https://img.shields.io/badge/tests-102%20passed-brightgreen.svg)](tests/)
-[![License: MIT](https://img.shields.io/badge/License-MIT-purple.svg)](LICENSE)
+<p align="center">
+  <a href="https://www.python.org/downloads/"><img src="https://img.shields.io/badge/python-3.10+-38BDF8.svg?style=for-the-badge&logo=python&logoColor=white" alt="Python 3.10+" /></a>
+  <a href="https://fastapi.tiangolo.com"><img src="https://img.shields.io/badge/FastAPI-0.110+-059669.svg?style=for-the-badge&logo=fastapi&logoColor=white" alt="FastAPI" /></a>
+  <a href="https://docs.pydantic.dev/"><img src="https://img.shields.io/badge/pydantic-v2-E11D48.svg?style=for-the-badge&logo=pydantic&logoColor=white" alt="Pydantic v2" /></a>
+  <a href="tests/"><img src="https://img.shields.io/badge/tests-102%20passed-10B981.svg?style=for-the-badge&logo=pytest&logoColor=white" alt="Tests" /></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-8B5CF6.svg?style=for-the-badge" alt="License: MIT" /></a>
+</p>
 
 ---
 
@@ -581,3 +584,9 @@ python -m pytest tests/test_phase7_api.py tests/test_phase7_database.py
 - **Track**: Track B — Agentic AI Application (Semester Project)
 - **Repository**: [GandhiSmit06/InsureMate](https://github.com/GandhiSmit06/InsureMate)
 - **License**: MIT
+
+<br />
+
+<p align="center">
+  <img src="frontend/assets/animated-footer.svg" alt="InsureMate Animated Footer" width="800" style="max-width: 100%; height: auto;" />
+</p>

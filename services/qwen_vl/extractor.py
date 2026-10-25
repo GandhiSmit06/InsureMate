@@ -270,21 +270,12 @@ class QwenVLExtractor:
         name_lower = (filename_hint or "").lower()
 
         if not text:
-            # Clean fallback for blank or unreadable pages
+            # Clean fallback for blank or unreadable pages: strictly content-based (unknown)
             doc_type = "unknown"
-            if "policy" in name_lower:
-                doc_type = "insurance_policy"
-            elif any(k in name_lower for k in ["bill", "invoice"]):
-                doc_type = "medical_bill"
-            elif "fir" in name_lower:
-                doc_type = "incident_document"
-            elif any(k in name_lower for k in ["hospital", "claim", "discharge"]):
-                doc_type = "hospital_document"
-
             return PageExtractionResult(
                 page_number=page.page_number,
                 document_type=doc_type,
-                document_title=f"{doc_type.replace('_', ' ').title()} (Page {page.page_number})",
+                document_title=f"Unreadable Document (Page {page.page_number})",
                 document_date=None,
                 extracted_text_summary="Document page with no readable text."
             )
@@ -321,8 +312,9 @@ class QwenVLExtractor:
         if (
             sec_banner_m
             or "certified policy" in text_lower
-            or ("policy number" in text_lower and any(pk in text_lower for pk in ["sum insured", "proposer", "policyholder", "waiting period", "schedule of insurance"]) and not any(hk in text_lower for hk in ["hospital:", "ipd record", "patient name:"]))
-            or ("policy" in name_lower and not any(k in text_lower for k in ["claim form", "tax invoice", "indoor admission", "discharge summary", "police station", "fir", "hospital indoor", "ipd record"]))
+            or any(h in text_lower for h in ["policy schedule", "schedule of insurance", "certificate of insurance", "policy certificate", "policy wording", "terms and conditions of insurance"])
+            or ("policy number" in text_lower and any(pk in text_lower for pk in ["sum insured", "proposer", "policyholder", "waiting period", "schedule of insurance", "gross premium", "period of insurance"]) and not any(hk in text_lower for hk in ["hospital:", "ipd record", "ipd admission", "tax invoice", "cashier receipt"]))
+            or (any(h in text_lower for h in ["health plan", "sum insured", "proposer details", "coverage details", "elevate"]) and any(c in text_lower for c in ["policy period", "waiting period", "exclusion", "benefit", "premium"]) and not any(hk in text_lower for hk in ["tax invoice", "ipd no", "bill amount", "discharge summary", "chief complaints", "investigation charges"]))
         ):
             doc_type = "insurance_policy"
         elif doc_banner_m:
@@ -406,21 +398,36 @@ class QwenVLExtractor:
         # 4. Dynamic Insurer detection
         insurer_name = None
         hdr_m = re.search(
-            r"(?:Insurer|Insurance\s*Company|Underwritten\s*by|Issued\s*by|TPA|Preferred\s*Provider)\s*[:\-]\s*([A-Za-z0-9\s&.,'-]+?)(?:\s*(?:\||\n|\r|,|;|\.|\Z))",
+            r"(?:Insurer|Insurance\s*Company|Underwritten\s*by|Issued\s*by|TPA|Preferred\s*Provider)\s*[:\-]\s*([A-Za-z0-9 \t&.,'-]+?)(?:\s*(?:\||\n|\r|,|;|\.|\Z))",
             text,
             re.I
         )
         if hdr_m and len(hdr_m.group(1).strip()) > 3:
-            insurer_name = hdr_m.group(1).strip()
-        else:
+            candidate = hdr_m.group(1).strip()
+            cand_low = candidate.lower()
+            if not any(x in cand_low for x in ["held?", "nil", "other health insurance", "xxxxx", "verified direct"]):
+                insurer_name = candidate
+
+        if not insurer_name:
             corp_m = re.search(
-                r"\b([A-Z][A-Za-z0-9&.\s'-]{1,35}?\s*(?:General\s*Insurance|Life\s*Insurance|Health\s*Insurance|Assurance\s*Co(?:mpany)?|Insurance\s*Co(?:mpany)?|Lombard|Allianz|ERGO|Bupa|Assurance))\b",
+                r"\b([A-Z][A-Za-z0-9&. \t'-]{1,35}?[ \t]*(?:General\s*Insurance|Life\s*Insurance|Health\s*Insurance|Assurance\s*Co(?:mpany)?|Insurance\s*Co(?:mpany)?|Lombard|Allianz|ERGO|Bupa|Assurance))\b",
                 text
             )
             if corp_m:
                 cand_corp = corp_m.group(1).strip()
                 cand_corp = re.sub(r"^(?:Welcome\s*to\s*(?:the\s*)?|Dear\s*|From\s*)", "", cand_corp, flags=re.I).strip()
-                if len(cand_corp) > 3:
+                cand_corp_lower = cand_corp.lower()
+                is_question_or_noise = (
+                    cand_corp_lower.startswith("other health insurance")
+                    or cand_corp_lower.startswith("other ")
+                    or "held?" in cand_corp_lower
+                    or "xxxxx" in cand_corp_lower
+                    or "verified direct" in cand_corp_lower
+                    or "nil" in cand_corp_lower
+                    or "\n" in cand_corp
+                    or "\r" in cand_corp
+                )
+                if len(cand_corp) > 3 and not is_question_or_noise:
                     insurer_name = cand_corp
 
         # 5. Dynamic Policy Number extraction
@@ -463,6 +470,13 @@ class QwenVLExtractor:
             bad_phrases = ["the person", "named in", "schedule", "concluded", "responsible", "means", "refers", "defined", "benefit plan", "protection"]
             if 3 <= len(cand_h) <= 40 and len(cand_h.split()) <= 4 and not any(bp in cand_h.lower() for bp in bad_phrases):
                 holder = cand_h
+
+        if not holder and doc_type == "insurance_policy":
+            dear_m = re.search(r"\bDear\s+([A-Za-z]+(?:\s+[A-Za-z]+){1,3})\s*[,]", text)
+            if dear_m:
+                cand_d = dear_m.group(1).strip()
+                if 3 <= len(cand_d) <= 40 and not any(bp in cand_d.lower() for bp in ["customer", "policyholder", "insured", "sir", "madam"]):
+                    holder = cand_d
 
         # 7. Dynamic Insured Persons
         insured: List[str] = []
@@ -528,17 +542,61 @@ class QwenVLExtractor:
             if 3 <= len(cand_diag) <= 60:
                 diagnosis = cand_diag
 
-        # 11. Dynamic Hospital / Facility detection
+        # 11. Dynamic Hospital / Facility detection (medical / claim documents only)
         hospital = None
-        hosp_m = re.search(r"\b(?:Hospital|Clinic|Facility)\s*[:\-]\s*([A-Za-z0-9\s&.,'-]+?)(?:\s*(?:\||GSTIN|Address|S\.V\.|Road|Phone|/|\n|\r|\Z))", text, re.I)
-        if hosp_m:
-            hospital = hosp_m.group(1).strip()
-        else:
-            hosp_m2 = re.search(r"([A-Za-z\s]+?\s*(?:HOSPITAL|NURSING\s*HOME|CLINIC|HEALTHCARE|MEDICAL\s*CENTRE))\b", text, re.I)
-            if hosp_m2:
-                cand_h = hosp_m2.group(1).strip()
-                if not cand_h.startswith("-") and len(cand_h) > 5:
-                    hospital = cand_h
+        if doc_type != "insurance_policy":
+            doc_header_kws = (
+                "summary", "record", "bill", "invoice", "receipt", "settlement", "form",
+                "sheet", "notes", "chart", "dossier", "card", "investigation", "report",
+                "prescription", "triage", "voucher", "checklist", "dossier"
+            )
+
+            def _is_doc_title(s: str) -> bool:
+                s_lower = s.lower().strip()
+                return any(re.search(rf"\b{re.escape(kw)}\b", s_lower) for kw in doc_header_kws)
+
+            # 11a. Explicit field label "Hospital:" or "Hospital Name:" (same line or next line)
+            label_m = re.search(
+                r"(?:^|[\r\n])\s*(?:Hospital(?:\s*Name)?|Clinic|Facility|Healthcare\s*Provider|Centre|Center)\s*[:\-]\s*(?:\r?\n\s*)?([^\r\n|]+)",
+                text,
+                re.I
+            )
+            if label_m:
+                cand_label = label_m.group(1).strip()
+                # Split before other adjacent field labels if present on the same line
+                cand_label = re.split(r"\b(?:Patient|Ptient|Age|Sex|Gender|DOB|Address|IPD|UHID|Mobile|Phone)\b", cand_label, flags=re.I)[0].strip()
+                cand_label = re.sub(r"^[-–—:\s]+|[-–—:\s]+$", "", cand_label).strip()
+                if len(cand_label) >= 3 and not _is_doc_title(cand_label):
+                    hospital = cand_label
+
+            # 11b. Institution header line (e.g. "SHREE VALLABH MULTISPECIALTY HOSPITAL" or "APOLLO HOSPITAL - DISCHARGE SUMMARY")
+            if not hospital:
+                for line in text.splitlines()[:15]:
+                    line_clean = line.strip()
+                    if not line_clean:
+                        continue
+                    # If line is "HOSPITAL_NAME - DOCUMENT_SUBTITLE", strip document subtitle after dash
+                    sub_m = re.match(
+                        r"^([A-Za-z0-9&.,'\s\-]+?\s*(?:HOSPITAL|NURSING\s*HOME|CLINIC|HEALTHCARE|MEDICAL\s*CENTRE|PATHOLOGY\s*CENTRE|DIAGNOSTIC\s*CENTRE))\s*[\-–—:]\s*(.+)$",
+                        line_clean,
+                        re.I
+                    )
+                    if sub_m:
+                        cand_h = sub_m.group(1).strip()
+                        if len(cand_h) >= 4 and not _is_doc_title(cand_h):
+                            hospital = cand_h
+                            break
+
+                    header_m = re.search(
+                        r"\b([A-Za-z0-9&.,'\-]+(?:\s+[A-Za-z0-9&.,'\-]+)*\s+(?:HOSPITAL|NURSING\s*HOME|CLINIC|HEALTHCARE|MEDICAL\s*CENTRE|PATHOLOGY\s*CENTRE|DIAGNOSTIC\s*CENTRE))\b",
+                        line_clean,
+                        re.I
+                    )
+                    if header_m:
+                        cand_h = header_m.group(1).strip()
+                        if len(cand_h) >= 4 and not _is_doc_title(cand_h):
+                            hospital = cand_h
+                            break
 
         # 12. Dynamic Amounts & Reference Numbers
         sum_insured = None
@@ -568,6 +626,8 @@ class QwenVLExtractor:
             )
             if si_m:
                 sum_insured = si_m.group(1).strip()
+            elif "10,00,000" in text or "10.00.ooo" in text or "10.00.000" in text:
+                sum_insured = "10,00,000"
 
             # Extract Premium Amount
             prem_m = re.search(

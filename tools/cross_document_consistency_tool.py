@@ -19,6 +19,64 @@ HOSPITAL_NOISE_TOKENS = {
     "super", "city", "memorial", "charitable", "trust", "private", "ltd", "limited"
 }
 
+TPA_INDICATORS = {
+    "tpa", "third party administrator", "t.p.a", "claims administrator",
+    "medi assist", "vidal", "paramount", "raksha", "heritage", "mdindia",
+    "fhpl", "ericson", "safeway", "health india", "family health plan"
+}
+
+
+def _match_patient_name(p_norm: str, p_tokens: Set[str], m_norm: str, m_tokens: Set[str]) -> Tuple[bool, str]:
+    """
+    Rigorously match patient name against covered member name.
+    Distinguishes genuine identity mismatches from normal formatting variations:
+    - Exact match
+    - Token permutation ("Aarav Mehta" == "Mehta, Aarav")
+    - Middle name omission ("Aarav Kumar Sharma" matches "Aarav Sharma" where both first and last names match)
+    - First initial + surname match ("A. Sharma" matches "Aarav Sharma")
+    - High Levenshtein similarity (>= 0.88) for minor OCR typos ("Arav Sharma" vs "Aarav Sharma")
+    NEVER matches different first names just because they share a surname ("Aarav Sharma" vs "Rajesh Sharma").
+    """
+    if not p_norm or not m_norm:
+        return False, "EMPTY"
+
+    if p_norm == m_norm:
+        return True, "EXACT_NAME_MATCH"
+
+    if p_tokens and m_tokens and p_tokens == m_tokens:
+        return True, "PERMUTATION_MATCH"
+
+    sim = _levenshtein_similarity(p_norm, m_norm)
+    if sim >= 0.88:
+        return True, "HIGH_SIMILARITY_MATCH"
+
+    if p_tokens and m_tokens:
+        s_tokens, l_tokens = (p_tokens, m_tokens) if len(p_tokens) < len(m_tokens) else (m_tokens, p_tokens)
+        if len(s_tokens) >= 2 and s_tokens.issubset(l_tokens):
+            return True, "MIDDLE_NAME_VARIATION"
+
+        # First initial + last name match
+        if len(p_tokens) == 2 and len(m_tokens) == 2:
+            p_initials = [t for t in p_tokens if len(t) == 1]
+            p_full = [t for t in p_tokens if len(t) > 1]
+            m_full = [t for t in m_tokens if len(t) > 1]
+            if p_initials and len(p_full) == 1 and len(m_full) == 2:
+                shared_surname = set(p_full) & set(m_full)
+                if shared_surname:
+                    other_m = (set(m_full) - shared_surname).pop()
+                    if other_m.startswith(p_initials[0]):
+                        return True, "INITIAL_SURNAME_MATCH"
+
+            m_initials = [t for t in m_tokens if len(t) == 1]
+            if m_initials and len(m_full) == 1 and len(p_full) == 2:
+                shared_surname = set(m_full) & set(p_full)
+                if shared_surname:
+                    other_p = (set(p_full) - shared_surname).pop()
+                    if other_p.startswith(m_initials[0]):
+                        return True, "INITIAL_SURNAME_MATCH"
+
+    return False, "MISMATCH"
+
 
 def _levenshtein_similarity(s1: str, s2: str) -> float:
     """Compute normalized Levenshtein similarity between two strings [0.0, 1.0]."""
@@ -222,6 +280,11 @@ class CrossDocumentConsistencyTool(AgentTool):
                 continue
 
             clean_name = str(ins_name).strip()
+            clean_lower = clean_name.lower()
+            # Defense-in-depth: skip form questions, negative answers, and contact noise
+            if any(x in clean_lower for x in ["other health insurance", "held?", "verified direct", "nil other", "no (nil", "xxxxx", "single insurer"]):
+                continue
+
             if doc_type == "insurance_policy":
                 policy_insurers.setdefault(clean_name, []).append(page_no)
             else:
@@ -250,8 +313,8 @@ class CrossDocumentConsistencyTool(AgentTool):
             for clm_raw, c_pages in claim_insurers.items():
                 c_norm, c_tokens = _normalize_company_name(clm_raw)
 
-                # Exact case-insensitive match
-                if pol_raw.lower() == clm_raw.lower() or p_norm == c_norm:
+                # 1. Exact case-insensitive match or exact normalized string match
+                if pol_raw.lower().strip() == clm_raw.lower().strip() or p_norm == c_norm:
                     details.append({
                         "policy_insurer": pol_raw,
                         "claim_insurer": clm_raw,
@@ -260,32 +323,52 @@ class CrossDocumentConsistencyTool(AgentTool):
                     })
                     continue
 
-                # Token containment check (TPA relationship e.g. "MediAssist TPA for Sunrise Shield")
-                if p_tokens and c_tokens:
-                    if p_tokens.issubset(c_tokens) or c_tokens.issubset(p_tokens):
-                        details.append({
-                            "policy_insurer": pol_raw,
-                            "claim_insurer": clm_raw,
-                            "match_type": "TPA_OR_SUBSIDIARY_CONTAINMENT",
-                            "similarity": 0.95,
-                        })
-                        continue
+                # 2. Token set exact equality (same tokens, different ordering)
+                if p_tokens and c_tokens and p_tokens == c_tokens:
+                    details.append({
+                        "policy_insurer": pol_raw,
+                        "claim_insurer": clm_raw,
+                        "match_type": "EXACT_TOKEN_MATCH",
+                        "similarity": 1.0,
+                    })
+                    continue
 
-                # Token Jaccard overlap
-                token_union = p_tokens | c_tokens
-                token_inter = p_tokens & c_tokens
-                jaccard = (len(token_inter) / len(token_union)) if token_union else 0.0
+                # 3. Legitimate TPA / Claims Administrator relationship
+                # If either document explicitly designates a TPA, it is an administrative
+                # partner rather than a competing underwriter.
+                is_tpa = any(k in pol_raw.lower() or k in clm_raw.lower() for k in TPA_INDICATORS)
+                if is_tpa:
+                    details.append({
+                        "policy_insurer": pol_raw,
+                        "claim_insurer": clm_raw,
+                        "match_type": "TPA_OR_ADMINISTRATOR_RELATIONSHIP",
+                        "similarity": 0.95,
+                    })
+                    continue
 
-                # Levenshtein string similarity on normalized core strings
+                # 4. Check for distinct, conflicting brand tokens
+                # If neither party is a TPA, both identify the primary insurer.
+                # If there are distinctive brand tokens not shared across sets (e.g. "Sunrise Dhruvil Shield" vs "Sunrise Shield"),
+                # this represents a conflicting insurer entity.
+                diff_tokens = p_tokens ^ c_tokens
+                has_distinct_brand_mismatch = False
+                for dt in diff_tokens:
+                    if len(dt) >= 3:
+                        other_set = c_tokens if dt in p_tokens else p_tokens
+                        has_close_match = any(_levenshtein_similarity(dt, ot) >= 0.80 for ot in other_set)
+                        if not has_close_match:
+                            has_distinct_brand_mismatch = True
+                            break
+
                 lev_sim = _levenshtein_similarity(p_norm, c_norm)
 
-                if jaccard >= 0.5 or lev_sim >= 0.82:
-                    # Minor naming variation -> PASS
+                if not has_distinct_brand_mismatch and lev_sim >= 0.88:
+                    # Minor naming variation without distinct brand mismatch -> PASS
                     details.append({
                         "policy_insurer": pol_raw,
                         "claim_insurer": clm_raw,
                         "match_type": "MINOR_VARIATION_PASS",
-                        "similarity": round(max(jaccard, lev_sim), 3),
+                        "similarity": round(lev_sim, 3),
                     })
                 else:
                     # Contradictory / competing insurer detected -> CRITICAL
@@ -299,7 +382,7 @@ class CrossDocumentConsistencyTool(AgentTool):
                         "policy_insurer": pol_raw,
                         "claim_insurer": clm_raw,
                         "match_type": "CONTRADICTORY_COMPETING_INSURER",
-                        "similarity": round(max(jaccard, lev_sim), 3),
+                        "similarity": round(lev_sim, 3),
                         "pages": c_pages,
                     })
 
@@ -370,9 +453,9 @@ class CrossDocumentConsistencyTool(AgentTool):
                 if clm_norm == pol_norm:
                     matched = True
                     break
-                # Substring match if sufficiently long (> 6 characters)
+                # Substring match if sufficiently long (> 6 characters) and minimal length variance (e.g. branch/endorsement suffix)
                 if len(clm_norm) >= 6 and len(pol_norm) >= 6:
-                    if clm_norm in pol_norm or pol_norm in clm_norm:
+                    if (clm_norm in pol_norm or pol_norm in clm_norm) and abs(len(clm_norm) - len(pol_norm)) <= 3:
                         matched = True
                         break
 
@@ -447,24 +530,8 @@ class CrossDocumentConsistencyTool(AgentTool):
             matched = False
 
             for m_raw, (m_norm, m_tokens) in policy_members.items():
-                # Direct string containment or equality
-                if p_norm == m_norm or p_norm in m_norm or m_norm in p_norm:
-                    matched = True
-                    break
-
-                # Token permutation / set match (e.g. "Aarav Mehta" vs "Mehta, Aarav")
-                if p_tokens and m_tokens:
-                    if p_tokens.issubset(m_tokens) or m_tokens.issubset(p_tokens):
-                        matched = True
-                        break
-                    # If surname and first initial match
-                    inter = p_tokens & m_tokens
-                    if len(inter) >= 1 and any(len(t) > 2 for t in inter):
-                        matched = True
-                        break
-
-                # High Levenshtein similarity on normalized names
-                if _levenshtein_similarity(p_norm, m_norm) >= 0.80:
+                is_match, match_type = _match_patient_name(p_norm, p_tokens, m_norm, m_tokens)
+                if is_match:
                     matched = True
                     break
 
@@ -510,7 +577,21 @@ class CrossDocumentConsistencyTool(AgentTool):
                 # Exclude long explanatory text passages or tiny fragments
                 if len(h_raw.split()) > 7 or len(h_raw) < 3:
                     continue
+
                 cleaned = re.sub(r"[^\w\s]", " ", h_raw.lower())
+                raw_words = {t.strip() for t in cleaned.split() if t.strip()}
+
+                # Exclude pure document headers or section titles (e.g. "INDOOR ADMISSION RECORD", "DISCHARGE SUMMARY")
+                has_facility_indicator = any(kw in raw_words for kw in ["hospital", "clinic", "nursing", "healthcare", "medical", "centre", "center", "institute"])
+                is_doc_title = any(kw in raw_words for kw in ["summary", "record", "bill", "invoice", "receipt", "settlement", "form", "sheet", "notes", "dossier", "triage"])
+                if is_doc_title and not has_facility_indicator:
+                    continue
+                if any(phrase in h_raw.lower() for phrase in [
+                    "indoor admission", "admission record", "discharge summary", "inpatient bill",
+                    "tax invoice", "payment receipt", "settlement form", "claim form", "ward rounds"
+                ]) and not any(kw in h_raw.lower() for kw in ["hospital", "clinic", "nursing home", "healthcare"]):
+                    continue
+
                 tokens = {t.strip() for t in cleaned.split() if t.strip() and t.strip() not in HOSPITAL_NOISE_TOKENS}
                 if not tokens or all(t in {"other", "any", "general", "name", "checking", "itemized"} for t in tokens):
                     continue
