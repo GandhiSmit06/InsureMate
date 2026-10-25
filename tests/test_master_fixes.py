@@ -23,6 +23,10 @@ from services.missing_document.detector import MissingDocumentDetector
 
 
 POLICY_PDF = ROOT_DIR / "4225IELVT38453879200000_policy_copy.pdf"
+if not POLICY_PDF.exists():
+    _candidates = list(ROOT_DIR.glob("uploads/**/4225IELVT38453879200000_policy_copy.pdf"))
+    if _candidates:
+        POLICY_PDF = _candidates[0]
 
 
 def test_concurrency_lock_prevents_duplicate_runs():

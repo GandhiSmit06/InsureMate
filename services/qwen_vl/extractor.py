@@ -60,6 +60,8 @@ class PageExtractionResult:
     source_file: Optional[str] = None
     file_path: Optional[str] = None
     raw_response: Optional[str] = None
+    slot: Optional[str] = None
+    field_provenance: Dict[str, Dict[str, Any]] = field(default_factory=dict)
 
     def to_dict(self) -> Dict[str, Any]:
         data = asdict(self)
@@ -313,8 +315,9 @@ class QwenVLExtractor:
             sec_banner_m
             or "certified policy" in text_lower
             or any(h in text_lower for h in ["policy schedule", "schedule of insurance", "certificate of insurance", "policy certificate", "policy wording", "terms and conditions of insurance"])
-            or ("policy number" in text_lower and any(pk in text_lower for pk in ["sum insured", "proposer", "policyholder", "waiting period", "schedule of insurance", "gross premium", "period of insurance"]) and not any(hk in text_lower for hk in ["hospital:", "ipd record", "ipd admission", "tax invoice", "cashier receipt"]))
-            or (any(h in text_lower for h in ["health plan", "sum insured", "proposer details", "coverage details", "elevate"]) and any(c in text_lower for c in ["policy period", "waiting period", "exclusion", "benefit", "premium"]) and not any(hk in text_lower for hk in ["tax invoice", "ipd no", "bill amount", "discharge summary", "chief complaints", "investigation charges"]))
+            or (any(p_term in text_lower for p_term in ["policy number", "policy no", "policy #", "policy:"]) and any(pk in text_lower for pk in ["sum insured", "proposer", "policyholder", "waiting period", "schedule of insurance", "gross premium", "period of insurance", "valid from", "insurer"]) and not any(hk in text_lower for hk in ["hospital:", "ipd record", "ipd admission", "tax invoice", "cashier receipt"]))
+            or (any(h in text_lower for h in ["health plan", "sum insured", "proposer details", "coverage details", "elevate"]) and any(c in text_lower for c in ["policy period", "waiting period", "exclusion", "benefit", "premium", "valid from"]) and not any(hk in text_lower for hk in ["tax invoice", "ipd no", "bill amount", "discharge summary", "chief complaints", "investigation charges"]))
+            or ("policy" in name_lower and not any(hk in text_lower for hk in ["tax invoice", "discharge summary", "chief complaints", "investigation charges", "lab report"]))
         ):
             doc_type = "insurance_policy"
         elif doc_banner_m:
@@ -397,8 +400,10 @@ class QwenVLExtractor:
 
         # 4. Dynamic Insurer detection
         insurer_name = None
+        insurer_evidence = None
+
         hdr_m = re.search(
-            r"(?:Insurer|Insurance\s*Company|Underwritten\s*by|Issued\s*by|TPA|Preferred\s*Provider)\s*[:\-]\s*([A-Za-z0-9 \t&.,'-]+?)(?:\s*(?:\||\n|\r|,|;|\.|\Z))",
+            r"(?:Insurer(?:\s*Name)?|Insurance\s*Company|Underwritten\s*by|Issued\s*by|TPA|Preferred\s*Provider)\s*[:\-]\s*([A-Za-z0-9 \t&.,'-]+?)(?:\s*(?:\||\n|\r|,|;|\.|\Z))",
             text,
             re.I
         )
@@ -407,58 +412,93 @@ class QwenVLExtractor:
             cand_low = candidate.lower()
             if not any(x in cand_low for x in ["held?", "nil", "other health insurance", "xxxxx", "verified direct"]):
                 insurer_name = candidate
+                insurer_evidence = hdr_m.group(0).strip()
 
         if not insurer_name:
+            # Recognized corporate insurer brand entities
+            known_brands = [
+                r"\b(ICICI\s+Lombard(?:\s+General\s+Insurance(?:\s+Co(?:mpany)?\.?)?(?:\s+Ltd\.?)?)?)\b",
+                r"\b(Bajaj\s+Allianz(?:\s+General\s+Insurance(?:\s+Co(?:mpany)?\.?)?(?:\s+Ltd\.?)?)?)\b",
+                r"\b(HDFC\s+ERGO(?:\s+General\s+Insurance(?:\s+Co(?:mpany)?\.?)?(?:\s+Ltd\.?)?)?)\b",
+                r"\b((?:Niva|Max)\s+Bupa(?:\s+Health\s+Insurance(?:\s+Co(?:mpany)?\.?)?(?:\s+Ltd\.?)?)?)\b",
+                r"\b(Tata\s+AIG(?:\s+General\s+Insurance(?:\s+Co(?:mpany)?\.?)?(?:\s+Ltd\.?)?)?)\b",
+                r"\b(Star\s+Health(?:\s+and\s+Allied\s+Insurance(?:\s+Co(?:mpany)?\.?)?(?:\s+Ltd\.?)?)?)\b",
+                r"\b(Care\s+Health\s+Insurance(?:\s+Ltd\.?)?)\b",
+            ]
+            for pat in known_brands:
+                bm = re.search(pat, text, re.I)
+                if bm:
+                    cand = bm.group(1).strip()
+                    cand = re.sub(r"^(?:Welcome\s*to\s*(?:the\s*)?|Dear\s*|From\s*|For\s*|With\s*warm\s*regards\.?\s*(?:For\s*)?)", "", cand, flags=re.I).strip()
+                    cand = re.sub(r"\s+(?:Family|House)\b.*$", "", cand, flags=re.I).strip()
+                    if len(cand) > 3:
+                        insurer_name = cand
+                        insurer_evidence = bm.group(0).strip()
+                        break
+
+        if not insurer_name:
+            # Generic corporate insurance entity with suffix: 1-4 capitalized words before insurance suffix
             corp_m = re.search(
-                r"\b([A-Z][A-Za-z0-9&. \t'-]{1,35}?[ \t]*(?:General\s*Insurance|Life\s*Insurance|Health\s*Insurance|Assurance\s*Co(?:mpany)?|Insurance\s*Co(?:mpany)?|Lombard|Allianz|ERGO|Bupa|Assurance))\b",
+                r"\b((?:The\s+)?[A-Z][A-Za-z0-9&'-]+(?:\s+[A-Z][A-Za-z0-9&'-]+){0,3}\s+(?:General\s*Insurance|Life\s*Insurance|Health\s*Insurance|Assurance\s*Co(?:mpany)?|Insurance\s*Co(?:mpany)?)(?:\s*(?:Co\.?|Ltd\.?|Limited))?)\b",
                 text
             )
             if corp_m:
                 cand_corp = corp_m.group(1).strip()
-                cand_corp = re.sub(r"^(?:Welcome\s*to\s*(?:the\s*)?|Dear\s*|From\s*)", "", cand_corp, flags=re.I).strip()
+                cand_corp = re.sub(r"^(?:Welcome\s*to\s*(?:the\s*)?|Dear\s*|From\s*|For\s*|With\s*warm\s*regards\.?\s*(?:For\s*)?)", "", cand_corp, flags=re.I).strip()
                 cand_corp_lower = cand_corp.lower()
-                is_question_or_noise = (
-                    cand_corp_lower.startswith("other health insurance")
-                    or cand_corp_lower.startswith("other ")
-                    or "held?" in cand_corp_lower
-                    or "xxxxx" in cand_corp_lower
-                    or "verified direct" in cand_corp_lower
-                    or "nil" in cand_corp_lower
-                    or "\n" in cand_corp
-                    or "\r" in cand_corp
-                )
-                if len(cand_corp) > 3 and not is_question_or_noise:
+                bad_headings = [
+                    "key features", "overview", "policy certificate", "policy schedule",
+                    "customer information", "information sheet", "tax benefits", "tax statement",
+                    "waiting period", "table of benefits", "invoice number", "email id",
+                    "proposer", "details", "exclusions", "general exclusions",
+                    "terms and conditions", "sheet", "services", "hsn/sac", "sac code",
+                    "whatsapp", "chat with", "other health insurance", "held?",
+                    "verified direct", "nil", "xxxxx"
+                ]
+                if len(cand_corp) > 3 and not any(bh in cand_corp_lower for bh in bad_headings):
                     insurer_name = cand_corp
+                    insurer_evidence = corp_m.group(0).strip()
 
         # 5. Dynamic Policy Number extraction
         pol_num = None
+        pol_evidence = None
+        is_pol_doc_level = False
+
         pol_m = re.search(r"\bPolicy\s*(?:Number|No\.?|Certificate\s*No\.?|Num)[\s:\-]+([0-9a-zA-Z/._'-]+)", text, re.I)
         if pol_m and any(c.isdigit() for c in pol_m.group(1)):
-            pol_num = pol_m.group(1).strip()
+            pol_num = re.sub(r"[\s.,;:]+$", "", pol_m.group(1).strip())
+            pol_evidence = pol_m.group(0).strip()
         elif "policy certificate" in text_lower or doc_type == "insurance_policy":
             fmt_m = re.search(r"\b([0-9]{4}[a-zA-Z]/[a-zA-Z0-9/._'-]+)\b", text)
             if not fmt_m:
                 fmt_m = re.search(r"\b([A-Z]{2,6}-\d{4}-[A-Z0-9_-]+)\b", text)
             if fmt_m:
-                pol_num = fmt_m.group(1).strip()
+                pol_num = re.sub(r"[\s.,;:]+$", "", fmt_m.group(1).strip())
+                pol_evidence = fmt_m.group(0).strip()
 
-        # Dynamic alphanumeric policy format from filename
+        # Dynamic alphanumeric policy format from filename (document-level provenance)
         if not pol_num and name_lower:
             fn_code_m = re.search(r"(\d{4})([a-zA-Z])?([a-zA-Z]{2,6})(\d{6,12})(\d{2})(\d{3})", filename_hint)
             if fn_code_m:
                 prefix = f"{fn_code_m.group(1)}{fn_code_m.group(2).lower()}" if fn_code_m.group(2) else fn_code_m.group(1)
                 pol_num = f"{prefix}/{fn_code_m.group(3).upper()}/{fn_code_m.group(4)}/{fn_code_m.group(5)}/{fn_code_m.group(6)}"
+                pol_evidence = f"Document filename fallback ({filename_hint})"
+                is_pol_doc_level = True
             else:
                 fn_fmt_m = re.search(r"([A-Z]{2,6}-\d{4}-[A-Z0-9_-]+)", filename_hint, re.I)
                 if fn_fmt_m:
                     pol_num = fn_fmt_m.group(1).strip()
+                    pol_evidence = f"Document filename fallback ({filename_hint})"
+                    is_pol_doc_level = True
 
         # Sanitize OCR artifacts in policy numbers
         if pol_num:
             pol_num = re.sub(r"/[oO]{2}/[oO]{3}$", "/00/000", pol_num)
+            pol_num = re.sub(r"[\s.,;:]+$", "", pol_num)
 
         # 6. Dynamic Policy Holder / Proposer Name
         holder = None
+        holder_evidence = None
         holder_m = re.search(
             r"\b(?:Policy\s*holder(?:\s*Name)?|Proposer(?:\s*Name)?|Account\s*Holder(?:\s*Name)?)\s*[:\-]\s*([A-Za-z\s.'-]+?)(?:\s*(?:\||Age|Sex|DOB|Address|Mobile|Phone|Date|Insured|Sum|UIN|Plan|/|\n|\r|\Z))",
             text,
@@ -470,6 +510,7 @@ class QwenVLExtractor:
             bad_phrases = ["the person", "named in", "schedule", "concluded", "responsible", "means", "refers", "defined", "benefit plan", "protection"]
             if 3 <= len(cand_h) <= 40 and len(cand_h.split()) <= 4 and not any(bp in cand_h.lower() for bp in bad_phrases):
                 holder = cand_h
+                holder_evidence = holder_m.group(0).strip()
 
         if not holder and doc_type == "insurance_policy":
             dear_m = re.search(r"\bDear\s+([A-Za-z]+(?:\s+[A-Za-z]+){1,3})\s*[,]", text)
@@ -477,9 +518,11 @@ class QwenVLExtractor:
                 cand_d = dear_m.group(1).strip()
                 if 3 <= len(cand_d) <= 40 and not any(bp in cand_d.lower() for bp in ["customer", "policyholder", "insured", "sir", "madam"]):
                     holder = cand_d
+                    holder_evidence = dear_m.group(0).strip()
 
         # 7. Dynamic Insured Persons
         insured: List[str] = []
+        insured_evidence = None
         insured_m = re.search(r"\bInsured\s*Persons?(?:\s*Listed|\s*Name)?\s*[:\-]\s*([^\n\r|]+)", text, re.I)
         if insured_m:
             raw_ins = insured_m.group(1).strip()
@@ -488,6 +531,8 @@ class QwenVLExtractor:
                 if 2 <= len(clean_seg) <= 40 and len(clean_seg.split()) <= 4:
                     if clean_seg not in insured:
                         insured.append(clean_seg)
+            if insured:
+                insured_evidence = insured_m.group(0).strip()
 
         # Scan for insured persons in policy tables
         if not insured and doc_type == "insurance_policy":
@@ -495,10 +540,14 @@ class QwenVLExtractor:
                 r"\b([A-Z][a-z]+(?:\s+[A-Z][a-z]+){1,3})\s+(?:January|February|March|April|May|June|July|August|September|October|November|December|\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4}|\d{2}\s+(?:Male|Female)|SELF|SPOUSE)\b",
                 text
             )
+            bad_insured_phrases = ["date of birth", "specific conditions", "nominee details", "proposer details", "insured details", "policy certificate", "relationship with", "claim protector", "loyalty bonus"]
             for tn in tbl_names:
                 clean_tn = tn.strip()
-                if clean_tn and 3 < len(clean_tn) <= 40 and clean_tn not in insured:
+                clean_tn_low = clean_tn.lower()
+                if clean_tn and 3 < len(clean_tn) <= 40 and not any(bp in clean_tn_low for bp in bad_insured_phrases) and clean_tn not in insured:
                     insured.append(clean_tn)
+            if insured:
+                insured_evidence = f"Policy table insured persons: {', '.join(insured[:3])}"
 
         if holder and holder not in insured:
             insured.insert(0, holder)
@@ -600,36 +649,70 @@ class QwenVLExtractor:
 
         # 12. Dynamic Amounts & Reference Numbers
         sum_insured = None
+        sum_insured_evidence = None
         premium_amount = None
+        premium_evidence = None
         bill_amount = None
+        bill_amount_evidence = None
         paid_amount = None
+        paid_amount_evidence = None
         bill_num = None
+        bill_evidence = None
         receipt_num = None
+        receipt_evidence = None
 
         # Clean Bill / Invoice / Receipt numbers
         rec_m = re.search(r"\bReceipt\s*(?:Number|No\.?)\s*[:\-]\s*([A-Za-z0-9\-_/]+)", text, re.I)
         if rec_m:
             receipt_num = rec_m.group(1).strip()
+            receipt_evidence = rec_m.group(0).strip()
 
         b_num_m = re.search(r"\b(?:Bill\s*(?:Number|No\.?)|Invoice\s*(?:Number|No\.?))\s*[:\-]\s*([A-Za-z0-9\-_/]+)", text, re.I)
         if b_num_m:
             bill_num = b_num_m.group(1).strip()
+            bill_evidence = b_num_m.group(0).strip()
         elif receipt_num:
             bill_num = receipt_num
+            bill_evidence = receipt_evidence
 
         if doc_type == "insurance_policy":
             # Extract Sum Insured / Coverage Amount
+            sum_insured_evidence = None
+
+            # Filter out descriptive prose phrases where "sum insured" is followed by a period or prose
+            # e.g. "up to sum insured. 3 Years 30 Days", "restoration of sum insured up to 100%"
+            cleaned_si_text = re.sub(r"\b(?:up to|subject to|restoration of)\s+sum\s+insured\b[.\s]*", "", text, flags=re.I)
+
+            # Explicit labeled sum insured
             si_m = re.search(
-                r"\b(?:Basic\s*Sum\s*Insured|Sum\s*Insured|Coverage\s*Limit|Total\s*Sum\s*Insured|Annual\s*Sum\s*Insured|Sum\s*Assured|Coverage\s*Amount)[:\s*Rs₹\.]*([0-9,]+(?:\.\d{2})?)",
-                text,
+                r"\b(?:Basic\s*Sum\s*Insured|IL\s*Sum\s*Insured|Sum\s*Insured|Coverage\s*Limit|Total\s*Sum\s*Insured|Annual\s*Sum\s*Insured|Sum\s*Assured|Coverage\s*Amount)\s*(?:\([^)]*\))?\s*[:\-]?\s*(?:Rs\.?|₹|INR)?\s*([0-9,]+(?:\.\d{2})?)",
+                cleaned_si_text,
                 re.I
             )
             if si_m:
-                sum_insured = si_m.group(1).strip()
-            elif "10,00,000" in text or "10.00.ooo" in text or "10.00.000" in text:
-                sum_insured = "10,00,000"
+                raw_si = si_m.group(1).strip()
+                # Check if immediately followed by duration or time unit (e.g. 3 Years, 90 Days)
+                match_end = si_m.end()
+                following = cleaned_si_text[match_end:match_end + 20].lower()
+                is_duration = bool(re.match(r"^\s*(?:years?|months?|days?|weeks?|hrs?|hours?)\b", following))
+                digits = re.sub(r"[^\d]", "", raw_si)
+                # Sum insured must be a realistic monetary coverage amount (at least 1,000)
+                if not is_duration and digits and int(digits) >= 1000:
+                    sum_insured = raw_si
+                    sum_insured_evidence = si_m.group(0).strip()
+
+            # Table format / OCR schedule detection on schedule page
+            if not sum_insured and any(k in text_lower for k in ["insured details", "schedule of insurance", "policy schedule", "sum insured"]):
+                m_lakh = re.search(r"\b(10[.,]00[.,]000|10[.,]00[.,]ooo|\d{1,3}(?:,\d{2,3})+(?:\.\d{2})?)\b", text, re.I)
+                if m_lakh:
+                    cand_val = m_lakh.group(1).replace("ooo", "000").replace(".", ",")
+                    digits = re.sub(r"[^\d]", "", cand_val)
+                    if digits and int(digits) >= 1000:
+                        sum_insured = cand_val
+                        sum_insured_evidence = m_lakh.group(0).strip()
 
             # Extract Premium Amount
+            premium_evidence = None
             prem_m = re.search(
                 r"\b(?:Total\s*Premium\s*Paid|Total\s*Premium|Net\s*(?:Annual\s*)?Premium|Gross\s*Premium)[:\s*Rs₹\.]*([0-9,]+(?:\.\d{2})?)",
                 text,
@@ -637,6 +720,7 @@ class QwenVLExtractor:
             )
             if prem_m:
                 premium_amount = prem_m.group(1).strip()
+                premium_evidence = prem_m.group(0).strip()
 
             # Policies do NOT have bill amounts
             bill_amount = None
@@ -650,6 +734,7 @@ class QwenVLExtractor:
             )
             if b_amt_m:
                 bill_amount = b_amt_m.group(1).strip()
+                bill_amount_evidence = b_amt_m.group(0).strip()
 
             # Extract Paid / Settlement Amount
             paid_m = re.search(
@@ -659,6 +744,7 @@ class QwenVLExtractor:
             )
             if paid_m:
                 paid_amount = paid_m.group(1).strip()
+                paid_amount_evidence = paid_m.group(0).strip()
 
             # On payment receipt documents, correlate bill_amount and paid_amount
             if (receipt_num or "receipt" in title.lower()):
@@ -713,12 +799,12 @@ class QwenVLExtractor:
                     end_date = raw_e
         else:
             incept_m = re.search(
-                r"(?:Inception\s*Date|Policy\s*Start\s*Date|Start\s*Date|Effective\s*Date)[^\n\r]*?((?:January|February|March|April|May|June|July|August|September|October|November|December)\s*\d{1,2}[.,\s]+\d{4}|\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4})",
+                r"(?:Inception\s*Date|Policy\s*Start\s*Date|Start\s*Date|Effective\s*Date|Valid\s*From)[^\n\r]*?((?:January|February|March|April|May|June|July|August|September|October|November|December)\s*\d{1,2}[.,\s]+\d{4}|\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4})",
                 text,
                 re.I
             )
             expiry_m = re.search(
-                r"(?:Expiry\s*Date|Policy\s*End\s*Date|End\s*Date)[^\n\r]*?((?:January|February|March|April|May|June|July|August|September|October|November|December)\s*\d{1,2}[.,\s]+\d{4}|\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4})",
+                r"(?:Expiry\s*Date|Policy\s*End\s*Date|End\s*Date|Valid\s*To|Valid\s*Upto|\bTo\b)[^\n\r]*?((?:January|February|March|April|May|June|July|August|September|October|November|December)\s*\d{1,2}[.,\s]+\d{4}|\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4})",
                 text,
                 re.I
             )
@@ -833,6 +919,52 @@ class QwenVLExtractor:
                     if item_m and any(kw in line_clean.lower() for kw in ["summary", "bill", "fir", "report", "ticket", "pass", "receipt", "document", "certificate"]):
                         policy_clauses.append(line_clean)
 
+        # 16. Build grounded field-level provenance tracking
+        field_prov: Dict[str, Dict[str, Any]] = {}
+        patient_evidence = pat_m.group(0).strip() if (doc_type != "insurance_policy" and 'pat_m' in locals() and pat_m) else None
+        doctor_evidence = doc_m.group(0).strip() if ('doc_m' in locals() and doc_m) else None
+        diagnosis_evidence = diag_m.group(0).strip() if ('diag_m' in locals() and diag_m) else None
+        hospital_evidence = str(hospital) if hospital else None
+        bill_evidence = b_num_m.group(0).strip() if ('b_num_m' in locals() and b_num_m) else None
+        receipt_evidence = rec_m.group(0).strip() if ('rec_m' in locals() and rec_m) else None
+        bill_amount_evidence = b_amt_m.group(0).strip() if ('b_amt_m' in locals() and b_amt_m) else (cov_amt_m.group(0).strip() if ('cov_amt_m' in locals() and cov_amt_m) else (fee_m.group(0).strip() if ('fee_m' in locals() and fee_m) else None))
+        paid_amount_evidence = paid_m.group(0).strip() if ('paid_m' in locals() and paid_m) else None
+        start_date_evidence = period_m.group(0).strip() if ('period_m' in locals() and period_m) else (incept_m.group(0).strip() if ('incept_m' in locals() and incept_m) else None)
+        end_date_evidence = period_m.group(0).strip() if ('period_m' in locals() and period_m) else (expiry_m.group(0).strip() if ('expiry_m' in locals() and expiry_m) else None)
+        doc_date_evidence = dm.group(0).strip() if ('dm' in locals() and dm) else None
+
+        candidate_fields = {
+            "policy_number": (pol_num, pol_evidence, is_pol_doc_level),
+            "policy_holder_name": (holder, holder_evidence, False),
+            "insured_names": (insured if insured else None, insured_evidence, False),
+            "patient_name": (patient, patient_evidence, False),
+            "hospital_name": (hospital, hospital_evidence, False),
+            "doctor_name": (doctor_name, doctor_evidence, False),
+            "diagnosis": (diagnosis, diagnosis_evidence, False),
+            "bill_number": (bill_num, bill_evidence, False),
+            "invoice_number": (bill_num, bill_evidence, False),
+            "receipt_number": (receipt_num, receipt_evidence, False),
+            "bill_amount": (bill_amount, bill_amount_evidence, False),
+            "paid_amount": (paid_amount, paid_amount_evidence, False),
+            "sum_insured": (sum_insured, sum_insured_evidence, False),
+            "premium_amount": (premium_amount, premium_evidence, False),
+            "insurer_name": (insurer_name, insurer_evidence, False),
+            "policy_start_date": (start_date, start_date_evidence, False),
+            "policy_end_date": (end_date, end_date_evidence, False),
+            "document_date": (doc_date, doc_date_evidence, False),
+        }
+        for f_name, (f_val, f_ev, f_is_doc) in candidate_fields.items():
+            if f_val is not None and str(f_val).strip() != "":
+                field_prov[f_name] = {
+                    "source_file": filename_hint or "document",
+                    "page_number": page.page_number,
+                    "field_name": f_name,
+                    "extracted_value": f_val,
+                    "evidence": str(f_ev or f_val),
+                    "confidence": 0.95,
+                    "is_document_level": bool(f_is_doc)
+                }
+
         return PageExtractionResult(
             page_number=page.page_number,
             document_type=doc_type,
@@ -858,7 +990,8 @@ class QwenVLExtractor:
             relevant_conditions=relevant_conditions,
             policy_clauses=policy_clauses,
             policy_relevant_text=policy_relevant_text,
-            extracted_text_summary=text[:200]
+            extracted_text_summary=text[:200],
+            field_provenance=field_prov
         )
 
     # Backward-compatible alias

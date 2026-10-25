@@ -15,10 +15,12 @@
     analysis: null,
     history: null,
     historyQuery: "",
+    historyLimit: 12,
     loading: false,
     error: null,
     processingError: null,
     assistantMessages: [],
+    assistantLoading: false,
     review: {},
     selectedEvidence: null,
     pollTimer: null
@@ -67,6 +69,9 @@
     document.querySelectorAll(".nav-item").forEach(item => item.classList.toggle("active", item.dataset.view === state.view));
     const views = { new: renderNew, processing: renderProcessing, report: renderReport, history: renderHistory, assistant: renderAssistant };
     app.innerHTML = (views[state.view] || renderNew)();
+    if (state.view === "assistant") {
+      scrollChatToBottom();
+    }
   }
 
   function renderNew() {
@@ -224,9 +229,11 @@
     return Object.entries(grouped).map(([source, items]) => `<div class="card table-card field-group"><div class="card-heading"><div><p class="eyebrow">${escapeHtml(source)}</p><h2>Extracted fields</h2></div></div>${items.map(field => {
       const name = value(field, ["name", "label", "field"]) || "";
       const fieldValue = value(field, ["value", "text", "content"]);
-      const confidence = value(field, ["confidence", "confidence_score"]);
-      const flag = value(field, ["flag", "status", "review_status"]);
-      return `<div class="field-row"><span>${escapeHtml(name)}</span><strong>${fieldValue === undefined ? "Not returned" : escapeHtml(fieldValue)}</strong></div>`;
+      const isDocLevel = Boolean(value(field, ["is_document_level"]));
+      const evidence = value(field, ["evidence"]);
+      const docBadge = isDocLevel ? ` <span class="doc-level-badge" style="display:inline-block; font-size:10px; text-transform:uppercase; letter-spacing:0.05em; padding:2px 6px; border-radius:4px; background:var(--accent-soft); color:var(--accent); vertical-align:middle; margin-left:6px;">Document-wide</span>` : "";
+      const tooltipAttr = evidence ? ` title="Evidence: ${escapeHtml(evidence)}"` : "";
+      return `<div class="field-row"${tooltipAttr}><span>${escapeHtml(name)}${docBadge}</span><strong>${fieldValue === undefined ? "Not returned" : escapeHtml(fieldValue)}</strong></div>`;
     }).join("")}</div>`).join("");
   }
 
@@ -435,7 +442,11 @@
       return new Date(rightDate) - new Date(leftDate);
     });
     const filtered = sorted.filter(item => JSON.stringify(item).toLowerCase().includes(state.historyQuery.toLowerCase()));
-    return `<section class="history-layout page-enter"><div class="section-intro compact"><p class="eyebrow">History</p><h1>Your analyses.</h1><p>Reopen an analysis stored in the workspace.</p></div>${state.error ? errorCard(state.error, "retry-history") : ""}<div class="history-tools"><input id="history-search" value="${escapeHtml(state.historyQuery)}" placeholder="Search history" aria-label="Search history"><button class="button primary" data-view="new">New analysis</button></div><div class="history-list-container">${!filtered.length ? `<div class="empty-line">No analyses found. <button class="text-button" data-view="new">Start a new analysis</button></div>` : `<div class="history-list">${filtered.map(item => historyRow(item)).join("")}</div>`}</div></section>`;
+    const limit = state.historyLimit || 12;
+    const visible = filtered.slice(0, limit);
+    const hasMore = filtered.length > visible.length;
+
+    return `<section class="history-layout page-enter"><div class="section-intro compact"><p class="eyebrow">History</p><h1>Your analyses.</h1><p>Reopen an analysis stored in the workspace.</p></div>${state.error ? errorCard(state.error, "retry-history") : ""}<div class="history-tools"><input id="history-search" value="${escapeHtml(state.historyQuery)}" placeholder="Search history" aria-label="Search history"><button class="button primary" data-view="new">New analysis</button></div><div class="history-list-container">${!filtered.length ? `<div class="empty-line">No analyses found. <button class="text-button" data-view="new">Start a new analysis</button></div>` : `<div class="history-list">${visible.map(item => historyRow(item)).join("")}</div>${hasMore ? `<div class="history-load-more"><button class="button secondary" id="load-more-history" type="button">Load more (${filtered.length - visible.length} remaining)</button></div>` : ""}`}</div></section>`;
   }
 
   function updateHistoryList() {
@@ -449,9 +460,13 @@
       return new Date(rightDate) - new Date(leftDate);
     });
     const filtered = sorted.filter(item => JSON.stringify(item).toLowerCase().includes(state.historyQuery.toLowerCase()));
+    const limit = state.historyLimit || 12;
+    const visible = filtered.slice(0, limit);
+    const hasMore = filtered.length > visible.length;
+
     container.innerHTML = !filtered.length
       ? `<div class="empty-line">No analyses found. <button class="text-button" data-view="new">Start a new analysis</button></div>`
-      : `<div class="history-list">${filtered.map(item => historyRow(item)).join("")}</div>`;
+      : `<div class="history-list">${visible.map(item => historyRow(item)).join("")}</div>${hasMore ? `<div class="history-load-more"><button class="button secondary" id="load-more-history" type="button">Load more (${filtered.length - visible.length} remaining)</button></div>` : ""}`;
   }
   function historyRow(item) {
     const id = value(item, ["analysis_id", "id"]);
@@ -482,9 +497,66 @@
     }).join("");
   }
 
+  function scrollChatToBottom() {
+    requestAnimationFrame(() => {
+      const container = document.querySelector(".chat-messages");
+      if (container) {
+        container.scrollTop = container.scrollHeight;
+      }
+      const lastMsg = container?.lastElementChild;
+      if (lastMsg) {
+        lastMsg.scrollIntoView({ behavior: "smooth", block: "nearest" });
+      }
+    });
+  }
+
+  function renderChatMessagesHtml() {
+    if (!state.assistantMessages.length && !state.assistantLoading) {
+      return `<div class="chat-empty"><p>No conversation has been saved for this analysis.</p></div>`;
+    }
+    let html = state.assistantMessages.map(message => `
+      <div class="message ${message.role}">
+        <span class="message-label">${message.role === "user" ? "You" : "InsureMate"}</span>
+        <div class="message-body">${formatChatMessage(message.text || "")}</div>
+      </div>
+    `).join("");
+    if (state.assistantLoading) {
+      html += `
+        <div class="message assistant loading-message">
+          <span class="message-label">InsureMate</span>
+          <div class="message-body"><span class="typing-dots"><span></span><span></span><span></span></span></div>
+        </div>
+      `;
+    }
+    return html;
+  }
+
   function renderAssistant() {
     if (!state.analysis) return emptyState("Open an analysis before using the assistant.", "Open History", "history");
-    return `<section class="assistant-layout page-enter"><div class="section-intro"><p class="eyebrow">AI document assistant</p><h1>Ask about your<br><em>documents.</em></h1><p>Answers are returned by the analysis service and grounded in the current analysis.</p></div><div class="chat-card"><div class="chat-messages">${state.assistantMessages.length ? state.assistantMessages.map(message => `<div class="message ${message.role}"><span class="message-label">${message.role === "user" ? "You" : "InsureMate"}</span><div class="message-body">${formatChatMessage(message.text || "")}</div></div>`).join("") : `<div class="chat-empty"><p>No conversation has been saved for this analysis.</p></div>`}</div><form id="chat-form" class="chat-input"><input id="chat-question" placeholder="Ask about your documents…" aria-label="Ask the assistant" required><button class="button primary" type="submit">Ask →</button></form></div></section>`;
+    return `<section class="assistant-layout page-enter"><div class="section-intro"><p class="eyebrow">AI document assistant</p><h1>Ask about your<br><em>documents.</em></h1><p>Answers are returned by the analysis service and grounded in the current analysis.</p></div><div class="chat-card"><div class="chat-messages">${renderChatMessagesHtml()}</div><form id="chat-form" class="chat-input"><input id="chat-question" placeholder="Ask about your documents…" aria-label="Ask the assistant" required ${state.assistantLoading ? "disabled" : ""}><button class="button primary" type="submit" ${state.assistantLoading ? "disabled" : ""}>${state.assistantLoading ? "Thinking…" : "Ask →"}</button></form></div></section>`;
+  }
+
+  function updateAssistantChat() {
+    const container = document.querySelector(".chat-messages");
+    const input = document.getElementById("chat-question");
+    const submitBtn = document.querySelector("#chat-form button[type='submit']");
+    if (container) {
+      container.innerHTML = renderChatMessagesHtml();
+      if (input) {
+        input.disabled = !!state.assistantLoading;
+        if (!state.assistantLoading) {
+          input.value = "";
+          input.focus();
+        }
+      }
+      if (submitBtn) {
+        submitBtn.disabled = !!state.assistantLoading;
+        submitBtn.textContent = state.assistantLoading ? "Thinking…" : "Ask →";
+      }
+      scrollChatToBottom();
+      return;
+    }
+    render();
   }
 
 
@@ -666,6 +738,7 @@
   }
 
   async function loadHistory() {
+    state.historyLimit = 12;
     state.history = null; state.error = null; render();
     try { state.history = await api.listHistory(); render(); } catch (error) { state.error = error.message; state.history = []; render(); }
   }
@@ -695,11 +768,28 @@
   }
 
   async function askAssistant() {
-    const input = document.getElementById("chat-question"); const question = input ? input.value.trim() : ""; const id = value(state.analysis, ["analysis_id", "id"]);
-    if (!question || !id) return;
-    state.assistantMessages.push({ role: "user", text: question }); render();
-    try { const answer = await api.askAssistant(id, question); state.assistantMessages.push({ role: "assistant", text: value(answer, ["answer", "text", "message"]) || "" }); render(); }
-    catch (error) { notify(error.message); }
+    const input = document.getElementById("chat-question");
+    const question = input ? input.value.trim() : "";
+    const id = value(state.analysis, ["analysis_id", "id"]);
+    if (!question || !id || state.assistantLoading) return;
+
+    state.assistantMessages.push({ role: "user", text: question });
+    state.assistantLoading = true;
+    updateAssistantChat();
+
+    try {
+      const answer = await api.askAssistant(id, question);
+      state.assistantLoading = false;
+      state.assistantMessages.push({
+        role: "assistant",
+        text: value(answer, ["answer", "text", "message"]) || ""
+      });
+      updateAssistantChat();
+    } catch (error) {
+      state.assistantLoading = false;
+      updateAssistantChat();
+      notify(error.message);
+    }
   }
 
   async function saveReview(key, status) {
@@ -857,6 +947,13 @@
         return;
       }
 
+      // Load more history
+      if (event.target.closest("#load-more-history")) {
+        state.historyLimit = (state.historyLimit || 12) + 10;
+        updateHistoryList();
+        return;
+      }
+
 
     });
 
@@ -874,6 +971,7 @@
     app.addEventListener("input", event => {
       if (event.target.id === "history-search") {
         state.historyQuery = event.target.value;
+        state.historyLimit = 12;
         updateHistoryList();
       }
     });
@@ -922,7 +1020,7 @@
     });
   }
 
-  // Theme toggle
+  // Theme toggle with localStorage persistence (defaults to dark)
   const updateThemeButton = () => {
     const btn = document.getElementById("theme-toggle");
     if (!btn) return;
@@ -932,7 +1030,9 @@
     btn.setAttribute("title", isDark ? "Switch to light theme" : "Switch to dark theme");
   };
   document.getElementById("theme-toggle").addEventListener("click", () => {
-    document.documentElement.dataset.theme = document.documentElement.dataset.theme === "dark" ? "light" : "dark";
+    const nextTheme = document.documentElement.dataset.theme === "dark" ? "light" : "dark";
+    document.documentElement.dataset.theme = nextTheme;
+    try { localStorage.setItem("insuremate_theme", nextTheme); } catch (_) {}
     updateThemeButton();
   });
   updateThemeButton();

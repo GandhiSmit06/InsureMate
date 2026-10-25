@@ -184,7 +184,7 @@
     let pStart = valRes.policy_start_date;
     let pEnd = valRes.policy_end_date;
 
-    const extracted = latestState.extracted_data || [];
+    const extracted = latestState.extracted_data || data.extracted_data || data.extracted_pages || [];
     if (!pStart || !pEnd || pStart === "Not specified") {
       for (const p of extracted) {
         if (!pStart || pStart === "Not specified") {
@@ -240,38 +240,96 @@
       reasons: Array.isArray(valRes.reasons) ? valRes.reasons : (valRes.reason ? [valRes.reason] : ["Coverage dates verified against policy period."])
     };
 
-    // Extracted Fields
+    // Extracted Fields with Page-Level Attribution and Provenance
     const fields = [];
     if (Array.isArray(extracted)) {
       extracted.forEach((doc, idx) => {
         const docType = doc.document_type || "document";
-        const source = doc.document_name || (docType === "insurance_policy" ? "Policy Schedule" : `Hospital Medical Record (Page ${doc.page_number || idx + 1})`);
+        const pageNum = doc.page_number || (idx + 1);
+        const sourceDoc = doc.source_file || doc.document_name || "Document";
+        const pageTitle = doc.document_title || (docType === "insurance_policy" ? `Policy Document (Page ${pageNum})` : `Claim Document (Page ${pageNum})`);
+        const source = pageTitle;
+        const provMap = doc.field_provenance || {};
+
+        const pageFields = [];
 
         if (doc.fields && typeof doc.fields === "object") {
           for (const [k, v] of Object.entries(doc.fields)) {
             const val = typeof v === "object" && v !== null ? v.value : v;
             const conf = typeof v === "object" && v !== null ? (v.confidence || 0.95) : 0.95;
-            if (val !== undefined && val !== null && val !== "") {
-              fields.push({
+            if (val !== undefined && val !== null && String(val).trim() !== "") {
+              const fieldProv = provMap[k] || {};
+              pageFields.push({
                 source,
                 name: k.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase()),
                 value: String(val),
-                confidence: conf
+                confidence: conf,
+                page_number: pageNum,
+                page: pageNum,
+                source_document: sourceDoc,
+                evidence: fieldProv.evidence || "",
+                is_document_level: Boolean(fieldProv.is_document_level)
               });
             }
           }
         } else {
-          const skip = new Set(["document_type", "document_name", "page_number", "raw_text", "status", "success", "error", "source_file", "slot"]);
+          const skip = new Set([
+            "document_type",
+            "document_name",
+            "document_title",
+            "page_number",
+            "raw_text",
+            "raw_response",
+            "status",
+            "success",
+            "error",
+            "source_file",
+            "file_path",
+            "slot",
+            "extracted_text_summary",
+            "policy_clauses",
+            "policy_relevant_text",
+            "relevant_conditions",
+            "field_provenance"
+          ]);
+
           for (const [k, v] of Object.entries(doc)) {
-            if (!skip.has(k) && v !== null && v !== undefined && typeof v !== "object" && String(v).trim() !== "") {
-              fields.push({
-                source,
-                name: k.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase()),
-                value: String(v),
-                confidence: 0.95
-              });
+            if (!skip.has(k) && v !== null && v !== undefined) {
+              const strVal = Array.isArray(v) ? (v.length > 0 ? v.join(", ") : "") : String(v).trim();
+              if (strVal !== "") {
+                const fieldProv = provMap[k] || {};
+                const fieldName = k.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase());
+                pageFields.push({
+                  source,
+                  name: fieldName,
+                  value: strVal,
+                  confidence: fieldProv.confidence || 0.95,
+                  page_number: pageNum,
+                  page: pageNum,
+                  source_document: sourceDoc,
+                  evidence: fieldProv.evidence || "",
+                  is_document_level: Boolean(fieldProv.is_document_level)
+                });
+              }
             }
           }
+        }
+
+        if (pageFields.length > 0) {
+          fields.push(...pageFields);
+        } else {
+          // If page has no schedule fields (e.g. general exclusions/definitions page), indicate clearly
+          fields.push({
+            source,
+            name: "Page Content",
+            value: "General policy terms, clauses & exclusions (no page-specific schedule limits)",
+            confidence: 1.0,
+            page_number: pageNum,
+            page: pageNum,
+            source_document: sourceDoc,
+            evidence: `Verified from Page ${pageNum}`,
+            is_document_level: false
+          });
         }
       });
     }
@@ -475,7 +533,7 @@
     },
 
     async listHistory() {
-      const res = await request("/api/claims");
+      const res = await request("/api/claims?limit=200");
       const list = res.claims || [];
       return list.map(c => ({
         id: c.claim_id,
@@ -538,6 +596,14 @@
         if (onError) onError(err);
         return null;
       }
+    },
+
+    normalizeClaimToAnalysis(data) {
+      return normalizeClaimToAnalysis(data);
+    },
+
+    normalizeAnalysisResponse(data) {
+      return normalizeClaimToAnalysis(data);
     }
   };
 

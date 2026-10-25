@@ -253,7 +253,7 @@ class LLMGateway:
             logger.missing_doc("Ollama is offline; deriving policy requirements dynamically from policy text/clauses.")
             return self._extract_policy_requirements_offline(policy_documents, conditions)
 
-        logger.missing_doc(f"Ollama is online ({self.client.model}); extracting policy requirements via LLM reasoning.")
+        logger.missing_doc(f"Ollama is online ({getattr(self.client, 'model', 'gemma3')}); extracting policy requirements via LLM reasoning.")
         messages = build_requirement_extraction_messages(
             policy_documents=policy_documents,
             conditions=conditions
@@ -336,7 +336,7 @@ class LLMGateway:
             logger.missing_doc("Ollama is offline; executing dynamic rule-based document matching.")
             return self._match_submitted_documents_offline(required_documents, submitted_documents, valid_submitted_pages)
 
-        logger.missing_doc(f"Ollama is online ({self.client.model}); semantically matching submitted documents via LLM reasoning.")
+        logger.missing_doc(f"Ollama is online ({getattr(self.client, 'model', 'gemma3')}); semantically matching submitted documents via LLM reasoning.")
         messages = build_matching_messages(
             required_documents=required_documents,
             submitted_documents=submitted_documents,
