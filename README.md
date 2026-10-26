@@ -122,43 +122,29 @@ InsureMate/
 │   ├── policy_clause_search_tool.py           # PolicyClauseSearchTool
 │   └── cross_document_consistency_tool.py     # CrossDocumentConsistencyTool
 │
-├── scripts/                                   # Synthetic PDF Generation & Test Fixtures
-│   ├── generate_sample_pdfs.py                # Generates sample_policy.pdf and sample_claim.pdf
-│   ├── generate_travel_policy_and_claim_b.py  # Generates policy_B.pdf and claim_B.pdf (Travel)
-│   └── generate_comprehensive_test_documents.py# Generates 11-page and 16-page deep test PDFs
-│
 ├── tests/                                     # Comprehensive Test Suite (102 Tests across 20 Suites)
-│   ├── conftest.py                            # Pytest fixtures and mock LLM clients
-│   ├── test_dynamic_agent.py                  # Dynamic agent reasoning & adaptive execution (12 tests)
-│   ├── test_extraction_tool.py                # DocumentExtractionTool schema & wrapper (7 tests)
-│   ├── test_master_fixes.py                   # Master concurrency locks, OCR & real PDFs (3 tests)
-│   ├── test_missing_document_tool.py          # MissingDocumentTool wrapper (3 tests)
-│   ├── test_phase1.py                         # Phase 1: In-memory PDF, page tracking & no hallucination (5 tests)
-│   ├── test_phase2.py                         # Phase 2: Document field validation rules (8 tests)
-│   ├── test_phase3.py                         # Phase 3: Date validity & identity matching (8 tests)
-│   ├── test_phase4.py                         # Phase 4: Dynamic missing document detection (15 tests)
-│   ├── test_phase5.py                         # Phase 5: Autonomous agent planning & loop guardrails (8 tests)
-│   ├── test_phase6_integration.py             # Phase 6: Tool registry & executor integration (4 tests)
-│   ├── test_phase7_api.py                     # Phase 7: FastAPI REST endpoints & TestClient (6 tests)
-│   ├── test_phase7_database.py                # Phase 7: SQLite schema & memory persistence (7 tests)
-│   ├── test_phase7_frontend_integration.py    # Phase 7: Frontend static serving & HTML structure (4 tests)
-│   ├── test_phase7_integration.py             # Phase 7: AgentService lifecycle & session tracking (3 tests)
-│   ├── test_readiness_distinction.py          # Distinction between ready, missing docs & invalid dates (5 tests)
-│   ├── test_tool_executor.py                  # Safe tool execution, timeouts & retries (5 tests)
-│   ├── test_tool_registry.py                  # Tool discovery, catalogs & schema export (4 tests)
-│   ├── test_validation_tool.py                # DocumentValidationTool adapter testing (2 tests)
-│   ├── test_validity_tool.py                  # ValidityCheckerTool adapter testing (3 tests)
-│   └── test_end_to_end.py                     # Multi-phase real PDF pipeline execution (1 test)
-│
-└── [Sample & Benchmark PDF Fixtures]
-    ├── sample_policy.pdf                      # Health floater certificate fixture
-    ├── sample_claim.pdf                       # Hospital indoor admission & inpatient bill fixture
-    ├── policy_A.pdf                           # Health demo policy (Discharge Summary & Bill required)
-    ├── claim_A.pdf                            # Health demo claim documents
-    ├── policy_B.pdf                           # Travel demo policy (Police FIR & Boarding Pass required)
-    ├── claim_B.pdf                            # Travel demo claim documents
-    ├── 4225IELVT38453879200000_policy_copy.pdf# Real scanned commercial policy fixture
-    └── DOCUMENTS FOR Re- activation...pdf      # Real scanned hospital claim file
+    ├── conftest.py                            # Pytest fixtures and mock LLM clients
+    ├── test_dynamic_agent.py                  # Dynamic agent reasoning & adaptive execution (12 tests)
+    ├── test_extraction_tool.py                # DocumentExtractionTool schema & wrapper (7 tests)
+    ├── test_master_fixes.py                   # Master concurrency locks, OCR & real PDFs (3 tests)
+    ├── test_missing_document_tool.py          # MissingDocumentTool wrapper (3 tests)
+    ├── test_phase1.py                         # Phase 1: In-memory PDF, page tracking & no hallucination (5 tests)
+    ├── test_phase2.py                         # Phase 2: Document field validation rules (8 tests)
+    ├── test_phase3.py                         # Phase 3: Date validity & identity matching (8 tests)
+    ├── test_phase4.py                         # Phase 4: Dynamic missing document detection (15 tests)
+    ├── test_phase5.py                         # Phase 5: Autonomous agent planning & loop guardrails (8 tests)
+    ├── test_phase6_integration.py             # Phase 6: Tool registry & executor integration (4 tests)
+    ├── test_phase7_api.py                     # Phase 7: FastAPI REST endpoints & TestClient (6 tests)
+    ├── test_phase7_database.py                # Phase 7: SQLite schema & memory persistence (7 tests)
+    ├── test_phase7_frontend_integration.py    # Phase 7: Frontend static serving & HTML structure (4 tests)
+    ├── test_phase7_integration.py             # Phase 7: AgentService lifecycle & session tracking (3 tests)
+    ├── test_readiness_distinction.py          # Distinction between ready, missing docs & invalid dates (5 tests)
+    ├── test_tool_executor.py                  # Safe tool execution, timeouts & retries (5 tests)
+    ├── test_tool_registry.py                  # Tool discovery, catalogs & schema export (4 tests)
+    ├── test_validation_tool.py                # DocumentValidationTool adapter testing (2 tests)
+    ├── test_validity_tool.py                  # ValidityCheckerTool adapter testing (3 tests)
+    └── test_end_to_end.py                     # Multi-phase real PDF pipeline execution (1 test)
+
 ```
 
 ---
