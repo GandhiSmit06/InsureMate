@@ -207,7 +207,7 @@
       <div class="verdict-metrics">
         ${dateWindowText ? `<div class="metric-chip"><span class="chip-label">Policy coverage</span><strong>${escapeHtml(dateWindowText)}</strong></div>` : ""}
         <div class="metric-chip"><span class="chip-label">Mandatory evidence</span><strong class="${missingCount > 0 ? "metric-amber" : "metric-green"}">${missingCount > 0 ? `${missingCount} Missing` : "Complete (0 Missing)"}</strong></div>
-        <div class="metric-chip"><span class="chip-label">Dates validation</span><strong class="${validity.valid === false ? "metric-red" : "metric-green"}">${validity.valid === false ? "Discrepancy Detected" : "Within Policy Period"}</strong></div>
+        <div class="metric-chip"><span class="chip-label">Dates validation</span><strong class="${validity.valid === false ? "metric-red" : (validity.valid === true ? "metric-green" : "metric-muted")}">${validity.valid === false ? "Discrepancy Detected" : (validity.valid === true ? "Within Policy Period" : "Not Executed")}</strong></div>
         <div class="metric-chip"><span class="chip-label">Verified fields</span><strong>${fieldsCount} Extracted</strong></div>
       </div>
     </article>`;

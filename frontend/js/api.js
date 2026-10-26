@@ -103,6 +103,7 @@
     const isReady = statusUpper === "CLAIM_READY_FOR_SUBMISSION";
     const isMissing = statusUpper.includes("MISSING");
     const isDiscrepancy = statusUpper.includes("INVALID") || statusUpper.includes("DISCREPANCY") || statusUpper.includes("BREACH");
+    const isIncomplete = statusUpper.includes("INSUFFICIENT") || statusUpper.includes("INCOMPLETE");
 
     let verdictSeverity = "success";
     let verdictBadge = "Ready For Submission";
@@ -124,6 +125,10 @@
       verdictSeverity = "danger";
       verdictBadge = "Discrepancy Detected";
       verdictTitle = "Action Required: Discrepancy Detected";
+    } else if (isIncomplete) {
+      verdictSeverity = "warning";
+      verdictBadge = "Information Incomplete";
+      verdictTitle = "Insufficient Information";
     } else {
       verdictSeverity = "success";
       verdictBadge = "Assessment Completed";
@@ -232,12 +237,14 @@
       });
     }
 
+    const hasValidityExecuted = typeof valRes.valid === "boolean";
     const validity = {
-      valid: valRes.valid !== false,
+      valid: hasValidityExecuted ? valRes.valid : null,
+      executed: hasValidityExecuted,
       policy_start_date: pStart || "Not specified",
       policy_end_date: pEnd || "Not specified",
       dates: dates,
-      reasons: Array.isArray(valRes.reasons) ? valRes.reasons : (valRes.reason ? [valRes.reason] : ["Coverage dates verified against policy period."])
+      reasons: Array.isArray(valRes.reasons) ? valRes.reasons : (valRes.reason ? [valRes.reason] : (hasValidityExecuted ? ["Coverage dates verified against policy period."] : ["Coverage dates check not executed."]))
     };
 
     // Extracted Fields with Page-Level Attribution and Provenance
@@ -426,7 +433,9 @@
       validity,
       fields,
       extracted_fields: fields,
-      coverage_summary: report.coverage_evaluation?.summary || report.decision_summary || "Policy coverage terms and clauses verified.",
+      coverage_summary: report.coverage_evaluation?.summary ||
+        (report.decision_summary && !/incomplete|mandatory document validation/i.test(report.decision_summary) ? report.decision_summary : null) ||
+        "Policy coverage terms and clauses verified.",
       exclusions: normalizedExclusions,
       warnings,
       discrepancies: warnings,

@@ -223,6 +223,9 @@ class InsureMateAgent:
 
                     if state.errors and not state.extracted_data:
                         state.final_status = ClaimStatus.INSUFFICIENT_INFORMATION.value
+                    elif not state.extracted_data and not state.documents and not state.errors:
+                        # General workflow without document inputs concluded successfully
+                        state.final_status = ClaimStatus.CLAIM_READY_FOR_SUBMISSION.value
                     elif not state.extracted_data:
                         state.final_status = ClaimStatus.INSUFFICIENT_INFORMATION.value
                     elif validation_valid is False:
@@ -286,6 +289,9 @@ class InsureMateAgent:
                         "validation_status": "PASS" if (state.validation_result and state.validation_result.get("valid")) else ("FAIL" if (state.validation_result and state.validation_result.get("valid") is False) else "NOT_CHECKED"),
                         "action_items": action_items,
                         "human_review_required": not is_ready,
+                        "missing_documents": missing_list,
+                        "validity_check": state.validity_result or {},
+                        "validation_results": state.validation_result or {},
                         "notice": "This analysis is an AI-assisted preparation assessment and does not constitute guaranteed insurer approval."
                     }
                 _emit({
@@ -302,12 +308,22 @@ class InsureMateAgent:
             if decision.action == "abort":
                 state.record_trace(decision=decision.reason, tool=None, tool_result=None)
                 state.final_status = ClaimStatus.INSUFFICIENT_INFORMATION.value
+                decision_summary = (
+                    f"Claim processing stopped: {state.errors[0]}"
+                    if state.errors
+                    else (decision.reason or "Claim processing aborted.")
+                )
+                action_items = (
+                    [f"Upload required source file: {state.errors[0]}"]
+                    if state.errors
+                    else ["Provide legible and complete claim documents."]
+                )
                 state.final_report = {
                     "claim_id": state.claim_id,
                     "status": state.final_status,
                     "is_ready": False,
-                    "decision_summary": decision.reason,
-                    "action_items": ["Provide legible and complete claim documents."],
+                    "decision_summary": decision_summary,
+                    "action_items": action_items,
                     "human_review_required": True,
                 }
                 _emit({
@@ -323,18 +339,7 @@ class InsureMateAgent:
             # Case C: Terminal / Interaction - Request information from user
             if decision.action in ("request_user_info", "ask_user"):
                 state.record_trace(decision=decision.reason, tool=None, tool_result=None)
-                has_actual_missing = bool(
-                    state.missing_documents
-                    and (
-                        state.missing_documents.get("summary", {}).get("missing", 0) > 0
-                        or state.missing_documents.get("summary", {}).get("total_missing", 0) > 0
-                        or any(d.get("missing") for d in state.missing_documents.get("document_results", []))
-                    )
-                )
-                if has_actual_missing:
-                    state.final_status = ClaimStatus.ACTION_REQUIRED_MISSING_EVIDENCE.value
-                else:
-                    state.final_status = ClaimStatus.INSUFFICIENT_INFORMATION.value
+                state.final_status = ClaimStatus.ACTION_REQUIRED_MISSING_EVIDENCE.value
                 question = decision.reason or "Additional user information or document evidence is required."
                 state.record_unresolved_question(question)
                 state.final_report = {

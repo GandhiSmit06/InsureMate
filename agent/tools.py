@@ -123,6 +123,11 @@ class DocumentExtractionAdapter(BaseAgentTool):
 
         for doc_path in state.documents:
             path_obj = Path(doc_path)
+            if not path_obj.exists():
+                err_msg = f"Required source document not found: {path_obj.name}"
+                logger.error(err_msg)
+                errors.append(err_msg)
+                continue
             res = self.underlying_tool.run(path_obj, max_pages=max_pages)
             if res.get("status") == "success":
                 pages = res.get("extracted_documents", [])
@@ -141,6 +146,9 @@ class DocumentExtractionAdapter(BaseAgentTool):
             else:
                 err = res.get("error") or f"Extraction failed for {path_obj.name}"
                 errors.append(err)
+
+        if errors:
+            state.errors.extend(errors)
 
         if not all_pages and errors:
             combined_err = "; ".join(errors)
@@ -408,6 +416,15 @@ class ClaimPreparationAdapter(BaseAgentTool):
     required_inputs: List[str] = ["validation_result", "validity_result", "missing_documents", "consistency_results"]
 
     def run(self, state: ClaimState, **kwargs: Any) -> ToolExecutionResult:
+        # If extracted data is present, execute any unexecuted validation services without rerunning extraction
+        if state.extracted_data:
+            if state.validation_result is None:
+                DocumentValidationAdapter().run(state)
+            if state.validity_result is None:
+                ValidityCheckerAdapter().run(state)
+            if state.missing_documents is None:
+                MissingDocumentDetectorAdapter().run(state)
+
         is_valid_dates = state.validity_result.get("valid", False) if state.validity_result else None
         validation_valid = state.validation_result.get("valid", False) if state.validation_result else None
 
@@ -441,8 +458,8 @@ class ClaimPreparationAdapter(BaseAgentTool):
 
         if state.errors and not state.extracted_data:
             final_status = ClaimStatus.INSUFFICIENT_INFORMATION.value
-            decision_summary = "Claim processing stopped due to unreadable or missing document files."
-            action_items.append("Please upload legible PDF documents.")
+            decision_summary = f"Claim processing stopped: {state.errors[0]}"
+            action_items.append(f"Upload required source file: {state.errors[0]}")
 
         elif not state.extracted_data:
             final_status = ClaimStatus.INSUFFICIENT_INFORMATION.value

@@ -224,9 +224,9 @@ class AgentService:
 
         # Assemble documents list including all files in claim upload folder
         docs: List[str] = []
-        if claim.get("policy_path") and Path(claim["policy_path"]).exists():
+        if claim.get("policy_path"):
             docs.append(claim["policy_path"])
-        if claim.get("claim_path") and Path(claim["claim_path"]).exists():
+        if claim.get("claim_path"):
             docs.append(claim["claim_path"])
 
         # Gather any additional uploaded claim documents
